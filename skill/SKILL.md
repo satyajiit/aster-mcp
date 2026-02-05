@@ -1,29 +1,28 @@
 ---
 name: aster
-displayName: Aster - Android Control
-slug: aster
 version: 0.1.0
-owner: satyajiit
-summary: Control Android devices via MCP. Take screenshots, tap/swipe, read notifications, launch apps, manage files, and automate UI interactions through accessibility services.
+description: Control your Android device with AI. Take screenshots, automate UI, read notifications, manage files, search media, and more — all through natural language via MCP.
 homepage: https://github.com/satyajiit/aster-mcp
-metadata: {"openclaw":{"requires":{"bins":["node"]}}}
+metadata: {"aster":{"category":"device-control","requires":{"bins":["node"]},"mcp":{"type":"http","url":"http://localhost:5988/mcp"}}}
 ---
 
 # Aster - Android Device Control
 
-Control your Android device from Claude using MCP (Model Context Protocol).
+Control your Android device from your AI assistant using MCP (Model Context Protocol).
+
+---
 
 ## Setup
 
-1. Install and start the Aster server:
+1. **Install and start the server**:
 ```bash
 npm install -g aster-mcp
 aster start
 ```
 
-2. Install the Aster Android app on your device and connect to the server address shown in terminal.
+2. **Install the Aster Android app** on your device from [Releases](https://github.com/satyajiit/aster-mcp/releases) and connect to the server address shown in terminal.
 
-3. Configure MCP in your `.mcp.json`:
+3. **Configure MCP** in your `.mcp.json`:
 ```json
 {
   "mcpServers": {
@@ -34,6 +33,8 @@ aster start
   }
 }
 ```
+
+---
 
 ## Available Tools
 
@@ -77,6 +78,13 @@ aster start
 - `aster_play_audio` - Play audio
 - `aster_post_notification` - Post notification
 - `aster_make_call` - Initiate phone call
+- `aster_show_overlay` - Show web overlay on device
+
+### Media Intelligence
+- `aster_index_media_metadata` - Extract photo/video EXIF metadata
+- `aster_search_media` - Search photos/videos with natural language queries
+
+---
 
 ## Example Usage
 
@@ -84,7 +92,7 @@ aster start
 ```
 1. aster_launch_intent with packageName "com.google.android.youtube"
 2. aster_click_by_id with viewId "com.google.android.youtube:id/search_button"
-3. aster_input_text with text "Claude AI demo"
+3. aster_input_text with text "cooking videos"
 4. aster_global_action with action "BACK" to dismiss keyboard
 ```
 
@@ -100,8 +108,14 @@ aster start
 aster_search_media with query "photos from Mumbai last month"
 ```
 
+---
+
 ## Requirements
 
 - Node.js >= 20
 - Android device with Aster app installed
 - Device and server on same network (or use Tailscale)
+
+---
+
+**GitHub**: [github.com/satyajiit/aster-mcp](https://github.com/satyajiit/aster-mcp)
