@@ -47,7 +47,7 @@ function displayStatus(status: Record<string, any>, pid?: number): void {
     console.log('');
     console.log(chalk.magenta(`  Tailscale:`));
     if (status.tailscale.wsUrl) {
-      console.log(chalk.white(`    WSS:        ${status.tailscale.wsUrl}`));
+      console.log(chalk.white(`    WSS:        ${status.tailscale.wsUrl}`) + chalk.gray('  (Use in Companion App)'));
     }
     if (status.tailscale.dashboardUrl) {
       console.log(chalk.white(`    Dashboard:  ${status.tailscale.dashboardUrl}`));
