@@ -55,31 +55,188 @@
         </a>
       </div>
 
-      <!-- Architecture preview -->
+      <!-- Live conversation preview -->
       <div class="animate-fade-up delay-500 mt-20 max-w-2xl mx-auto">
-        <div class="gradient-border p-6 sm:p-8">
-          <div class="terminal text-left">
-            <div class="comment">// Ask Claude anything about your device</div>
-            <div class="mt-2">
-              <span class="prompt">claude</span>
-              <span class="text-text-secondary"> &gt; </span>
-              <span class="string">"Take a screenshot and tell me what's on screen"</span>
+        <div class="gradient-border p-5 sm:p-7">
+          <!-- Window chrome -->
+          <div class="flex items-center gap-2 mb-5 pb-4 border-b border-border-dim">
+            <div class="flex gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500/60" />
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500/60" />
+              <span class="w-2.5 h-2.5 rounded-full bg-green-500/60" />
             </div>
-            <div class="mt-3 text-text-tertiary text-xs">
-              <span class="text-aster">Aster</span> &rarr; Screenshot captured &rarr; Accessibility tree parsed
-            </div>
-            <div class="mt-1 text-text-secondary text-xs">
-              I can see the home screen with 12 apps. The time shows 3:42 PM, <br class="hidden sm:inline" />
-              battery is at 78%, and you have 3 unread notifications...
-            </div>
+            <span class="ml-2 text-[10px] font-mono text-text-tertiary tracking-wider uppercase">Aster &middot; Live</span>
+            <span class="ml-auto relative flex h-1.5 w-1.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
+            </span>
+          </div>
+
+          <!-- Chat area -->
+          <div class="text-left space-y-4 min-h-[140px]">
+            <!-- User message -->
+            <Transition name="chat" mode="out-in">
+              <div :key="currentIndex" class="space-y-4">
+                <div class="flex items-start gap-3">
+                  <div class="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500/30 to-indigo-500/30 border border-blue-500/20 flex items-center justify-center">
+                    <Icon name="lucide:user" class="text-xs text-blue-400" />
+                  </div>
+                  <div class="pt-1">
+                    <span class="text-[10px] font-mono text-text-tertiary block mb-1">you</span>
+                    <p class="text-sm text-text-primary font-medium leading-relaxed">{{ conversations[currentIndex].prompt }}</p>
+                  </div>
+                </div>
+
+                <!-- Aster action -->
+                <div class="flex items-center gap-2 ml-10 py-1.5 px-3 rounded-lg bg-aster/[0.06] border border-aster/10 w-fit">
+                  <Icon :name="conversations[currentIndex].actionIcon" class="text-xs text-aster" />
+                  <span class="text-[11px] font-mono text-aster/80">{{ conversations[currentIndex].action }}</span>
+                </div>
+
+                <!-- AI response -->
+                <div class="flex items-start gap-3">
+                  <div
+                    class="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br border flex items-center justify-center"
+                    :class="conversations[currentIndex].assistant.avatarClass"
+                  >
+                    <Icon name="lucide:bot" class="text-xs" :class="conversations[currentIndex].assistant.iconColor" />
+                  </div>
+                  <div class="pt-1">
+                    <span class="text-[10px] font-mono block mb-1" :class="conversations[currentIndex].assistant.nameColor">{{ conversations[currentIndex].assistant.name }}</span>
+                    <p class="text-[13px] text-text-secondary leading-relaxed">{{ conversations[currentIndex].response }}</p>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </div>
+
+          <!-- Dots indicator -->
+          <div class="flex items-center justify-center gap-1.5 mt-5 pt-4 border-t border-border-dim">
+            <button
+              v-for="(_, i) in conversations"
+              :key="i"
+              class="w-1.5 h-1.5 rounded-full transition-all duration-300 cursor-pointer"
+              :class="i === currentIndex ? 'bg-aster w-4' : 'bg-text-tertiary/40 hover:bg-text-tertiary'"
+              @click="goTo(i)"
+            />
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Scroll indicator -->
-    <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-      <Icon name="lucide:chevron-down" class="text-text-tertiary text-xl" />
-    </div>
   </section>
 </template>
+
+<script setup lang="ts">
+const assistants = {
+  claude: {
+    name: 'Claude',
+    avatarClass: 'from-amber-500/30 to-orange-500/30 border-amber-500/20',
+    iconColor: 'text-amber-400',
+    nameColor: 'text-amber-400/70',
+  },
+  clawdbot: {
+    name: 'ClawdBot',
+    avatarClass: 'from-violet-500/30 to-purple-500/30 border-violet-500/20',
+    iconColor: 'text-violet-400',
+    nameColor: 'text-violet-400/70',
+  },
+  moltbot: {
+    name: 'MoltBot',
+    avatarClass: 'from-rose-500/30 to-pink-500/30 border-rose-500/20',
+    iconColor: 'text-rose-400',
+    nameColor: 'text-rose-400/70',
+  },
+  openclaw: {
+    name: 'OpenClaw',
+    avatarClass: 'from-sky-500/30 to-blue-500/30 border-sky-500/20',
+    iconColor: 'text-sky-400',
+    nameColor: 'text-sky-400/70',
+  },
+}
+
+const conversations = [
+  {
+    prompt: 'Find duplicate photos on my phone and free up space',
+    action: 'search_media → index_media_metadata → scanning 2,104 photos...',
+    actionIcon: 'lucide:images',
+    response: 'Found 47 duplicate sets taking up 1.2 GB. Want me to keep the best quality version of each and delete the rest?',
+    assistant: assistants.claude,
+  },
+  {
+    prompt: 'Vibrate my phone — it fell behind the couch again',
+    action: 'vibrate → strong 3-pulse pattern',
+    actionIcon: 'lucide:vibrate',
+    response: 'Done! Vibrating with a strong repeating pattern. Let me know when you find it and I\'ll stop.',
+    assistant: assistants.clawdbot,
+  },
+  {
+    prompt: 'Show me all the photos I took in Goa last December',
+    action: 'search_media → filtering by location & date...',
+    actionIcon: 'lucide:map-pin',
+    response: 'Found 83 photos from Goa, Dec 2024 — including 12 beach shots, 6 sunset panoramas, and a few food pics from that cafe by the shore.',
+    assistant: assistants.moltbot,
+  },
+  {
+    prompt: 'Read my notifications — anything urgent?',
+    action: 'read_notifications → parsing 14 notifications...',
+    actionIcon: 'lucide:bell-ring',
+    response: '2 urgent Slack messages from your team, 1 missed call from Mom, and a delivery arriving between 2–4 PM. The rest are promotions.',
+    assistant: assistants.openclaw,
+  },
+  {
+    prompt: 'My phone storage is full. What\'s eating up all the space?',
+    action: 'analyze_storage → find_large_files → scanning...',
+    actionIcon: 'lucide:hard-drive',
+    response: 'WhatsApp media: 8.2 GB, cached app data: 3.1 GB, old APKs: 1.4 GB. I can clean up 4.5 GB of safe-to-delete files right now.',
+    assistant: assistants.claude,
+  },
+  {
+    prompt: 'Open Maps and find the nearest coffee shop',
+    action: 'launch_intent → input_text → navigating...',
+    actionIcon: 'lucide:coffee',
+    response: 'Google Maps is open with 3 results nearby. "Blue Tokai" is 400m away with 4.6 stars — want me to start navigation?',
+    assistant: assistants.clawdbot,
+  },
+]
+
+const currentIndex = ref(0)
+let interval: ReturnType<typeof setInterval> | null = null
+
+function goTo(i: number) {
+  currentIndex.value = i
+  resetInterval()
+}
+
+function resetInterval() {
+  if (interval) clearInterval(interval)
+  interval = setInterval(() => {
+    currentIndex.value = (currentIndex.value + 1) % conversations.length
+  }, 5000)
+}
+
+onMounted(() => {
+  resetInterval()
+})
+
+onUnmounted(() => {
+  if (interval) clearInterval(interval)
+})
+</script>
+
+<style scoped>
+.chat-enter-active {
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.chat-leave-active {
+  transition: all 0.25s cubic-bezier(0.55, 0, 1, 0.45);
+}
+.chat-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+.chat-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+</style>

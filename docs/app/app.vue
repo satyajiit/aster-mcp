@@ -3,6 +3,7 @@
     <NavBar />
     <HeroSection />
     <FeaturesGrid />
+    <UseCasesSection />
     <SecuritySection />
     <HowItWorks />
     <SetupSteps />
