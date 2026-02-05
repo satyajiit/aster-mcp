@@ -9,8 +9,6 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['@nuxt/fonts', '@nuxt/icon'],
 
-  ssr: false,
-
   css: ['~/assets/css/main.css'],
 
   vite: {
