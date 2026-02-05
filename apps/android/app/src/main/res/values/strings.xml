@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Aster</string>
+    <string name="accessibility_service_description">Aster uses accessibility to capture screen content, perform gestures, and control the device for remote management.</string>
+
+    <!-- Connection -->
+    <string name="connect_title">Connect to Server</string>
+    <string name="server_host">Server Host</string>
+    <string name="server_port">Port</string>
+    <string name="connect">Connect</string>
+    <string name="connecting">Connecting…</string>
+    <string name="disconnect">Disconnect</string>
+
+    <!-- Status -->
+    <string name="status_connected">Connected</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_pending">Pending Approval</string>
+    <string name="status_rejected">Rejected</string>
+
+    <!-- Permissions -->
+    <string name="permissions_title">Permissions</string>
+    <string name="permission_granted">Granted</string>
+    <string name="permission_denied">Denied</string>
+    <string name="grant_permission">Grant</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_name">Aster Service</string>
+    <string name="notification_channel_description">Keeps Aster running in the background</string>
+    <string name="notification_title">Aster Active</string>
+    <string name="notification_text_connected">Connected to server</string>
+    <string name="notification_text_disconnected">Disconnected</string>
+</resources>

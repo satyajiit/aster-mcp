@@ -1,0 +1,25 @@
+{
+  "name": "aster",
+  "displayName": "Aster - Android Control",
+  "slug": "aster",
+  "version": "0.1.0",
+  "owner": "satyajiit",
+  "summary": "Control Android devices via MCP. Take screenshots, tap/swipe, read notifications, launch apps, manage files, and automate UI interactions through accessibility services.",
+  "homepage": "https://github.com/satyajiit/aster-mcp",
+  "repository": "https://github.com/satyajiit/aster-mcp",
+  "keywords": [
+    "android",
+    "mcp",
+    "device-control",
+    "automation",
+    "accessibility",
+    "claude"
+  ],
+  "requires": {
+    "bins": ["node"]
+  },
+  "mcp": {
+    "type": "http",
+    "url": "http://localhost:5988/mcp"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "name": "aster-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Android device control - Control your Android device from Claude and other AI assistants",
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "license": "MIT",
+  "author": "Aster Team",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/satyajiit/aster-mcp.git",
+    "directory": "mcp"
+  },
+  "homepage": "https://github.com/satyajiit/aster-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/satyajiit/aster-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "android",
+    "claude",
+    "ai",
+    "automation",
+    "device-control",
+    "accessibility"
+  ],
+  "bin": {
+    "aster": "./dist/bin/aster.js"
+  },
+  "main": "./dist/src/index.js",
+  "module": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/src/index.js",
+      "types": "./dist/src/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "dev:dashboard": "pnpm --dir dashboard dev",
+    "dev:all": "concurrently -n server,dashboard -c blue,green \"pnpm dev\" \"pnpm dev:dashboard\"",
+    "build": "tsc",
+    "build:all": "pnpm build && pnpm --dir dashboard build",
+    "start": "node dist/index.js",
+    "lint": "eslint src",
+    "test": "vitest",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "better-sqlite3": "^11.6.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "consola": "^3.2.3",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.1.0",
+    "ws": "^8.18.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.9.0",
+    "@types/ws": "^8.5.13",
+    "concurrently": "^9.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
