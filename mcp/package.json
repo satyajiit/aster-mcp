@@ -1,6 +1,6 @@
 {
   "name": "aster-mcp",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "MCP server for Android device control - Control your Android device from Claude and other AI assistants",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
@@ -11,7 +11,7 @@
     "url": "git+https://github.com/satyajiit/aster-mcp.git",
     "directory": "mcp"
   },
-  "homepage": "https://github.com/satyajiit/aster-mcp#readme",
+  "homepage": "https://aster.theappstack.in",
   "bugs": {
     "url": "https://github.com/satyajiit/aster-mcp/issues"
   },
