@@ -32,6 +32,10 @@ output.json
 # npm
 .npmrc
 
+# Keystore
+*.jks
+*.keystore
+
 # Aster specific
 *.db
 *.db-shm
