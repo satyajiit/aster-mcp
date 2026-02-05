@@ -1,8 +1,8 @@
 import { consola } from 'consola';
 import { config } from 'dotenv';
 import { networkInterfaces } from 'os';
-import { existsSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { existsSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
+import { resolve, dirname, join } from 'path';
 import { spawn, type ChildProcess } from 'child_process';
 import { fileURLToPath } from 'url';
 import { initDatabase, closeDatabase } from './db/index.js';
@@ -15,8 +15,25 @@ import {
   displayTailscaleInfo,
   stopTailscaleServe,
 } from './util/tailscale.js';
+import { homedir } from 'os';
 
 config();
+
+const ASTER_DIR = join(homedir(), '.aster');
+const STATUS_FILE = join(ASTER_DIR, 'status.json');
+
+function writeStatusFile(status: Record<string, unknown>): void {
+  try {
+    if (!existsSync(ASTER_DIR)) mkdirSync(ASTER_DIR, { recursive: true });
+    writeFileSync(STATUS_FILE, JSON.stringify(status, null, 2));
+  } catch {
+    // Non-critical, ignore
+  }
+}
+
+function removeStatusFile(): void {
+  try { unlinkSync(STATUS_FILE); } catch { /* ignore */ }
+}
 
 let nuxtProcess: ChildProcess | null = null;
 
@@ -142,9 +159,29 @@ export async function startServer(overrides: Partial<ServerConfig> = {}): Promis
     });
   }
 
+  // Write status file for CLI commands
+  writeStatusFile({
+    pid: process.pid,
+    startedAt: new Date().toISOString(),
+    wsPort: serverConfig.wsPort,
+    wsUrl: `ws://${localIP}:${serverConfig.wsPort}`,
+    apiPort: serverConfig.dashboardPort,
+    apiUrl: `http://${localIP}:${serverConfig.dashboardPort}`,
+    dashboardPort: nuxtProcess ? DASHBOARD_SERVER_PORT : null,
+    dashboardUrl: nuxtProcess ? `http://${localIP}:${DASHBOARD_SERVER_PORT}` : null,
+    dbPath: serverConfig.dbPath,
+    tailscale: tailscaleResult.success ? {
+      ip: tailscaleResult.tailscaleIp,
+      dns: tailscaleResult.tailscaleDns,
+      wsUrl: tailscaleResult.wsUrl,
+      dashboardUrl: tailscaleResult.dashboardUrl,
+    } : null,
+  });
+
   // Handle shutdown
   const shutdown = async () => {
     consola.info('Shutting down...');
+    removeStatusFile();
     if (nuxtProcess) {
       nuxtProcess.kill('SIGTERM');
       nuxtProcess = null;

@@ -1,6 +1,6 @@
 {
   "name": "aster-mcp",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "MCP server for Android device control - Control your Android device from Claude and other AI assistants",
   "type": "module",
   "packageManager": "pnpm@9.15.0",

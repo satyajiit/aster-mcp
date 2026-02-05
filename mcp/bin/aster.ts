@@ -15,6 +15,53 @@ const program = new Command();
 const ASTER_DIR = join(homedir(), '.aster');
 const PID_FILE = join(ASTER_DIR, 'aster.pid');
 const LOG_FILE = join(ASTER_DIR, 'aster.log');
+const STATUS_FILE = join(ASTER_DIR, 'status.json');
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function readStatus(): Record<string, any> | null {
+  try {
+    if (!existsSync(STATUS_FILE)) return null;
+    return JSON.parse(readFileSync(STATUS_FILE, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+function displayStatus(status: Record<string, any>, pid?: number): void {
+  console.log(chalk.cyan.bold(`
+╔═══════════════════════════════════════╗
+║              ASTER                    ║
+║     Android Device Control Bridge     ║
+╚═══════════════════════════════════════╝
+`));
+  console.log(chalk.green(`  Status:     Running (PID ${pid || status.pid})`));
+  console.log(chalk.white(`  WebSocket:  ${status.wsUrl}`));
+  console.log(chalk.white(`  API:        ${status.apiUrl}`));
+  if (status.dashboardUrl) {
+    console.log(chalk.white(`  Dashboard:  ${status.dashboardUrl}`));
+  }
+  if (status.tailscale) {
+    console.log('');
+    console.log(chalk.magenta(`  Tailscale:`));
+    if (status.tailscale.wsUrl) {
+      console.log(chalk.white(`    WSS:        ${status.tailscale.wsUrl}`));
+    }
+    if (status.tailscale.dashboardUrl) {
+      console.log(chalk.white(`    Dashboard:  ${status.tailscale.dashboardUrl}`));
+    }
+    if (status.tailscale.dns) {
+      console.log(chalk.gray(`    DNS:        ${status.tailscale.dns}`));
+    }
+  }
+  console.log(chalk.gray(`
+  Database:   ${status.dbPath}
+  Logs:       ${LOG_FILE}
+  Started:    ${new Date(status.startedAt).toLocaleString()}
+`));
+}
 
 // Ensure ~/.aster directory exists
 if (!existsSync(ASTER_DIR)) {
@@ -119,21 +166,34 @@ program
     if (child.pid) {
       writeFileSync(PID_FILE, child.pid.toString());
 
-      console.log(chalk.cyan.bold(`
+      // Wait for the server to write its status file (includes Tailscale info)
+      console.log(chalk.gray('  Starting server...'));
+      let status: Record<string, any> | null = null;
+      for (let i = 0; i < 15; i++) {
+        await sleep(1000);
+        status = readStatus();
+        if (status) break;
+      }
+
+      if (status) {
+        displayStatus(status, child.pid);
+      } else {
+        // Fallback if status file not written in time
+        console.log(chalk.cyan.bold(`
 ╔═══════════════════════════════════════╗
 ║              ASTER                    ║
 ║     Android Device Control Bridge     ║
 ╚═══════════════════════════════════════╝
 `));
-      console.log(chalk.green(`  Server started (PID ${child.pid})`));
-      console.log(chalk.gray(`
+        console.log(chalk.green(`  Server started (PID ${child.pid})`));
+        console.log(chalk.gray(`
   WebSocket:  ws://0.0.0.0:${options.wsPort}
   API:        http://0.0.0.0:${options.apiPort}
-  Dashboard:  http://localhost:5989
 
   Logs:       ${LOG_FILE}
-  PID file:   ${PID_FILE}
 `));
+      }
+      console.log(chalk.gray(`  Use ${chalk.white('aster status')} for full status`));
       console.log(chalk.gray(`  Use ${chalk.white('aster logs')} to view logs`));
       console.log(chalk.gray(`  Use ${chalk.white('aster stop')} to stop the server\n`));
     } else {
@@ -203,10 +263,10 @@ program
     });
   });
 
-// Status command - check if server is running
+// Status command - show full server status
 program
   .command('status')
-  .description('Check if Aster server is running')
+  .description('Show full server status and endpoints')
   .action(() => {
     if (!existsSync(PID_FILE)) {
       console.log(chalk.yellow('Aster is not running.'));
@@ -215,13 +275,19 @@ program
 
     const pid = parseInt(readFileSync(PID_FILE, 'utf-8').trim(), 10);
 
-    if (isProcessRunning(pid)) {
-      console.log(chalk.green(`Aster is running (PID ${pid}).`));
-      console.log(chalk.gray(`  Logs: ${LOG_FILE}`));
-    } else {
+    if (!isProcessRunning(pid)) {
       unlinkSync(PID_FILE);
       console.log(chalk.yellow('Aster is not running (stale PID file cleaned up).'));
       process.exit(1);
+    }
+
+    const status = readStatus();
+    if (status) {
+      displayStatus(status, pid);
+    } else {
+      console.log(chalk.green(`Aster is running (PID ${pid}).`));
+      console.log(chalk.gray(`  Logs: ${LOG_FILE}`));
+      console.log(chalk.gray('  Status file not found. Restart for full status info.'));
     }
   });
 
