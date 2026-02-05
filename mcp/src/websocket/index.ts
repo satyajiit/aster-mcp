@@ -95,7 +95,7 @@ export function createWebSocketServer(config: ServerConfig): WebSocketServer {
     // Require auth within 10 seconds
     authTimeout = setTimeout(() => {
       if (!deviceId) {
-        consola.warn('Client did not authenticate in time, closing connection');
+        consola.debug('Client did not authenticate in time, closing connection');
         ws.close(4001, 'Authentication timeout');
       }
     }, 10000);
