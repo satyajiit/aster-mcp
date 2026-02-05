@@ -4,6 +4,7 @@
     <HeroSection />
     <FeaturesGrid />
     <UseCasesSection />
+    <LiveChatSection />
     <SecuritySection />
     <HowItWorks />
     <SetupSteps />
