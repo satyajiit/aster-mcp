@@ -1,6 +1,7 @@
 name: Release APK
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -23,6 +24,10 @@ jobs:
         run: |
           CURRENT=$(grep 'versionCode' apps/android/app/build.gradle.kts | grep -oP '\d+')
           PREVIOUS=$(git show HEAD~1:apps/android/app/build.gradle.kts 2>/dev/null | grep 'versionCode' | grep -oP '\d+' || echo "0")
+          # Manual trigger always releases
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PREVIOUS="0"
+          fi
           VERSION_NAME=$(grep 'versionName' apps/android/app/build.gradle.kts | grep -oP '"[^"]+"' | tr -d '"')
 
           echo "Current versionCode: $CURRENT"
