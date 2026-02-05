@@ -29,6 +29,9 @@ captures/
 output.json
 .kotlin
 
+# npm
+.npmrc
+
 # Aster specific
 *.db
 *.db-shm

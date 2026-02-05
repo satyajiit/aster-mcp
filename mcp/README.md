@@ -1,6 +1,35 @@
-# Aster
+<p align="center">
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/logo.png" alt="Aster Logo" width="100" />
+</p>
 
-Control your Android device from Claude and other AI assistants via MCP (Model Context Protocol).
+<h1 align="center">Aster</h1>
+
+<p align="center">
+  <strong>Give your AI assistant hands. Control any Android device through natural language.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/aster-mcp"><img src="https://img.shields.io/npm/v/aster-mcp?style=flat-square&color=blue" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/aster-mcp"><img src="https://img.shields.io/npm/dm/aster-mcp?style=flat-square&color=green" alt="npm downloads" /></a>
+  <a href="https://github.com/satyajiit/aster-mcp/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" /></a>
+  <a href="https://github.com/satyajiit/aster-mcp"><img src="https://img.shields.io/badge/MCP-compatible-brightgreen?style=flat-square" alt="MCP" /></a>
+  <a href="https://clawhub.ai/satyajiit/aster"><img src="https://img.shields.io/badge/ClawHub-skill-purple?style=flat-square" alt="ClawHub" /></a>
+  <a href="https://openclaw.ai"><img src="https://img.shields.io/badge/OpenClaw-compatible-orange?style=flat-square" alt="OpenClaw" /></a>
+  <a href="https://github.com/satyajiit/aster-mcp"><img src="https://img.shields.io/github/stars/satyajiit/aster-mcp?style=flat-square" alt="GitHub stars" /></a>
+</p>
+
+<p align="center">
+  <a href="#installation">Installation</a> &bull;
+  <a href="#connect-your-ai-assistant">Connect AI</a> &bull;
+  <a href="#what-can-it-do">Features</a> &bull;
+  <a href="#available-mcp-tools">Tools</a>
+</p>
+
+---
+
+Aster is an MCP server that bridges your Android device to AI assistants. Take screenshots, automate UI, manage files, read notifications, search photos, and more &mdash; all through natural language.
+
+> **Built for [OpenClaw](https://openclaw.ai)** &mdash; works natively as a skill on OpenClaw, Moltbot, and Clawbot. Also supports Claude and any MCP-compatible client.
 
 ## Installation
 
@@ -10,43 +39,31 @@ npm install -g aster-mcp
 
 ## Quick Start
 
-1. Install the Aster Android app on your device
-2. Start the server: `aster start`
-3. Connect your device using the address shown in terminal
-
-## Commands
-
 ```bash
-# Start the server
+# 1. Start the server
 aster start
 
-# Stop the server
-aster stop
+# 2. Install the Aster app on your Android device
+#    and connect using the address shown in terminal
 
-# Open the dashboard in browser
-aster dashboard
+# 3. Connect your AI assistant (see below)
 ```
 
-### Device Management
+## Connect Your AI Assistant
+
+### OpenClaw / Moltbot / Clawbot (Recommended)
+
+Aster is a first-class skill on [ClawHub](https://clawhub.ai/satyajiit/aster). One command to install:
 
 ```bash
-# List all registered devices
-aster devices list
-
-# Approve a pending device
-aster devices approve <deviceId>
-
-# Reject a device
-aster devices reject <deviceId>
-
-# Remove a device
-aster devices remove <deviceId>
+clawhub install satyajiit/aster
 ```
 
-## Claude Integration
+That's it. Your AI assistant can now control your Android device. See the [skill configuration](https://github.com/satyajiit/aster-mcp/tree/main/skill) for advanced setup.
 
-1. Start the server: `aster start`
-2. Add to your Claude settings (`.mcp.json` or `~/.claude/settings.json`):
+### Claude Code / Claude Desktop
+
+Add to your `.mcp.json` or Claude settings:
 
 ```json
 {
@@ -59,49 +76,57 @@ aster devices remove <deviceId>
 }
 ```
 
+### Any MCP-Compatible Client
+
+Aster exposes a standard MCP HTTP endpoint at `http://localhost:5988/mcp`.
+
+## What Can It Do?
+
+Just talk to your AI assistant naturally:
+
+> "Take a screenshot of my phone"
+
+> "Open YouTube and search for cooking videos"
+
+> "Read my latest notifications"
+
+> "Find photos from my trip to Mumbai last month"
+
+> "What apps are using the most storage?"
+
+## Commands
+
+```bash
+aster start              # Start the server
+aster stop               # Stop the server
+aster dashboard          # Open web dashboard
+
+aster devices list       # List connected devices
+aster devices approve    # Approve a pending device
+aster devices reject     # Reject a device
+aster devices remove     # Remove a device
+```
+
 ## Available MCP Tools
 
-| Tool | Description |
-|------|-------------|
-| `aster_list_devices` | List paired devices |
-| `aster_get_device_info` | Get device details (battery, storage, specs) |
-| `aster_take_screenshot` | Capture screenshots |
-| `aster_get_screen_hierarchy` | Get accessibility tree for UI analysis |
-| `aster_find_element` | Find UI elements by text |
-| `aster_input_gesture` | Perform touch gestures (tap, swipe, long press) |
-| `aster_input_text` | Input text into focused fields |
-| `aster_click_by_text` | Click elements by text content |
-| `aster_click_by_id` | Click elements by view ID |
-| `aster_global_action` | Perform global actions (back, home, recents) |
-| `aster_launch_intent` | Launch apps or intents |
-| `aster_read_notifications` | Read device notifications |
-| `aster_read_sms` | Read SMS messages |
-| `aster_get_location` | Get device GPS location |
-| `aster_execute_shell` | Execute shell commands |
-| `aster_list_packages` | List installed apps |
-| `aster_list_files` | List files on device |
-| `aster_read_file` | Read file content |
-| `aster_write_file` | Write file content |
-| `aster_delete_file` | Delete a file |
-| `aster_get_battery` | Get battery info |
-| `aster_get_clipboard` | Read clipboard |
-| `aster_set_clipboard` | Copy to clipboard |
-| `aster_show_toast` | Show toast message |
-| `aster_speak_tts` | Text-to-speech |
-| `aster_vibrate` | Vibrate device |
-| `aster_play_audio` | Play audio |
-| `aster_post_notification` | Post a notification |
-| `aster_make_call` | Initiate phone call |
-| `aster_show_overlay` | Show web overlay |
-| `aster_analyze_storage` | Storage analysis |
-| `aster_find_large_files` | Find large files |
-| `aster_index_media_metadata` | Extract photo/video EXIF metadata |
-| `aster_search_media` | Search photos/videos with natural language |
+| Category | Tools |
+|----------|-------|
+| **Screen** | `take_screenshot`, `get_screen_hierarchy`, `find_element` |
+| **Input** | `input_gesture`, `input_text`, `click_by_text`, `click_by_id` |
+| **Navigation** | `global_action`, `launch_intent` |
+| **Device** | `list_devices`, `get_device_info`, `get_battery`, `get_location` |
+| **Notifications** | `read_notifications`, `read_sms`, `post_notification` |
+| **Files** | `list_files`, `read_file`, `write_file`, `delete_file` |
+| **Storage** | `analyze_storage`, `find_large_files`, `search_media` |
+| **Clipboard** | `get_clipboard`, `set_clipboard` |
+| **Audio** | `speak_tts`, `play_audio`, `vibrate` |
+| **Apps** | `list_packages`, `execute_shell` |
 
 ## Requirements
 
 - Node.js >= 20
 - Android device with Aster app installed
+- Device and server on same network (or [Tailscale](https://tailscale.com))
 
 ## License
 
