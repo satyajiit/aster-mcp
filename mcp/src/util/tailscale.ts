@@ -150,11 +150,12 @@ export async function stopTailscaleServe(): Promise<void> {
  * Start Tailscale Serve for WebSocket port with HTTPS/WSS support
  * Serve exposes the port to devices on your Tailnet with automatic TLS
  */
-export async function serveTailscalePort(wsPort: number): Promise<{
+export async function serveTailscalePort(wsPort: number, dashboardPort?: number): Promise<{
   success: boolean;
   tailscaleIp?: string;
   tailscaleDns?: string;
   wsUrl?: string;
+  dashboardUrl?: string;
 }> {
   const status = await getTailscaleStatus();
 
@@ -174,17 +175,31 @@ export async function serveTailscalePort(wsPort: number): Promise<{
   const tailscaleIp = status.ipv4;
   const tailscaleDns = status.dnsName?.replace(/\.$/, '');
 
-  // Start Serve for the WebSocket port with HTTPS
-  // Serve provides Tailnet-only HTTPS access with automatic TLS
-  const serveSuccess = await startTailscaleServeHttps(wsPort);
+  // Reset any existing serve config once before adding rules
+  try {
+    await execAsync('tailscale serve reset');
+  } catch {
+    // Ignore reset errors
+  }
 
-  if (serveSuccess && tailscaleDns) {
+  // Start Serve for the WebSocket port with HTTPS on 443
+  const wsServeSuccess = await startTailscaleServeHttps(wsPort, 443);
+
+  // Start Serve for the dashboard/API port with HTTPS on 8443
+  let dashboardServeSuccess = false;
+  if (dashboardPort) {
+    dashboardServeSuccess = await startTailscaleServeHttps(dashboardPort, 8443);
+  }
+
+  if (wsServeSuccess && tailscaleDns) {
     return {
       success: true,
       tailscaleIp,
       tailscaleDns,
-      // Serve with HTTPS uses port 443 with automatic TLS
       wsUrl: `wss://${tailscaleDns}`,
+      dashboardUrl: dashboardServeSuccess && tailscaleDns
+        ? `https://${tailscaleDns}:8443`
+        : undefined,
     };
   }
 
@@ -206,29 +221,22 @@ export async function serveTailscalePort(wsPort: number): Promise<{
  * Start Tailscale Serve with HTTPS for a local port
  * Serve terminates TLS and forwards to local service (Tailnet-only access)
  */
-async function startTailscaleServeHttps(localPort: number): Promise<boolean> {
+async function startTailscaleServeHttps(localPort: number, httpsPort: number = 443): Promise<boolean> {
   try {
-    // Reset any existing serve config
-    try {
-      await execAsync('tailscale serve reset');
-    } catch {
-      // Ignore reset errors
-    }
+    consola.info(`Starting Tailscale Serve (HTTPS:${httpsPort}) for port ${localPort}...`);
 
-    consola.info(`Starting Tailscale Serve (HTTPS) for port ${localPort}...`);
-
-    // Serve command: expose local port via HTTPS on port 443
-    // Format: tailscale serve --bg --https=443 http://localhost:<port>
+    // Serve command: expose local port via HTTPS on specified port
+    // Format: tailscale serve --bg --https=<httpsPort> http://localhost:<port>
     // This terminates TLS at Tailscale and forwards to local HTTP/WS
     const { stderr } = await execAsync(
-      `tailscale serve --bg --https=443 http://localhost:${localPort}`
+      `tailscale serve --bg --https=${httpsPort} http://localhost:${localPort}`
     );
 
     if (stderr && !stderr.includes('Available') && !stderr.includes('Serve')) {
       consola.warn('Tailscale Serve warning:', stderr);
     }
 
-    consola.success(`Tailscale Serve started - port ${localPort} available via HTTPS (Tailnet-only)`);
+    consola.success(`Tailscale Serve started - port ${localPort} available via HTTPS:${httpsPort} (Tailnet-only)`);
     return true;
   } catch (error: any) {
     consola.error('Failed to start Tailscale Serve:', error.message);
@@ -244,8 +252,9 @@ export function displayTailscaleInfo(info: {
   tailscaleDns?: string;
   wsPort: number;
   wsUrl?: string;
+  dashboardUrl?: string;
 }): void {
-  const { tailscaleIp, tailscaleDns, wsPort, wsUrl } = info;
+  const { tailscaleIp, tailscaleDns, wsPort, wsUrl, dashboardUrl } = info;
 
   if (tailscaleIp || tailscaleDns) {
     const displayUrl = wsUrl || (tailscaleDns ? `wss://${tailscaleDns}` : `ws://${tailscaleIp}:${wsPort}`);
@@ -259,10 +268,14 @@ export function displayTailscaleInfo(info: {
         tailscaleDns ? `  Tailscale DNS:  ${tailscaleDns}` : '',
         '',
         `  WebSocket URL:  ${displayUrl}`,
+        dashboardUrl ? `  Dashboard URL:  ${dashboardUrl}` : '',
         '',
         isSecure
           ? '  Secure WebSocket (wss://) via Tailscale Serve'
           : '  Plain WebSocket (ws://) via Tailscale IP',
+        dashboardUrl
+          ? '  Dashboard accessible via HTTPS on your Tailnet.'
+          : '',
         '  Accessible from devices on your Tailnet.',
         '',
       ].filter(Boolean).join('\n'),

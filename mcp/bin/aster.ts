@@ -5,14 +5,30 @@ import chalk from 'chalk';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { existsSync, writeFileSync, readFileSync, unlinkSync } from 'fs';
+import { existsSync, writeFileSync, readFileSync, unlinkSync, openSync, mkdirSync } from 'fs';
 import { homedir } from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const program = new Command();
-const PID_FILE = join(homedir(), '.aster.pid');
+const ASTER_DIR = join(homedir(), '.aster');
+const PID_FILE = join(ASTER_DIR, 'aster.pid');
+const LOG_FILE = join(ASTER_DIR, 'aster.log');
+
+// Ensure ~/.aster directory exists
+if (!existsSync(ASTER_DIR)) {
+  mkdirSync(ASTER_DIR, { recursive: true });
+}
+
+function isProcessRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function openBrowser(url: string): void {
   const platform = process.platform;
@@ -39,43 +55,94 @@ program
   .description('Aster - Android device control via MCP')
   .version('0.1.0');
 
-// Start command - starts everything (WebSocket, API, MCP)
+// Start command - starts everything (WebSocket, API, Dashboard) as a daemon
 program
   .command('start')
-  .description('Start the Aster server')
+  .description('Start the Aster server (background daemon)')
   .option('-w, --ws-port <port>', 'WebSocket server port', '5987')
   .option('-a, --api-port <port>', 'API server port', '5988')
   .option('-d, --db <path>', 'Database path', './aster.db')
+  .option('-f, --foreground', 'Run in foreground (don\'t daemonize)')
   .action(async (options) => {
-    console.log(chalk.cyan.bold(`
+    // Check if already running
+    if (existsSync(PID_FILE)) {
+      const pid = parseInt(readFileSync(PID_FILE, 'utf-8').trim(), 10);
+      if (isProcessRunning(pid)) {
+        console.log(chalk.yellow(`Aster is already running (PID ${pid}). Use ${chalk.bold('aster stop')} first.`));
+        process.exit(1);
+      }
+      // Stale PID file, clean up
+      unlinkSync(PID_FILE);
+    }
+
+    if (options.foreground) {
+      // Run in foreground (same as before)
+      console.log(chalk.cyan.bold(`
 ╔═══════════════════════════════════════╗
 ║              ASTER                    ║
 ║     Android Device Control Bridge     ║
 ╚═══════════════════════════════════════╝
 `));
 
-    process.env.WS_PORT = options.wsPort;
-    process.env.DASHBOARD_PORT = options.apiPort;
-    process.env.DB_PATH = options.db;
+      process.env.WS_PORT = options.wsPort;
+      process.env.DASHBOARD_PORT = options.apiPort;
+      process.env.DB_PATH = options.db;
 
-    // Save PID for stop command
-    writeFileSync(PID_FILE, process.pid.toString());
+      writeFileSync(PID_FILE, process.pid.toString());
 
-    const { startServer } = await import('../src/index.js');
-    await startServer();
+      const { startServer } = await import('../src/index.js');
+      await startServer();
 
-    console.log(chalk.green(`
-┌─────────────────────────────────────────┐
-│ Server running:                         │
-│   WebSocket: ws://0.0.0.0:${options.wsPort.padEnd(13)}│
-│   API:       http://0.0.0.0:${options.apiPort.padEnd(10)}│
-│   Dashboard: http://localhost:${options.apiPort.padEnd(8)}│
-└─────────────────────────────────────────┘
+      console.log(chalk.gray('Press Ctrl+C to stop\n'));
+      return;
+    }
+
+    // Daemonize: spawn a detached child process
+    const logFd = openSync(LOG_FILE, 'a');
+    const serverScript = join(__dirname, '..', 'src', 'index.js');
+
+    const child = spawn('node', [serverScript], {
+      env: {
+        ...process.env,
+        WS_PORT: options.wsPort,
+        DASHBOARD_PORT: options.apiPort,
+        DB_PATH: options.db,
+        ASTER_PID_FILE: PID_FILE,
+      },
+      stdio: ['ignore', logFd, logFd],
+      detached: true,
+      cwd: process.cwd(),
+    });
+
+    child.unref();
+
+    if (child.pid) {
+      writeFileSync(PID_FILE, child.pid.toString());
+
+      console.log(chalk.cyan.bold(`
+╔═══════════════════════════════════════╗
+║              ASTER                    ║
+║     Android Device Control Bridge     ║
+╚═══════════════════════════════════════╝
 `));
-    console.log(chalk.gray('Press Ctrl+C to stop\n'));
+      console.log(chalk.green(`  Server started (PID ${child.pid})`));
+      console.log(chalk.gray(`
+  WebSocket:  ws://0.0.0.0:${options.wsPort}
+  API:        http://0.0.0.0:${options.apiPort}
+  Dashboard:  http://localhost:5989
+
+  Logs:       ${LOG_FILE}
+  PID file:   ${PID_FILE}
+`));
+      console.log(chalk.gray(`  Use ${chalk.white('aster logs')} to view logs`));
+      console.log(chalk.gray(`  Use ${chalk.white('aster stop')} to stop the server\n`));
+    } else {
+      console.log(chalk.red('Failed to start Aster server.'));
+      process.exit(1);
+    }
   });
 
-// Stop command - stops all Aster processes
+// Stop command - stops the Aster daemon
 program
   .command('stop')
   .description('Stop the Aster server')
@@ -86,13 +153,26 @@ program
     }
 
     try {
-      const pid = readFileSync(PID_FILE, 'utf-8').trim();
-      process.kill(parseInt(pid, 10), 'SIGTERM');
+      const pid = parseInt(readFileSync(PID_FILE, 'utf-8').trim(), 10);
+
+      if (!isProcessRunning(pid)) {
+        unlinkSync(PID_FILE);
+        console.log(chalk.yellow('Server was not running. Cleaned up stale PID file.'));
+        return;
+      }
+
+      // Kill the process group (- prefix kills the group, catching child processes)
+      try {
+        process.kill(-pid, 'SIGTERM');
+      } catch {
+        // Fallback to killing just the main process
+        process.kill(pid, 'SIGTERM');
+      }
+
       unlinkSync(PID_FILE);
-      console.log(chalk.green('✓ Aster server stopped.'));
+      console.log(chalk.green(`✓ Aster server stopped (PID ${pid}).`));
     } catch (err: any) {
       if (err.code === 'ESRCH') {
-        // Process doesn't exist, clean up PID file
         unlinkSync(PID_FILE);
         console.log(chalk.yellow('Server was not running. Cleaned up stale PID file.'));
       } else {
@@ -101,11 +181,55 @@ program
     }
   });
 
+// Logs command - tail the server log file
+program
+  .command('logs')
+  .description('View server logs')
+  .option('-f, --follow', 'Follow log output (like tail -f)')
+  .option('-n, --lines <lines>', 'Number of lines to show', '50')
+  .action((options) => {
+    if (!existsSync(LOG_FILE)) {
+      console.log(chalk.yellow('No log file found. Start the server first.'));
+      return;
+    }
+
+    const tailArgs = ['-n', options.lines];
+    if (options.follow) tailArgs.push('-f');
+    tailArgs.push(LOG_FILE);
+
+    const tail = spawn('tail', tailArgs, { stdio: 'inherit' });
+    tail.on('error', () => {
+      console.log(chalk.red('Failed to read logs.'));
+    });
+  });
+
+// Status command - check if server is running
+program
+  .command('status')
+  .description('Check if Aster server is running')
+  .action(() => {
+    if (!existsSync(PID_FILE)) {
+      console.log(chalk.yellow('Aster is not running.'));
+      process.exit(1);
+    }
+
+    const pid = parseInt(readFileSync(PID_FILE, 'utf-8').trim(), 10);
+
+    if (isProcessRunning(pid)) {
+      console.log(chalk.green(`Aster is running (PID ${pid}).`));
+      console.log(chalk.gray(`  Logs: ${LOG_FILE}`));
+    } else {
+      unlinkSync(PID_FILE);
+      console.log(chalk.yellow('Aster is not running (stale PID file cleaned up).'));
+      process.exit(1);
+    }
+  });
+
 // Dashboard command - opens dashboard in browser
 program
   .command('dashboard')
   .description('Open the dashboard in browser')
-  .option('-p, --port <port>', 'API server port', '5988')
+  .option('-p, --port <port>', 'Dashboard server port', '5989')
   .action((options) => {
     const url = `http://localhost:${options.port}`;
     console.log(chalk.cyan(`Opening dashboard: ${url}`));

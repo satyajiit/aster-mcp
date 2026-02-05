@@ -1,6 +1,9 @@
 import { consola } from 'consola';
 import { config } from 'dotenv';
 import { networkInterfaces } from 'os';
+import { existsSync } from 'fs';
+import { resolve } from 'path';
+import { spawn, type ChildProcess } from 'child_process';
 import { initDatabase, closeDatabase } from './db/index.js';
 import { createWebSocketServer } from './websocket/index.js';
 import { startApiServer } from './server/index.js';
@@ -14,6 +17,8 @@ import {
 
 config();
 
+let nuxtProcess: ChildProcess | null = null;
+
 function getLocalIP(): string {
   const nets = networkInterfaces();
   for (const name of Object.keys(nets)) {
@@ -25,6 +30,58 @@ function getLocalIP(): string {
     }
   }
   return '127.0.0.1';
+}
+
+const DASHBOARD_SERVER_PORT = 5989;
+
+/**
+ * Start the Nuxt production server for the dashboard
+ */
+function startDashboardServer(apiPort: number): ChildProcess | null {
+  const serverPaths = [
+    resolve(process.cwd(), 'dashboard/.output/server/index.mjs'),
+    resolve(process.cwd(), '../dashboard/.output/server/index.mjs'),
+  ];
+
+  const serverEntry = serverPaths.find(p => existsSync(p));
+
+  if (!serverEntry) {
+    consola.warn('Dashboard build not found. Run: pnpm --dir dashboard build');
+    return null;
+  }
+
+  const child = spawn('node', [serverEntry], {
+    env: {
+      ...process.env,
+      PORT: String(DASHBOARD_SERVER_PORT),
+      NITRO_PORT: String(DASHBOARD_SERVER_PORT),
+      API_PORT: String(apiPort),
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  child.stdout?.on('data', (data: Buffer) => {
+    const msg = data.toString().trim();
+    if (msg) consola.info(`[Dashboard] ${msg}`);
+  });
+
+  child.stderr?.on('data', (data: Buffer) => {
+    const msg = data.toString().trim();
+    if (msg) consola.warn(`[Dashboard] ${msg}`);
+  });
+
+  child.on('error', (err) => {
+    consola.error('Failed to start dashboard server:', err.message);
+  });
+
+  child.on('exit', (code) => {
+    if (code !== null && code !== 0) {
+      consola.warn(`Dashboard server exited with code ${code}`);
+    }
+  });
+
+  consola.success(`Dashboard server starting on port ${DASHBOARD_SERVER_PORT}`);
+  return child;
 }
 
 export async function startServer(overrides: Partial<ServerConfig> = {}): Promise<void> {
@@ -47,6 +104,9 @@ export async function startServer(overrides: Partial<ServerConfig> = {}): Promis
   // Start API server for dashboard
   await startApiServer(serverConfig);
 
+  // Start Nuxt dashboard server (SSR)
+  nuxtProcess = startDashboardServer(serverConfig.dashboardPort);
+
   // Display startup info
   const localIP = getLocalIP();
 
@@ -54,28 +114,37 @@ export async function startServer(overrides: Partial<ServerConfig> = {}): Promis
     title: 'Aster MCP Server',
     message: [
       '',
-      `  WebSocket:  ws://${localIP}:${serverConfig.wsPort}`,
-      `  API:        http://${localIP}:${serverConfig.dashboardPort}`,
+      `  WebSocket:   ws://${localIP}:${serverConfig.wsPort}`,
+      `  API:         http://${localIP}:${serverConfig.dashboardPort}`,
+      nuxtProcess ? `  Dashboard:   http://${localIP}:${DASHBOARD_SERVER_PORT}` : '',
       '',
-      `  Database:   ${serverConfig.dbPath}`,
+      `  Database:    ${serverConfig.dbPath}`,
       '',
-    ].join('\n'),
+    ].filter(Boolean).join('\n'),
   });
 
-  // Setup Tailscale if available
-  const tailscaleResult = await serveTailscalePort(serverConfig.wsPort);
+  // Setup Tailscale if available (serve WebSocket + dashboard)
+  const tailscaleResult = await serveTailscalePort(
+    serverConfig.wsPort,
+    nuxtProcess ? DASHBOARD_SERVER_PORT : undefined,
+  );
   if (tailscaleResult.success) {
     displayTailscaleInfo({
       tailscaleIp: tailscaleResult.tailscaleIp,
       tailscaleDns: tailscaleResult.tailscaleDns,
       wsPort: serverConfig.wsPort,
       wsUrl: tailscaleResult.wsUrl,
+      dashboardUrl: tailscaleResult.dashboardUrl,
     });
   }
 
   // Handle shutdown
   const shutdown = async () => {
     consola.info('Shutting down...');
+    if (nuxtProcess) {
+      nuxtProcess.kill('SIGTERM');
+      nuxtProcess = null;
+    }
     await stopTailscaleServe();
     closeDatabase();
     process.exit(0);
@@ -126,7 +195,6 @@ export * from './util/tailscale.js';
 
 // Auto-start when run directly
 import { fileURLToPath } from 'url';
-import { resolve } from 'path';
 
 const currentFile = fileURLToPath(import.meta.url);
 const mainScript = resolve(process.argv[1]);

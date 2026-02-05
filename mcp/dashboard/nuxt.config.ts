@@ -41,9 +41,14 @@ export default defineNuxtConfig({
     },
   },
 
+  routeRules: {
+    '/api/**': { proxy: `http://localhost:${process.env.API_PORT || '5988'}/api/**` },
+    '/mcp': { proxy: `http://localhost:${process.env.API_PORT || '5988'}/mcp` },
+  },
+
   runtimeConfig: {
     public: {
-      apiUrl: process.env.API_URL || 'http://localhost:5988',
+      apiUrl: process.env.API_URL || '',
     },
   },
 });
