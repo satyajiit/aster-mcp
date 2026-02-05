@@ -99,7 +99,8 @@ program
 
     // Daemonize: spawn a detached child process
     const logFd = openSync(LOG_FILE, 'a');
-    const serverScript = join(__dirname, '..', 'src', 'index.js');
+    const packageRoot = join(__dirname, '..');
+    const serverScript = join(packageRoot, 'src', 'index.js');
 
     const child = spawn('node', [serverScript], {
       env: {
@@ -111,7 +112,6 @@ program
       },
       stdio: ['ignore', logFd, logFd],
       detached: true,
-      cwd: process.cwd(),
     });
 
     child.unref();

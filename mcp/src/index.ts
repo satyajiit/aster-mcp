@@ -2,8 +2,9 @@ import { consola } from 'consola';
 import { config } from 'dotenv';
 import { networkInterfaces } from 'os';
 import { existsSync } from 'fs';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
 import { spawn, type ChildProcess } from 'child_process';
+import { fileURLToPath } from 'url';
 import { initDatabase, closeDatabase } from './db/index.js';
 import { createWebSocketServer } from './websocket/index.js';
 import { startApiServer } from './server/index.js';
@@ -34,13 +35,16 @@ function getLocalIP(): string {
 
 const DASHBOARD_SERVER_PORT = 5989;
 
+// Package root directory (works for both dev and npm-installed)
+const __pkgRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
 /**
  * Start the Nuxt production server for the dashboard
  */
 function startDashboardServer(apiPort: number): ChildProcess | null {
   const serverPaths = [
+    resolve(__pkgRoot, 'dashboard/.output/server/index.mjs'),
     resolve(process.cwd(), 'dashboard/.output/server/index.mjs'),
-    resolve(process.cwd(), '../dashboard/.output/server/index.mjs'),
   ];
 
   const serverEntry = serverPaths.find(p => existsSync(p));
@@ -194,8 +198,6 @@ export * from './types/index.js';
 export * from './util/tailscale.js';
 
 // Auto-start when run directly
-import { fileURLToPath } from 'url';
-
 const currentFile = fileURLToPath(import.meta.url);
 const mainScript = resolve(process.argv[1]);
 
