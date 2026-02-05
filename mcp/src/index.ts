@@ -35,16 +35,16 @@ function getLocalIP(): string {
 
 const DASHBOARD_SERVER_PORT = 5989;
 
-// Package root directory (works for both dev and npm-installed)
-const __pkgRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const __thisDir = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Start the Nuxt production server for the dashboard
  */
 function startDashboardServer(apiPort: number): ChildProcess | null {
   const serverPaths = [
-    resolve(__pkgRoot, 'dashboard/.output/server/index.mjs'),
-    resolve(process.cwd(), 'dashboard/.output/server/index.mjs'),
+    resolve(__thisDir, '../dashboard/.output/server/index.mjs'),      // dev: from src/
+    resolve(__thisDir, '../../dashboard/.output/server/index.mjs'),   // compiled: from dist/src/
+    resolve(process.cwd(), 'dashboard/.output/server/index.mjs'),    // fallback: from cwd
   ];
 
   const serverEntry = serverPaths.find(p => existsSync(p));
