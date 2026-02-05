@@ -7,6 +7,9 @@ on:
     paths:
       - 'apps/android/app/build.gradle.kts'
 
+permissions:
+  contents: write
+
 jobs:
   check-version:
     runs-on: ubuntu-latest
