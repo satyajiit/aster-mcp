@@ -103,6 +103,21 @@ class AsterNotificationListenerService : NotificationListenerService() {
             return
         }
 
+        // Skip group summary notifications (e.g. "157 messages from 51 chats")
+        val flags = sbn.notification.flags
+        if (flags and Notification.FLAG_GROUP_SUMMARY != 0) {
+            if (BuildConfig.DEBUG) Log.d(TAG, "Skipping group summary notification from: ${sbn.packageName}")
+            return
+        }
+
+        // Skip ongoing notification updates (calls, media players, etc.) — only forward first occurrence
+        if (sbn.isOngoing) {
+            if (EventDeduplicator.isOngoingAlreadyForwarded(sbn.key)) {
+                if (BuildConfig.DEBUG) Log.d(TAG, "Skipping ongoing notification update: ${sbn.packageName} | ${sbn.key}")
+                return
+            }
+        }
+
         val extras = sbn.notification.extras
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
@@ -113,12 +128,22 @@ class AsterNotificationListenerService : NotificationListenerService() {
             return
         }
 
+        // Skip duplicate notifications with same content within 30s window
+        if (EventDeduplicator.isDuplicateNotification(sbn.packageName, title, text)) {
+            if (BuildConfig.DEBUG) Log.d(TAG, "Skipping duplicate notification: ${sbn.packageName} | $title | $text")
+            return
+        }
+
         if (BuildConfig.DEBUG) Log.d(TAG, "Forwarding notification event: ${sbn.packageName} | $title | $text")
         callback(sbn.packageName, title, text, sbn.postTime)
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         sbn ?: return
+        // Clear ongoing notification tracking so it can be forwarded again if reposted
+        if (sbn.isOngoing) {
+            EventDeduplicator.clearOngoingNotification(sbn.key)
+        }
         if (BuildConfig.DEBUG) Log.d(TAG, "Notification removed from: ${sbn.packageName}")
     }
 
