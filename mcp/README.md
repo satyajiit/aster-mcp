@@ -118,6 +118,7 @@ Just talk to your AI assistant naturally:
 ```bash
 aster start              # Start the server
 aster stop               # Stop the server
+aster status             # Show server and device status
 aster dashboard          # Open web dashboard
 
 aster devices list       # List connected devices

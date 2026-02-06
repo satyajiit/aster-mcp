@@ -121,6 +121,7 @@ See [Integrations](#integrations) for Claude, OpenClaw, Moltbot, Clawbot, and ot
 ```bash
 aster start              # Start the server
 aster stop               # Stop the server
+aster status             # Show server and device status
 aster dashboard          # Open web dashboard
 
 aster devices list       # List connected devices

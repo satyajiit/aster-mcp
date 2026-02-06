@@ -131,6 +131,22 @@ aster_search_media with query "photos from Mumbai last month"
 
 ---
 
+## Commands
+
+```bash
+aster start              # Start the server
+aster stop               # Stop the server
+aster status             # Show server and device status
+aster dashboard          # Open web dashboard
+
+aster devices list       # List connected devices
+aster devices approve    # Approve a pending device
+aster devices reject     # Reject a device
+aster devices remove     # Remove a device
+```
+
+---
+
 ## Requirements
 
 - Node.js >= 20
