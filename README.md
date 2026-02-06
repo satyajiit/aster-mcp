@@ -1,5 +1,11 @@
 <p align="center">
-  <img src="./assets/aster_poster.png" alt="Aster — Control your Android with AI" width="100%" />
+  <img src="./assets/logo.png" alt="Aster Logo" width="120" />
+</p>
+
+<h1 align="center">Aster</h1>
+
+<p align="center">
+  <strong>Control your Android with AI — or give your AI its own phone</strong>
 </p>
 
 <p align="center">
@@ -33,6 +39,10 @@
   <a href="#usage">Usage</a> •
   <a href="#integrations">Integrations</a> •
   <a href="#mcp-tools">MCP Tools</a>
+</p>
+
+<p align="center">
+  <img src="./assets/aster_poster.png" alt="Aster — Control your Android with AI" width="100%" />
 </p>
 
 ---

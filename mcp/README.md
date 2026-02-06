@@ -1,5 +1,11 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/aster_poster.png" alt="Aster — Control any Android with AI" width="100%" />
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/logo.png" alt="Aster Logo" width="100" />
+</p>
+
+<h1 align="center">Aster</h1>
+
+<p align="center">
+  <strong>Control any Android with AI — or give your AI its own phone</strong>
 </p>
 
 <p align="center">
@@ -36,6 +42,10 @@
   <a href="#what-can-it-do">Features</a> &bull;
   <a href="#available-mcp-tools">Tools</a> &bull;
   <a href="#security--privacy">Security</a>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/aster_poster.png" alt="Aster — Control any Android with AI" width="100%" />
 </p>
 
 ---
