@@ -7,7 +7,7 @@
           <img src="/logo.png" alt="Aster" class="w-8 h-8 rounded-lg" />
           <div>
             <span class="text-sm font-semibold text-text-primary">Aster</span>
-            <p class="text-xs text-text-tertiary">AI-powered Android control via MCP</p>
+            <p class="text-xs text-text-tertiary">Your AI CoPilot on Mobile via MCP</p>
           </div>
         </div>
 

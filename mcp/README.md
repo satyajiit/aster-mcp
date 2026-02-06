@@ -5,7 +5,7 @@
 <h1 align="center">Aster</h1>
 
 <p align="center">
-  <strong>Control any Android with AI — or give your AI its own phone</strong>
+  <strong>Your AI CoPilot on Mobile — or give your AI its own phone</strong>
 </p>
 
 <p align="center">
@@ -45,12 +45,12 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/aster_poster.png" alt="Aster — Control any Android with AI" width="100%" />
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/aster_poster.png" alt="Aster — Your AI CoPilot on Mobile" width="100%" />
 </p>
 
 ---
 
-Aster is an MCP server that bridges any Android device to AI assistants. Control your phone remotely &mdash; or give your AI a dedicated device and let it call you, text you, and act autonomously. Screenshots, UI automation, file management, notifications, media search, and 40+ tools &mdash; all through natural language. Fully open source and privacy-first.
+Aster is an MCP server that bridges any Android device to AI assistants. Use it as your AI CoPilot on mobile &mdash; or give your AI a dedicated device and let it call you, text you, and act autonomously. Screenshots, UI automation, file management, notifications, media search, and 40+ tools &mdash; all through natural language. Fully open source and privacy-first.
 
 > **Built for [OpenClaw](https://openclaw.ai)** &mdash; works natively as a skill on OpenClaw, Moltbot, and Clawbot. Also supports Claude and any MCP-compatible client.
 
@@ -100,7 +100,7 @@ Aster is a first-class skill on [ClawHub](https://clawhub.ai/aster). One command
 clawhub install aster
 ```
 
-That's it. Your AI assistant can now control your Android device — or use a dedicated phone as its own. See the [skill configuration](https://github.com/satyajiit/aster-mcp/tree/main/skill) for advanced setup.
+That's it. Your AI assistant is now your CoPilot on mobile — or it can use a dedicated phone as its own. See the [skill configuration](https://github.com/satyajiit/aster-mcp/tree/main/skill) for advanced setup.
 
 ### Claude Code / Claude Desktop
 
@@ -123,7 +123,7 @@ Aster exposes a standard MCP HTTP endpoint at `http://localhost:5988/mcp`.
 
 ## What Can It Do?
 
-**Control your phone** — talk to your AI assistant naturally:
+**Your CoPilot on Mobile** — talk to your AI assistant naturally:
 
 > "Take a screenshot of my phone"
 

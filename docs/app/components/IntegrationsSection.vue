@@ -9,7 +9,7 @@
           Works with your favorite AI clients
         </h2>
         <p class="mt-4 text-text-secondary max-w-xl mx-auto">
-          Aster is compatible with any MCP client. Give Claude, OpenClaw, MoltBot, or ClawBot the power to control a phone &mdash; or own one.
+          Aster is compatible with any MCP client. Give Claude, OpenClaw, MoltBot, or ClawBot a CoPilot for your phone &mdash; or let them own one.
         </p>
       </div>
 

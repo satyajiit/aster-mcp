@@ -1,14 +1,14 @@
 ---
 name: aster
 version: 0.1.11
-description: Control any Android with AI — or give your AI its own phone. Make calls, send SMS, speak via TTS on speakerphone, automate UI, manage files, search media, and 40+ more tools via MCP. Open source, self-hosted, privacy-first.
+description: Your AI CoPilot on Mobile — or give your AI its own phone. Make calls, send SMS, speak via TTS on speakerphone, automate UI, manage files, search media, and 40+ more tools via MCP. Open source, self-hosted, privacy-first.
 homepage: https://aster.theappstack.in
 metadata: {"aster":{"category":"device-control","requires":{"bins":["node"]},"mcp":{"type":"http","url":"http://localhost:5988/mcp"}}}
 ---
 
-# Aster - Android Device Control
+# Aster - Your AI CoPilot on Mobile
 
-Control any Android device from your AI assistant using MCP (Model Context Protocol) — or give your AI a dedicated phone and let it call, text, and act on its own. Fully open source and privacy-first — your data never leaves your network.
+Your AI CoPilot for any Android device using MCP (Model Context Protocol) — or give your AI a dedicated phone and let it call, text, and act on its own. Fully open source and privacy-first — your data never leaves your network.
 
 **Website**: [aster.theappstack.in](https://aster.theappstack.in) | **GitHub**: [github.com/satyajiit/aster-mcp](https://github.com/satyajiit/aster-mcp)
 
@@ -111,7 +111,7 @@ Aster is built with a **security-first, privacy-first** architecture:
 
 ## Example Usage
 
-**Control your phone:**
+**Your CoPilot on Mobile:**
 ```
 "Open YouTube and search for cooking videos"
 → aster_launch_intent → aster_click_by_id → aster_input_text

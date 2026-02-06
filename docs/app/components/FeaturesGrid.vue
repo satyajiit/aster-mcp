@@ -8,7 +8,7 @@
           40+ tools. Your phone or theirs.
         </h2>
         <p class="mt-4 text-text-secondary max-w-xl mx-auto">
-          Screen control, file management, media intelligence, calls, SMS, and device automation &mdash; whether you're controlling your phone or your AI is running its own.
+          Screen control, file management, media intelligence, calls, SMS, and device automation &mdash; whether it's your CoPilot on mobile or your AI is running its own phone.
         </p>
       </div>
 

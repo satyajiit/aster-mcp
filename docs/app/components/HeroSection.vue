@@ -23,12 +23,12 @@
 
       <!-- Headline with sliding text -->
       <h1 class="animate-fade-up delay-100 text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.08] mb-6">
-        <div class="headline-slider overflow-hidden relative" :style="{ height: headlineHeight }">
+        <div class="headline-slider relative" :style="{ minHeight: headlineHeight }">
           <Transition name="headline" mode="out-in">
-            <div v-if="headlineIndex === 0" key="control" ref="headlineRef">
-              <span class="text-text-primary">Control Android</span>
+            <div v-if="headlineIndex === 0" key="copilot" ref="headlineRef">
+              <span class="text-text-primary">AI CoPilot</span>
               <br />
-              <span class="bg-gradient-to-r from-aster via-aster-light to-teal-300 bg-clip-text text-transparent">with your AI</span>
+              <span class="bg-gradient-to-r from-aster via-aster-light to-teal-300 bg-clip-text text-transparent">for your Mobile</span>
             </div>
             <div v-else key="give" ref="headlineRef">
               <span class="text-text-primary">Give your AI</span>
@@ -43,7 +43,7 @@
       <p class="animate-fade-up delay-200 text-lg sm:text-xl text-text-secondary max-w-2xl mx-auto leading-relaxed mb-10">
         Aster connects Android to AI assistants like Claude, OpenClaw, or MoltBot via
         <span class="text-text-primary font-medium">Model Context Protocol</span>.
-        Control your phone remotely &mdash; or give your AI a dedicated device and let it call, text, and act on its own.
+        The CoPilot for your mobile &mdash; or give your AI a dedicated device and let it call, text, and act on its own.
       </p>
 
       <!-- CTA Buttons -->
@@ -235,20 +235,24 @@ function resetInterval() {
 onMounted(() => {
   resetInterval()
 
-  // Set initial headline height
+  // Set initial headline height (double nextTick to ensure full layout)
   nextTick(() => {
-    if (headlineRef.value) {
-      headlineHeight.value = headlineRef.value.offsetHeight + 'px'
-    }
+    nextTick(() => {
+      if (headlineRef.value) {
+        headlineHeight.value = headlineRef.value.offsetHeight + 'px'
+      }
+    })
   })
 
   // Cycle headlines every 4 seconds
   headlineInterval = setInterval(() => {
     headlineIndex.value = (headlineIndex.value + 1) % 2
     nextTick(() => {
-      if (headlineRef.value) {
-        headlineHeight.value = headlineRef.value.offsetHeight + 'px'
-      }
+      nextTick(() => {
+        if (headlineRef.value) {
+          headlineHeight.value = headlineRef.value.offsetHeight + 'px'
+        }
+      })
     })
   }, 4000)
 })

@@ -5,7 +5,7 @@
 <h1 align="center">Aster</h1>
 
 <p align="center">
-  <strong>Control your Android with AI — or give your AI its own phone</strong>
+  <strong>Your AI CoPilot on Mobile — or give your AI its own phone</strong>
 </p>
 
 <p align="center">
@@ -42,12 +42,12 @@
 </p>
 
 <p align="center">
-  <img src="./assets/aster_poster.png" alt="Aster — Control your Android with AI" width="100%" />
+  <img src="./assets/aster_poster.png" alt="Aster — Your AI CoPilot on Mobile" width="100%" />
 </p>
 
 ---
 
-**Aster** bridges any Android device to AI assistants like Claude through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). Control your phone remotely — or plug a spare Android into a charger, install Aster, and give your AI its own device. It can call you, text you, monitor notifications, and act on its own. Screenshots, UI automation, file management, media search, and 40+ tools — all through natural language.
+**Aster** bridges any Android device to AI assistants like Claude through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). Use it as your AI CoPilot on mobile — or plug a spare Android into a charger, install Aster, and give your AI its own device. It can call you, text you, monitor notifications, and act on its own. Screenshots, UI automation, file management, media search, and 40+ tools — all through natural language.
 
 <p align="center">
   <img src="./apps/android/screenshots/connection-setup.jpg" width="200" alt="Connection Setup" />
@@ -157,7 +157,7 @@ aster devices remove     # Remove a device
 
 Once connected, try these with your AI assistant:
 
-**Control your phone:**
+**Your CoPilot on Mobile:**
 
 > "Take a screenshot of my phone"
 

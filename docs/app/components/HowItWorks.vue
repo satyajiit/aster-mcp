@@ -17,7 +17,7 @@
           Watch a command propagate
         </h2>
         <p class="mt-4 text-sm text-text-secondary max-w-lg mx-auto leading-relaxed">
-          From natural language to hardware execution &mdash; trace a command across AI, server, and device. Works the same whether the AI controls your phone or its own.
+          From natural language to hardware execution &mdash; trace a command across AI, server, and device. Works the same whether it's your CoPilot on mobile or AI running its own phone.
         </p>
       </div>
 
