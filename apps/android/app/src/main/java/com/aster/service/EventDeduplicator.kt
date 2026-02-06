@@ -26,14 +26,18 @@ object EventDeduplicator {
         "com.google.android.apps.messaging",
         "com.samsung.android.messaging",
         "com.android.mms",
-        "com.android.messaging"
+        "com.android.messaging",
+        "com.oneplus.mms",
+        "com.xiaomi.mms"
     )
 
     /**
      * Record that an SMS was received. Call BEFORE forwarding the SMS event.
+     * Key is body hash only — sender format differs between SMS broadcast (phone number)
+     * and notification (contact name), so we match on body text alone.
      */
     fun recordSms(sender: String, body: String) {
-        val key = "${sender.takeLast(10)}|${body.hashCode()}"
+        val key = body.trim().hashCode().toString()
         smsEntries[key] = System.currentTimeMillis()
     }
 
@@ -43,12 +47,10 @@ object EventDeduplicator {
      */
     fun isDuplicateOfSms(packageName: String, text: String?, sender: String?): Boolean {
         if (packageName !in knownSmsPackages) return false
-        if (text == null) return false
+        if (text.isNullOrBlank()) return false
 
         val now = System.currentTimeMillis()
-        // Try matching with sender (title) if available
-        val senderSuffix = sender?.takeLast(10) ?: ""
-        val key = "${senderSuffix}|${text.hashCode()}"
+        val key = text.trim().hashCode().toString()
         val recordedAt = smsEntries[key] ?: return false
         return (now - recordedAt) < DEDUP_WINDOW_MS
     }
