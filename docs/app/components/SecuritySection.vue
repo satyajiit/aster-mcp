@@ -141,7 +141,7 @@
           </div>
         </div>
         <a
-          href="https://github.com/satyajiit/Aster"
+          href="https://github.com/satyajiit/aster-mcp"
           target="_blank"
           rel="noopener"
           class="flex items-center gap-2 px-4 py-2 rounded-lg border border-border-subtle text-xs text-text-secondary hover:text-aster hover:border-aster/30 transition-all whitespace-nowrap"

@@ -1,14 +1,16 @@
 ---
 name: aster
-version: 0.1.0
-description: Control your Android device with AI. Take screenshots, automate UI, read notifications, manage files, search media, and more — all through natural language via MCP.
-homepage: https://github.com/satyajiit/aster-mcp
+version: 0.1.2
+description: Control your Android device with AI. Take screenshots, automate UI, read notifications, manage files, search media, and more — all through natural language via MCP. Fully open source, self-hosted, privacy-first.
+homepage: https://aster.theappstack.in
 metadata: {"aster":{"category":"device-control","requires":{"bins":["node"]},"mcp":{"type":"http","url":"http://localhost:5988/mcp"}}}
 ---
 
 # Aster - Android Device Control
 
-Control your Android device from your AI assistant using MCP (Model Context Protocol).
+Control your Android device from your AI assistant using MCP (Model Context Protocol). Fully open source and privacy-first — your data never leaves your network.
+
+**Website**: [aster.theappstack.in](https://aster.theappstack.in) | **GitHub**: [github.com/satyajiit/aster-mcp](https://github.com/satyajiit/aster-mcp)
 
 ---
 
@@ -36,6 +38,21 @@ aster start
 
 ---
 
+## Security & Privacy
+
+Aster is built with a **security-first, privacy-first** architecture:
+
+- **Self-Hosted** — Runs entirely on your local machine. No cloud servers, no third-party relays. Your data stays on your network.
+- **Zero Telemetry** — No analytics, no tracking, no usage data collection. What you do stays with you.
+- **Device Approval** — Every new device must be manually approved from the dashboard before it can connect or execute commands.
+- **Tailscale Integration** — Optional encrypted mesh VPN via Tailscale with WireGuard. Enables secure remote access with automatic TLS (WSS) — no port forwarding required.
+- **No Root Required** — Uses the official Android Accessibility Service API (same system powering screen readers). No rooting, no ADB hacks, no exploits. Every action is permission-gated and sandboxed.
+- **Foreground Transparency** — Always-visible notification on your Android device when the service is running. No silent background access.
+- **Local Storage Only** — All data (device info, logs) stored in a local SQLite database. Nothing is sent externally.
+- **100% Open Source** — MIT licensed, fully auditable codebase. Inspect every line of code on [GitHub](https://github.com/satyajiit/aster-mcp).
+
+---
+
 ## Available Tools
 
 ### Device & Screen
@@ -58,7 +75,7 @@ aster start
 - `aster_read_notifications` - Read notifications
 - `aster_read_sms` - Read SMS messages
 - `aster_get_location` - Get GPS location
-- `aster_execute_shell` - Run shell commands
+- `aster_execute_shell` - Run shell commands in Android app sandbox (no root, restricted to app data directory and user-accessible storage, 30s timeout, 1MB output limit)
 
 ### Files & Storage
 - `aster_list_files` - List directory contents
@@ -114,8 +131,8 @@ aster_search_media with query "photos from Mumbai last month"
 
 - Node.js >= 20
 - Android device with Aster app installed
-- Device and server on same network (or use Tailscale)
+- Device and server on same network (or use [Tailscale](https://tailscale.com) for secure remote access)
 
 ---
 
-**GitHub**: [github.com/satyajiit/aster-mcp](https://github.com/satyajiit/aster-mcp)
+**Website**: [aster.theappstack.in](https://aster.theappstack.in) | **GitHub**: [github.com/satyajiit/aster-mcp](https://github.com/satyajiit/aster-mcp)

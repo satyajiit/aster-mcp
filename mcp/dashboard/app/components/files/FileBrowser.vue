@@ -536,6 +536,7 @@ onUnmounted(() => {
   min-width: 300px;
   max-width: 500px;
   border-right: 1px solid var(--color-terminal-border);
+  overflow: hidden;
 }
 
 .panel-header {

@@ -90,9 +90,10 @@ useHead({
 .files-page {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   padding: 24px;
   gap: 16px;
+  overflow: hidden;
 }
 
 .back-btn {

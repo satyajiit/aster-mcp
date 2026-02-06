@@ -8,6 +8,13 @@ export default defineNuxtConfig({
 
   modules: ['@nuxt/fonts', '@nuxt/icon'],
 
+  icon: {
+    provider: 'server',
+    serverBundle: {
+      collections: ['ph', 'lucide', 'mdi'],
+    },
+  },
+
   components: [
     { path: '~/components/common', pathPrefix: false },
     { path: '~/components/device', pathPrefix: false },

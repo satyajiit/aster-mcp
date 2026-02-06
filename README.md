@@ -28,6 +28,20 @@
 
 **Aster** bridges your Android device to AI assistants like Claude through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). Take screenshots, automate UI interactions, manage files, read notifications, and more — all through natural language.
 
+<p align="center">
+  <img src="./apps/android/screenshots/connection-setup.jpg" width="200" alt="Connection Setup" />
+  &nbsp;&nbsp;
+  <img src="./apps/android/screenshots/device-dashboard.jpg" width="200" alt="Device Dashboard" />
+  &nbsp;&nbsp;
+  <img src="./apps/android/screenshots/services-logs.jpg" width="200" alt="Services & Logs" />
+  &nbsp;&nbsp;
+  <img src="./apps/android/screenshots/permissions.jpg" width="200" alt="Permissions" />
+</p>
+
+<p align="center">
+  <sub>Connection Setup &nbsp;&bull;&nbsp; Device Dashboard &nbsp;&bull;&nbsp; Services & Activity Log &nbsp;&bull;&nbsp; Permissions</sub>
+</p>
+
 ## Features
 
 - **Screen Control** — Take screenshots, analyze UI hierarchy, tap, swipe, and type
@@ -36,6 +50,43 @@
 - **File Management** — Browse, read, write, and delete files on device storage
 - **Media Search** — Find photos and videos using natural language queries
 - **System Actions** — Back, Home, Recents, volume control, and more
+
+## Web Dashboard
+
+Aster ships with a built-in web dashboard for managing devices, browsing files, and testing MCP tools.
+
+<p align="center">
+  <img src="./mcp/dashboard/screenshots/dashboard-overview.png" width="49%" alt="Dashboard Overview" />
+  &nbsp;
+  <img src="./mcp/dashboard/screenshots/device-telemetry.png" width="49%" alt="Device Telemetry" />
+</p>
+<p align="center">
+  <img src="./mcp/dashboard/screenshots/file-preview.png" width="49%" alt="File Browser & Preview" />
+  &nbsp;
+  <img src="./mcp/dashboard/screenshots/mcp-tool-explorer.png" width="49%" alt="MCP Tool Explorer" />
+</p>
+
+<p align="center">
+  <sub>Dashboard Overview &nbsp;&bull;&nbsp; Device Telemetry &nbsp;&bull;&nbsp; File Browser & Preview &nbsp;&bull;&nbsp; MCP Tool Explorer</sub>
+</p>
+
+<details>
+<summary>More screenshots</summary>
+<br>
+<p align="center">
+  <img src="./mcp/dashboard/screenshots/device-registry.png" width="49%" alt="Device Registry" />
+  &nbsp;
+  <img src="./mcp/dashboard/screenshots/device-system-info.png" width="49%" alt="System Info" />
+</p>
+<p align="center">
+  <img src="./mcp/dashboard/screenshots/device-control.png" width="49%" alt="Device Control" />
+  &nbsp;
+  <img src="./mcp/dashboard/screenshots/file-browser.png" width="49%" alt="File Browser" />
+</p>
+<p align="center">
+  <sub>Device Registry &nbsp;&bull;&nbsp; System Info &nbsp;&bull;&nbsp; Device Control &nbsp;&bull;&nbsp; File Browser</sub>
+</p>
+</details>
 
 ## Quick Start
 

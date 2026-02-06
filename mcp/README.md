@@ -19,17 +19,36 @@
 </p>
 
 <p align="center">
+  <a href="https://aster.theappstack.in">Website</a> &bull;
   <a href="#installation">Installation</a> &bull;
   <a href="#connect-your-ai-assistant">Connect AI</a> &bull;
   <a href="#what-can-it-do">Features</a> &bull;
-  <a href="#available-mcp-tools">Tools</a>
+  <a href="#available-mcp-tools">Tools</a> &bull;
+  <a href="#security--privacy">Security</a>
 </p>
 
 ---
 
-Aster is an MCP server that bridges your Android device to AI assistants. Take screenshots, automate UI, manage files, read notifications, search photos, and more &mdash; all through natural language.
+Aster is an MCP server that bridges your Android device to AI assistants. Take screenshots, automate UI, manage files, read notifications, search photos, and more &mdash; all through natural language. Fully open source and privacy-first.
 
 > **Built for [OpenClaw](https://openclaw.ai)** &mdash; works natively as a skill on OpenClaw, Moltbot, and Clawbot. Also supports Claude and any MCP-compatible client.
+
+## Web Dashboard
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dashboard-overview.png" width="49%" alt="Dashboard Overview" />
+  &nbsp;
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/device-telemetry.png" width="49%" alt="Device Telemetry" />
+</p>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/file-preview.png" width="49%" alt="File Browser & Preview" />
+  &nbsp;
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/mcp-tool-explorer.png" width="49%" alt="MCP Tool Explorer" />
+</p>
+
+<p align="center">
+  <sub>Dashboard Overview &nbsp;&bull;&nbsp; Device Telemetry &nbsp;&bull;&nbsp; File Browser & Preview &nbsp;&bull;&nbsp; MCP Tool Explorer</sub>
+</p>
 
 ## Installation
 
@@ -120,14 +139,33 @@ aster devices remove     # Remove a device
 | **Storage** | `analyze_storage`, `find_large_files`, `search_media` |
 | **Clipboard** | `get_clipboard`, `set_clipboard` |
 | **Audio** | `speak_tts`, `play_audio`, `vibrate` |
-| **Apps** | `list_packages`, `execute_shell` |
+| **Apps** | `list_packages`, `execute_shell` (sandboxed, no root) |
+
+## Security & Privacy
+
+Aster is built with a security-first, privacy-first architecture:
+
+- **Self-Hosted** — Runs entirely on your local machine. No cloud servers, no third-party relays.
+- **Zero Telemetry** — No analytics, no tracking, no usage data collection.
+- **Device Approval** — Every new device must be manually approved from the dashboard before it can connect.
+- **Tailscale Integration** — Optional encrypted mesh VPN with WireGuard. Secure remote access with automatic TLS, no port forwarding.
+- **No Root Required** — Uses the official Android Accessibility Service API. No rooting, no ADB hacks. Every action is permission-gated and sandboxed.
+- **Local Storage Only** — All data stored in a local SQLite database. Nothing is sent externally.
+- **100% Open Source** — MIT licensed, fully auditable codebase.
 
 ## Requirements
 
 - Node.js >= 20
 - Android device with Aster app installed
-- Device and server on same network (or [Tailscale](https://tailscale.com))
+- Device and server on same network (or [Tailscale](https://tailscale.com) for secure remote access)
 
 ## License
 
 MIT
+
+---
+
+<p align="center">
+  <a href="https://aster.theappstack.in">Website</a> &bull;
+  <a href="https://github.com/satyajiit/aster-mcp">GitHub</a>
+</p>

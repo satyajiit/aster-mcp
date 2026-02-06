@@ -3,6 +3,7 @@
     <NavBar />
     <HeroSection />
     <FeaturesGrid />
+    <ScreenshotsSection />
     <UseCasesSection />
     <LiveChatSection />
     <SecuritySection />

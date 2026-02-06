@@ -36,6 +36,9 @@ output.json
 *.jks
 *.keystore
 
+# Playwright
+.playwright/
+
 # Aster specific
 *.db
 *.db-shm

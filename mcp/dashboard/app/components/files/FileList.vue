@@ -15,12 +15,12 @@ const emit = defineEmits<{
   navigateUp: [];
 }>();
 
-// Sort files: directories first, then by name
+// Sort files: directories first, then by newest modified
 function sortFiles(files: FileEntry[]): FileEntry[] {
   return [...files].sort((a, b) => {
     if (a.isDirectory && !b.isDirectory) return -1;
     if (!a.isDirectory && b.isDirectory) return 1;
-    return a.name.localeCompare(b.name);
+    return (b.lastModified || '').localeCompare(a.lastModified || '');
   });
 }
 

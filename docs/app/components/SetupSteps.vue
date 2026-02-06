@@ -24,7 +24,7 @@
           <!-- Custom description for step 2: companion app with download link -->
           <p v-if="step.hasCustomDescription" class="text-sm text-text-secondary leading-relaxed -mt-1 mb-1">
             Download the latest APK from
-            <a href="https://github.com/satyajiit/Aster/releases" target="_blank" rel="noopener" class="text-aster hover:underline font-medium">GitHub Releases</a>
+            <a href="https://github.com/satyajiit/aster-mcp/releases" target="_blank" rel="noopener" class="text-aster hover:underline font-medium">GitHub Releases</a>
             or build from source. Grant Accessibility Service permission when prompted.
           </p>
 

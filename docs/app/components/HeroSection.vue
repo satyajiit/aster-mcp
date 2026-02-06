@@ -45,7 +45,7 @@
           <Icon name="lucide:arrow-right" class="inline ml-1.5 transition-transform group-hover:translate-x-0.5" />
         </a>
         <a
-          href="https://github.com/satyajiit/Aster"
+          href="https://github.com/satyajiit/aster-mcp"
           target="_blank"
           rel="noopener"
           class="px-7 py-3.5 rounded-xl border border-border-subtle text-text-secondary font-medium text-sm hover:border-aster/30 hover:text-text-primary transition-all"

@@ -267,7 +267,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'aster_execute_shell',
-    description: 'Execute a shell command in the app sandbox context',
+    description: 'Execute a shell command within the Android app sandbox. Runs as an unprivileged app process (no root) — restricted to the app\'s own data directory, standard Android utilities, and user-accessible storage. Cannot modify system files, access other app data, or bypass Android permissions. Commands are subject to a 30-second timeout and 1MB output limit.',
     inputSchema: {
       type: 'object',
       properties: {

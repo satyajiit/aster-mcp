@@ -14,7 +14,7 @@
         <!-- Links -->
         <div class="flex items-center gap-6 text-sm text-text-secondary">
           <a
-            href="https://github.com/satyajiit/Aster"
+            href="https://github.com/satyajiit/aster-mcp"
             target="_blank"
             rel="noopener"
             class="hover:text-aster transition-colors flex items-center gap-1.5"
@@ -23,7 +23,7 @@
             GitHub
           </a>
           <a
-            href="https://github.com/satyajiit/Aster/releases"
+            href="https://github.com/satyajiit/aster-mcp/releases"
             target="_blank"
             rel="noopener"
             class="hover:text-aster transition-colors flex items-center gap-1.5"
@@ -32,7 +32,7 @@
             Releases
           </a>
           <a
-            href="https://github.com/satyajiit/Aster/issues"
+            href="https://github.com/satyajiit/aster-mcp/issues"
             target="_blank"
             rel="noopener"
             class="hover:text-aster transition-colors flex items-center gap-1.5"
