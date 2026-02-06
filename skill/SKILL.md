@@ -1,6 +1,6 @@
 ---
 name: aster
-version: 0.1.2
+version: 0.1.6
 description: Control your Android device with AI. Take screenshots, automate UI, read notifications, manage files, search media, and more — all through natural language via MCP. Fully open source, self-hosted, privacy-first.
 homepage: https://aster.theappstack.in
 metadata: {"aster":{"category":"device-control","requires":{"bins":["node"]},"mcp":{"type":"http","url":"http://localhost:5988/mcp"}}}
@@ -11,6 +11,19 @@ metadata: {"aster":{"category":"device-control","requires":{"bins":["node"]},"mc
 Control your Android device from your AI assistant using MCP (Model Context Protocol). Fully open source and privacy-first — your data never leaves your network.
 
 **Website**: [aster.theappstack.in](https://aster.theappstack.in) | **GitHub**: [github.com/satyajiit/aster-mcp](https://github.com/satyajiit/aster-mcp)
+
+---
+
+## Android App
+
+![Connection Setup](https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/screenshots/app/connection-setup.jpg) ![Device Dashboard](https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/screenshots/app/device-dashboard.jpg) ![Services & Logs](https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/screenshots/app/services-logs.jpg) ![Permissions](https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/screenshots/app/permissions.jpg)
+
+## Web Dashboard
+
+![Dashboard Overview](https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/screenshots/dashboard/dashboard-overview.png)
+![Device Telemetry](https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/screenshots/dashboard/device-telemetry.png)
+![File Browser & Preview](https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/screenshots/dashboard/file-preview.png)
+![MCP Tool Explorer](https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/screenshots/dashboard/mcp-tool-explorer.png)
 
 ---
 
