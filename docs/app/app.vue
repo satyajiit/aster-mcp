@@ -2,6 +2,7 @@
   <div class="noise">
     <NavBar />
     <HeroSection />
+    <EmbraceSection />
     <FeaturesGrid />
     <ScreenshotsSection />
     <UseCasesSection />

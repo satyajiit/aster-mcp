@@ -21,11 +21,22 @@
         <span class="text-xs font-medium text-text-secondary tracking-wide uppercase">Open Source &middot; MIT Licensed</span>
       </div>
 
-      <!-- Headline -->
+      <!-- Headline with sliding text -->
       <h1 class="animate-fade-up delay-100 text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.08] mb-6">
-        <span class="text-text-primary">Control Android</span>
-        <br />
-        <span class="bg-gradient-to-r from-aster via-aster-light to-teal-300 bg-clip-text text-transparent">with your AI</span>
+        <div class="headline-slider overflow-hidden relative" :style="{ height: headlineHeight }">
+          <Transition name="headline" mode="out-in">
+            <div v-if="headlineIndex === 0" key="control" ref="headlineRef">
+              <span class="text-text-primary">Control Android</span>
+              <br />
+              <span class="bg-gradient-to-r from-aster via-aster-light to-teal-300 bg-clip-text text-transparent">with your AI</span>
+            </div>
+            <div v-else key="give" ref="headlineRef">
+              <span class="text-text-primary">Give your AI</span>
+              <br />
+              <span class="bg-gradient-to-r from-amber-400 via-orange-400 to-amber-300 bg-clip-text text-transparent">its own phone</span>
+            </div>
+          </Transition>
+        </div>
       </h1>
 
       <!-- Subheading -->
@@ -200,6 +211,12 @@ const conversations = [
   },
 ]
 
+// Headline slider
+const headlineIndex = ref(0)
+const headlineRef = ref<HTMLElement | null>(null)
+const headlineHeight = ref('auto')
+let headlineInterval: ReturnType<typeof setInterval> | null = null
+
 const currentIndex = ref(0)
 let interval: ReturnType<typeof setInterval> | null = null
 
@@ -217,10 +234,28 @@ function resetInterval() {
 
 onMounted(() => {
   resetInterval()
+
+  // Set initial headline height
+  nextTick(() => {
+    if (headlineRef.value) {
+      headlineHeight.value = headlineRef.value.offsetHeight + 'px'
+    }
+  })
+
+  // Cycle headlines every 4 seconds
+  headlineInterval = setInterval(() => {
+    headlineIndex.value = (headlineIndex.value + 1) % 2
+    nextTick(() => {
+      if (headlineRef.value) {
+        headlineHeight.value = headlineRef.value.offsetHeight + 'px'
+      }
+    })
+  }, 4000)
 })
 
 onUnmounted(() => {
   if (interval) clearInterval(interval)
+  if (headlineInterval) clearInterval(headlineInterval)
 })
 </script>
 
@@ -238,5 +273,25 @@ onUnmounted(() => {
 .chat-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+/* Headline slide transition */
+.headline-slider {
+  transition: height 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.headline-enter-active {
+  transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.headline-leave-active {
+  transition: all 0.35s cubic-bezier(0.55, 0, 1, 0.45);
+}
+.headline-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+.headline-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
 }
 </style>
