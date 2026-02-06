@@ -1,11 +1,5 @@
 <p align="center">
-  <img src="./assets/logo.png" alt="Aster Logo" width="120" />
-</p>
-
-<h1 align="center">Aster</h1>
-
-<p align="center">
-  <strong>Control your Android with AI — or give your AI its own phone</strong>
+  <img src="./assets/aster_poster.png" alt="Aster — Control your Android with AI" width="100%" />
 </p>
 
 <p align="center">
@@ -14,6 +8,23 @@
   <a href="https://github.com/satyajiit/aster-mcp/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" /></a>
   <a href="https://clawhub.ai/aster"><img src="https://img.shields.io/badge/ClawHub-skill-purple?style=flat-square" alt="ClawHub" /></a>
   <a href="https://openclaw.ai"><img src="https://img.shields.io/badge/OpenClaw-compatible-orange?style=flat-square" alt="OpenClaw" /></a>
+  <img src="https://img.shields.io/badge/40%2B-MCP_tools-2dd4bf?style=flat-square" alt="40+ MCP tools" />
+  <img src="https://img.shields.io/badge/Android_7%2B-supported-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android 7+" />
+  <img src="https://img.shields.io/badge/no_root-required-ff6b6b?style=flat-square" alt="No root required" />
+  <img src="https://img.shields.io/badge/self--hosted-privacy_first-gold?style=flat-square" alt="Self-hosted" />
+</p>
+
+<p align="center">
+  <img src="https://forthebadge.com/badges/ages-20-30.svg" alt="Ages 20-30" />
+  <img src="https://forthebadge.com/badges/approved-by-george-costanza.svg" alt="Approved by George Costanza" />
+  <img src="https://forthebadge.com/badges/made-with-vue.svg" alt="Made with Vue" />
+  <img src="https://forthebadge.com/api/badges/generate?panels=2&primaryLabel=MADE+WITH&secondaryLabel=TYPESCRIPT&primaryBGColor=%23429eff&secondaryBGColor=%233178c6&primaryTextColor=%23FFFFFF&primaryFontSize=12&primaryFontWeight=600&primaryLetterSpacing=2&primaryFontFamily=Roboto&primaryTextTransform=uppercase&secondaryTextColor=%23FFFFFF&secondaryFontSize=12&secondaryFontWeight=900&secondaryLetterSpacing=2&secondaryFontFamily=Montserrat&secondaryTextTransform=uppercase&secondaryIcon=typescript&secondaryIconColor=%23FFFFFF&secondaryIconSize=16&secondaryIconPosition=left" alt="Made with TypeScript" />
+  <img src="https://forthebadge.com/api/badges/generate?panels=2&primaryLabel=BUILT&secondaryLabel=WITH+NUXT&primaryBGColor=%23000000&secondaryBGColor=%2309ce44&primaryTextColor=%23FFFFFF&primaryFontSize=12&primaryFontWeight=600&primaryLetterSpacing=2&primaryFontFamily=Roboto&primaryTextTransform=uppercase&secondaryTextColor=%23FFFFFF&secondaryFontSize=12&secondaryFontWeight=900&secondaryLetterSpacing=2&secondaryFontFamily=Montserrat&secondaryTextTransform=uppercase&secondaryIcon=nuxt&secondaryIconColor=%23FFFFFF&secondaryIconSize=16&secondaryIconPosition=right" alt="Built with Nuxt" />
+  <img src="https://forthebadge.com/api/badges/generate?panels=2&primaryLabel=Porsche&secondaryLabel=Cayman&primaryBGColor=%23000000&secondaryBGColor=%23ffffff&tertiaryBGColor=%23ff0000&primaryTextColor=%23FFFFFF&primaryFontSize=15&primaryFontWeight=600&primaryLetterSpacing=2&primaryFontFamily=Roboto&primaryTextTransform=capitalize&secondaryTextColor=%23000000&secondaryFontSize=15&secondaryFontWeight=900&secondaryLetterSpacing=2&secondaryFontFamily=Montserrat&secondaryTextTransform=capitalize&primaryFontVariant=small-caps&secondaryTextShadowOffsetX=0.5&secondaryTextShadowOffsetY=1.5&secondaryTextShadowColor=%23ffffff&secondaryFontVariant=small-caps&borderRadius=10&scale=1.40&secondaryIcon=porsche&secondaryIconColor=%23ff0000&secondaryIconSize=16&secondaryIconPosition=right" alt="Porsche Cayman" />
+  <img src="https://forthebadge.com/badges/fuck-it-ship-it.svg" alt="Fuck it, ship it" />
+  <img src="https://forthebadge.com/badges/ages-18.svg" alt="Ages 18+" />
+  <img src="https://forthebadge.com/badges/powered-by-jeffs-keyboard.svg" alt="Powered by Jeff's keyboard" />
+  <img src="https://forthebadge.com/badges/open-source.svg" alt="Open Source" />
 </p>
 
 <p align="center">
