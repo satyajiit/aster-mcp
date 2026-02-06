@@ -1,14 +1,14 @@
 ---
 name: aster
-version: 0.1.7
-description: Control your Android device with AI. Take screenshots, automate UI, read notifications, manage files, search media, and more — all through natural language via MCP. Fully open source, self-hosted, privacy-first.
+version: 0.1.11
+description: Control any Android with AI — or give your AI its own phone. Make calls, send SMS, speak via TTS on speakerphone, automate UI, manage files, search media, and 40+ more tools via MCP. Open source, self-hosted, privacy-first.
 homepage: https://aster.theappstack.in
 metadata: {"aster":{"category":"device-control","requires":{"bins":["node"]},"mcp":{"type":"http","url":"http://localhost:5988/mcp"}}}
 ---
 
 # Aster - Android Device Control
 
-Control your Android device from your AI assistant using MCP (Model Context Protocol). Fully open source and privacy-first — your data never leaves your network.
+Control any Android device from your AI assistant using MCP (Model Context Protocol) — or give your AI a dedicated phone and let it call, text, and act on its own. Fully open source and privacy-first — your data never leaves your network.
 
 **Website**: [aster.theappstack.in](https://aster.theappstack.in) | **GitHub**: [github.com/satyajiit/aster-mcp](https://github.com/satyajiit/aster-mcp)
 
@@ -26,7 +26,7 @@ npm install -g aster-mcp
 aster start
 ```
 
-2. **Install the Aster Android app** on your device from [Releases](https://github.com/satyajiit/aster-mcp/releases) and connect to the server address shown in terminal.
+2. **Install the Aster Android app** on any Android device — your daily phone or a spare one for your AI — from [Releases](https://github.com/satyajiit/aster-mcp/releases) and connect to the server address shown in terminal.
 
 3. **Configure MCP** in your `.mcp.json`:
 ```json
@@ -78,6 +78,7 @@ Aster is built with a **security-first, privacy-first** architecture:
 - `aster_list_packages` - List installed apps
 - `aster_read_notifications` - Read notifications
 - `aster_read_sms` - Read SMS messages
+- `aster_send_sms` - Send an SMS text message to a phone number
 - `aster_get_location` - Get GPS location
 - `aster_execute_shell` - Run shell commands in Android app sandbox (no root, restricted to app data directory and user-accessible storage, 30s timeout, 1MB output limit)
 
@@ -99,6 +100,7 @@ Aster is built with a **security-first, privacy-first** architecture:
 - `aster_play_audio` - Play audio
 - `aster_post_notification` - Post notification
 - `aster_make_call` - Initiate phone call
+- `aster_make_call_with_voice` - Make a call, enable speakerphone, and speak AI text via TTS after pickup
 - `aster_show_overlay` - Show web overlay on device
 
 ### Media Intelligence
@@ -109,24 +111,28 @@ Aster is built with a **security-first, privacy-first** architecture:
 
 ## Example Usage
 
-**Open YouTube and search:**
+**Control your phone:**
 ```
-1. aster_launch_intent with packageName "com.google.android.youtube"
-2. aster_click_by_id with viewId "com.google.android.youtube:id/search_button"
-3. aster_input_text with text "cooking videos"
-4. aster_global_action with action "BACK" to dismiss keyboard
+"Open YouTube and search for cooking videos"
+→ aster_launch_intent → aster_click_by_id → aster_input_text
+
+"Find photos from my trip to Mumbai last month"
+→ aster_search_media with query "photos from Mumbai last month"
+
+"Take a screenshot and tell me what's on screen"
+→ aster_take_screenshot → aster_get_screen_hierarchy
 ```
 
-**Take screenshot and analyze UI:**
+**AI's own phone — let it act for you:**
 ```
-1. aster_take_screenshot to see current screen
-2. aster_get_screen_hierarchy to get interactive elements
-3. aster_click_by_text to tap on specific button
-```
+"Call me and tell me my flight is delayed"
+→ aster_make_call_with_voice with number, text "Your flight is delayed 45 min, new gate B12", waitSeconds 8
 
-**Find photos from a trip:**
-```
-aster_search_media with query "photos from Mumbai last month"
+"Text me when my delivery arrives"
+→ aster_read_notifications → aster_send_sms with number and message
+
+"Reply to the delivery guy: Thanks, I'll be home"
+→ aster_send_sms with number and message
 ```
 
 ---
@@ -150,7 +156,7 @@ aster devices remove     # Remove a device
 ## Requirements
 
 - Node.js >= 20
-- Android device with Aster app installed
+- Any Android device with Aster app installed (your phone or a dedicated AI device)
 - Device and server on same network (or use [Tailscale](https://tailscale.com) for secure remote access)
 
 ---

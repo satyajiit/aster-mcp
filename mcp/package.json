@@ -1,7 +1,7 @@
 {
   "name": "aster-mcp",
-  "version": "0.1.10",
-  "description": "MCP server for Android device control - Control your Android device from Claude and other AI assistants",
+  "version": "0.1.11",
+  "description": "MCP server for Android device control - Control your Android with AI or give your AI its own phone",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "license": "MIT",
@@ -20,10 +20,17 @@
     "model-context-protocol",
     "android",
     "claude",
+    "openclaw",
+    "clawdbot",
+    "moltbot",
     "ai",
+    "ai-phone",
     "automation",
     "device-control",
-    "accessibility"
+    "accessibility",
+    "send-sms",
+    "make-call",
+    "tts"
   ],
   "bin": {
     "aster": "./dist/bin/aster.js"
