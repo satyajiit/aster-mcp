@@ -67,7 +67,7 @@
             npm: aster-mcp
           </a>
           <a
-            href="https://clawhub.ai/satyajiit/aster"
+            href="https://clawhub.ai/aster"
             target="_blank"
             rel="noopener"
             class="text-xs text-text-tertiary hover:text-aster transition-colors"
