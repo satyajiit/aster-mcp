@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync, writeFileSync, readFileSync, unlinkSync, openSync, mkdirSync } from 'fs';
 import { homedir } from 'os';
+import { createInterface } from 'readline';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -19,6 +20,32 @@ const STATUS_FILE = join(ASTER_DIR, 'status.json');
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+const PROGRESS_STEPS = [
+  'Initializing database',
+  'Starting WebSocket server',
+  'Starting API server',
+  'Building dashboard',
+  'Detecting Tailscale',
+  'Finalizing',
+];
+
+function renderProgress(step: number, total: number, label: string): void {
+  const filled = Math.round((step / total) * 20);
+  const bar = chalk.cyan('█'.repeat(filled)) + chalk.gray('░'.repeat(20 - filled));
+  const pct = Math.round((step / total) * 100);
+  process.stdout.write(`\r  ${bar} ${chalk.white(`${pct}%`)} ${chalk.gray(label)}   `);
+}
+
+function askYesNo(question: string): Promise<boolean> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise(resolve => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes');
+    });
+  });
 }
 
 function readStatus(): Record<string, any> | null {
@@ -166,14 +193,20 @@ program
     if (child.pid) {
       writeFileSync(PID_FILE, child.pid.toString());
 
-      // Wait for the server to write its status file (includes Tailscale info)
-      console.log(chalk.gray('  Starting server...'));
+      // Progress bar while waiting for status file
+      console.log('');
       let status: Record<string, any> | null = null;
       for (let i = 0; i < 15; i++) {
+        const stepIdx = Math.min(i, PROGRESS_STEPS.length - 1);
+        renderProgress(i + 1, 15, PROGRESS_STEPS[stepIdx]);
         await sleep(1000);
         status = readStatus();
-        if (status) break;
+        if (status) {
+          renderProgress(15, 15, 'Ready');
+          break;
+        }
       }
+      console.log('\n');
 
       if (status) {
         displayStatus(status, child.pid);
@@ -196,6 +229,36 @@ program
       console.log(chalk.gray(`  Use ${chalk.white('aster status')} for full status`));
       console.log(chalk.gray(`  Use ${chalk.white('aster logs')} to view logs`));
       console.log(chalk.gray(`  Use ${chalk.white('aster stop')} to stop the server\n`));
+
+      // Ask about OpenClaw event forwarding
+      const openclawConfigPath = join(ASTER_DIR, 'openclaw.json');
+      const alreadyConfigured = existsSync(openclawConfigPath);
+
+      if (!alreadyConfigured) {
+        console.log(chalk.cyan('─'.repeat(45)));
+        console.log(chalk.cyan.bold('\n  Proactive Event Forwarding'));
+        console.log(chalk.gray('  Aster can push real-time phone events (SMS, notifications,'));
+        console.log(chalk.gray('  device status) to your AI agent via webhook — so your AI'));
+        console.log(chalk.gray('  reacts instantly without polling.\n'));
+        console.log(chalk.gray(`  Works out of the box with ${chalk.white('OpenClaw')}, ${chalk.white('ClawdBot')}, and ${chalk.white('MoltBot')}.\n`));
+
+        const wantOpenClaw = await askYesNo(chalk.white('  Enable event forwarding? (y/N): '));
+
+        if (wantOpenClaw) {
+          const dashboardPort = status?.dashboardUrl
+            ? new URL(status.dashboardUrl).port
+            : options.apiPort;
+          const settingsUrl = `http://localhost:${dashboardPort}/settings/openclaw`;
+          console.log(chalk.green(`\n  ✓ Opening dashboard to configure event forwarding...`));
+          console.log(chalk.gray(`    ${settingsUrl}\n`));
+          console.log(chalk.gray(`  Or use the CLI: ${chalk.white('aster set-openclaw-callbacks')}\n`));
+          openBrowser(settingsUrl);
+        } else {
+          console.log(chalk.gray(`\n  Skipped. You can enable it later with:`));
+          console.log(chalk.gray(`    ${chalk.white('aster set-openclaw-callbacks')}`));
+          console.log(chalk.gray(`    or from the dashboard at ${chalk.white('/settings/openclaw')}\n`));
+        }
+      }
     } else {
       console.log(chalk.red('Failed to start Aster server.'));
       process.exit(1);
@@ -300,6 +363,82 @@ program
     const url = `http://localhost:${options.port}`;
     console.log(chalk.cyan(`Opening dashboard: ${url}`));
     openBrowser(url);
+  });
+
+// Set OpenClaw callbacks command
+program
+  .command('set-openclaw-callbacks')
+  .description('Configure OpenClaw webhook for event forwarding (notifications, SMS)')
+  .action(async () => {
+    // Read OpenClaw token from ~/.openclaw/openclaw.json
+    const openclawConfigPath = join(homedir(), '.openclaw', 'openclaw.json');
+    if (!existsSync(openclawConfigPath)) {
+      console.log(chalk.red('Error: ~/.openclaw/openclaw.json not found.'));
+      console.log(chalk.gray('Please install and configure OpenClaw first.'));
+      process.exit(1);
+    }
+
+    let token = '';
+    try {
+      const openclawConfig = JSON.parse(readFileSync(openclawConfigPath, 'utf-8'));
+      token = openclawConfig?.gateway?.auth?.token || '';
+      if (!token) {
+        console.log(chalk.red('Error: No token found in ~/.openclaw/openclaw.json (gateway.auth.token)'));
+        process.exit(1);
+      }
+      console.log(chalk.green(`✓ Found OpenClaw token: ${token.slice(0, 8)}...`));
+    } catch (err: any) {
+      console.log(chalk.red(`Error reading OpenClaw config: ${err.message}`));
+      process.exit(1);
+    }
+
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const ask = (q: string, def: string): Promise<string> =>
+      new Promise(resolve => rl.question(`${q} [${def}]: `, ans => resolve(ans.trim() || def)));
+
+    const endpoint = await ask('OpenClaw endpoint URL', 'http://localhost:18789');
+    const webhookPath = await ask('Webhook path', '/hooks/agent');
+    rl.close();
+
+    // Test connectivity
+    const testUrl = `${endpoint}${webhookPath}`;
+    console.log(chalk.gray(`\n  Testing connection to ${testUrl}...`));
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(testUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text: 'aster connection test', mode: 'now', source: 'aster-setup' }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      console.log(chalk.green(`  ✓ Connected (HTTP ${res.status})`));
+    } catch (err: any) {
+      console.log(chalk.yellow(`  ⚠ Could not reach ${testUrl}: ${err.message}`));
+      console.log(chalk.gray('  Config will be saved anyway — events will forward once OpenClaw is reachable.'));
+    }
+
+    // Save config
+    const asterOpenClawConfig = {
+      enabled: true,
+      endpoint,
+      webhookPath,
+      token,
+      channel: 'whatsapp',
+      deliverTo: '',
+      configuredAt: new Date().toISOString(),
+      events: { notifications: true, sms: true, deviceConnected: true, deviceDisconnected: true, pairingRequired: true },
+    };
+
+    const configPath = join(ASTER_DIR, 'openclaw.json');
+    writeFileSync(configPath, JSON.stringify(asterOpenClawConfig, null, 2));
+    console.log(chalk.green(`\n✓ OpenClaw config saved to ${configPath}`));
+    console.log(chalk.gray('  Restart Aster for changes to take effect.'));
   });
 
 // MCP command - starts as MCP server (stdio) - hidden from help but available

@@ -11,14 +11,18 @@ import {
   ClickByIdSchema,
   ClickByTextSchema,
   DeleteFileSchema,
+  DeleteAlarmSchema,
+  DismissAlarmSchema,
   ExecuteShellSchema,
   FindElementSchema,
   FindLargeFilesSchema,
+  GetAlarmsSchema,
   GetBatterySchema,
   GetClipboardSchema,
   GetDeviceInfoSchema,
   GetLocationSchema,
   GetScreenHierarchySchema,
+  GetVolumeSchema,
   GlobalActionSchema,
   IndexMediaMetadataSchema,
   InputGestureSchema,
@@ -33,12 +37,18 @@ import {
   ReadFileSchema,
   ReadNotificationsSchema,
   ReadSmsSchema,
+  RecordVideoSchema,
+  SearchContactsSchema,
   SearchMediaSchema,
   SendSmsSchema,
+  SetAlarmSchema,
   SetClipboardSchema,
+  SetVolumeSchema,
   ShowOverlaySchema,
   ShowToastSchema,
   SpeakTtsSchema,
+  StopAudioSchema,
+  TakePhotoSchema,
   TakeScreenshotSchema,
   VibrateSchema,
   WriteFileSchema,
@@ -191,6 +201,36 @@ export async function handleToolCall(
 
       case 'aster_search_media':
         return handleSearchMedia(args);
+
+      case 'aster_stop_audio':
+        return handleStopAudio(args);
+
+      case 'aster_get_volume':
+        return handleGetVolume(args);
+
+      case 'aster_set_volume':
+        return handleSetVolume(args);
+
+      case 'aster_search_contacts':
+        return handleSearchContacts(args);
+
+      case 'aster_get_alarms':
+        return handleGetAlarms(args);
+
+      case 'aster_set_alarm':
+        return handleSetAlarm(args);
+
+      case 'aster_dismiss_alarm':
+        return handleDismissAlarm(args);
+
+      case 'aster_delete_alarm':
+        return handleDeleteAlarm(args);
+
+      case 'aster_take_photo':
+        return handleTakePhoto(args);
+
+      case 'aster_record_video':
+        return handleRecordVideo(args);
 
       default:
         return errorResult(`Unknown tool: ${name}`);
@@ -353,8 +393,8 @@ async function handleGetBattery(args: Record<string, unknown>): Promise<ToolResu
 }
 
 async function handleShowOverlay(args: Record<string, unknown>): Promise<ToolResult> {
-  const { deviceId, url, html } = ShowOverlaySchema.parse(args);
-  const response = await sendCommand(deviceId, 'show_overlay', { url, html });
+  const { deviceId, url, html, showCloseButton, timeout } = ShowOverlaySchema.parse(args);
+  const response = await sendCommand(deviceId, 'show_overlay', { url, html, showCloseButton, timeout });
   return jsonResult(response.data);
 }
 
@@ -499,5 +539,70 @@ async function handleSearchMedia(args: Record<string, unknown>): Promise<ToolRes
   }
 
   const response = await sendCommand(deviceId, 'search_media', searchParams, 120000); // 2 minute timeout
+  return jsonResult(response.data);
+}
+
+async function handleStopAudio(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId } = StopAudioSchema.parse(args);
+  const response = await sendCommand(deviceId, 'stop_audio');
+  return jsonResult(response.data);
+}
+
+async function handleGetVolume(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId } = GetVolumeSchema.parse(args);
+  const response = await sendCommand(deviceId, 'get_volume');
+  return jsonResult(response.data);
+}
+
+async function handleSetVolume(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, stream, level, mute } = SetVolumeSchema.parse(args);
+  const response = await sendCommand(deviceId, 'set_volume', { stream, level, mute });
+  return jsonResult(response.data);
+}
+
+async function handleSearchContacts(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, name, number, limit } = SearchContactsSchema.parse(args);
+  const response = await sendCommand(deviceId, 'search_contacts', { name, number, limit });
+  return jsonResult(response.data);
+}
+
+async function handleGetAlarms(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId } = GetAlarmsSchema.parse(args);
+  const response = await sendCommand(deviceId, 'get_alarms');
+  return jsonResult(response.data);
+}
+
+async function handleSetAlarm(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, hour, minute, message, days, skipUi } = SetAlarmSchema.parse(args);
+  const response = await sendCommand(deviceId, 'set_alarm', { hour, minute, message, days, skipUi });
+  return jsonResult(response.data);
+}
+
+async function handleDismissAlarm(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId } = DismissAlarmSchema.parse(args);
+  const response = await sendCommand(deviceId, 'dismiss_alarm');
+  return jsonResult(response.data);
+}
+
+async function handleDeleteAlarm(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, alarmId } = DeleteAlarmSchema.parse(args);
+  const response = await sendCommand(deviceId, 'delete_alarm', { alarmId });
+  return jsonResult(response.data);
+}
+
+async function handleTakePhoto(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, camera, quality } = TakePhotoSchema.parse(args);
+  const response = await sendCommand(deviceId, 'take_photo', { camera, quality }, 30000);
+  const data = response.data as { photo?: string };
+  if (data.photo) {
+    return imageResult(data.photo, 'image/jpeg');
+  }
+  return jsonResult(response.data);
+}
+
+async function handleRecordVideo(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, camera, maxDuration } = RecordVideoSchema.parse(args);
+  const timeout = ((maxDuration || 8) + 12) * 1000;
+  const response = await sendCommand(deviceId, 'record_video', { camera, maxDuration }, timeout);
   return jsonResult(response.data);
 }

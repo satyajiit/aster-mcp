@@ -3,6 +3,7 @@
     <NavBar />
     <HeroSection />
     <EmbraceSection />
+    <ProactiveSection />
     <FeaturesGrid />
     <ScreenshotsSection />
     <UseCasesSection />

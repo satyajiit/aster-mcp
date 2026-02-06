@@ -21,11 +21,16 @@ import com.aster.data.local.SettingsDataStore
 import com.aster.data.model.Command
 import com.aster.data.model.ConnectionState
 import com.aster.data.websocket.AsterWebSocketClient
+import com.aster.receiver.SmsBroadcastReceiver
 import com.aster.service.handlers.*
 import com.aster.ui.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import android.content.IntentFilter
+import android.provider.Telephony
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -88,6 +93,8 @@ class AsterService : Service() {
     private val commandHandlers = mutableMapOf<String, CommandHandler>()
     private var mediaHandler: MediaHandler? = null
     private var intentHandler: IntentHandler? = null
+    private var cameraHandler: CameraHandler? = null
+    private var smsBroadcastReceiver: SmsBroadcastReceiver? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -101,6 +108,7 @@ class AsterService : Service() {
         startForegroundWithType(createNotification(ConnectionState.DISCONNECTED))
 
         registerCommandHandlers()
+        setupEventForwarding()
         observeConnectionState()
         observeCommands()
     }
@@ -112,7 +120,7 @@ class AsterService : Service() {
             NOTIFICATION_ID,
             notification,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
             } else {
                 0
             }
@@ -166,6 +174,15 @@ class AsterService : Service() {
     override fun onDestroy() {
         if (BuildConfig.DEBUG) Log.d(TAG, "Service destroyed")
         isRunning = false
+
+        // Tear down event forwarding
+        AsterNotificationListenerService.onNotificationEvent = null
+        EventDeduplicator.stopCleanup()
+        smsBroadcastReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: Exception) {}
+        }
+        smsBroadcastReceiver = null
+
         serviceScope.cancel()
         releaseWifiLock()
         releaseWakeLock()
@@ -176,6 +193,8 @@ class AsterService : Service() {
         mediaHandler = null
         intentHandler?.release()
         intentHandler = null
+        cameraHandler?.release()
+        cameraHandler = null
 
         super.onDestroy()
     }
@@ -315,10 +334,56 @@ class AsterService : Service() {
         wifiLock = null
     }
 
+    private fun setupEventForwarding() {
+        EventDeduplicator.startCleanup(serviceScope)
+
+        // Forward notification events via WebSocket
+        AsterNotificationListenerService.onNotificationEvent = { packageName, title, text, postTime ->
+            val connected = webSocketClient.isConnected()
+            if (BuildConfig.DEBUG) Log.d(TAG, "Notification event callback fired: $packageName | ws_connected=$connected")
+            if (connected) {
+                val data = mapOf<String, JsonElement>(
+                    "packageName" to JsonPrimitive(packageName),
+                    "title" to JsonPrimitive(title),
+                    "text" to JsonPrimitive(text),
+                    "postTime" to JsonPrimitive(postTime)
+                )
+                webSocketClient.sendEvent("notification", data)
+                if (BuildConfig.DEBUG) Log.d(TAG, "Notification event sent via WebSocket: $packageName")
+            } else {
+                Log.w(TAG, "WebSocket not connected, dropping notification event: $packageName")
+            }
+        }
+
+        // Register SMS broadcast receiver
+        val receiver = SmsBroadcastReceiver()
+        receiver.onSmsReceived = { sender, body, timestamp ->
+            val connected = webSocketClient.isConnected()
+            if (BuildConfig.DEBUG) Log.d(TAG, "SMS event callback fired: $sender | ws_connected=$connected")
+            if (connected) {
+                val data = mapOf<String, JsonElement>(
+                    "sender" to JsonPrimitive(sender),
+                    "body" to JsonPrimitive(body),
+                    "receivedAt" to JsonPrimitive(timestamp)
+                )
+                webSocketClient.sendEvent("sms_received", data)
+                if (BuildConfig.DEBUG) Log.d(TAG, "SMS event sent via WebSocket: $sender")
+            } else {
+                Log.w(TAG, "WebSocket not connected, dropping SMS event: $sender")
+            }
+        }
+        val filter = IntentFilter(Telephony.Sms.Intents.SMS_RECEIVED_ACTION)
+        registerReceiver(receiver, filter)
+        smsBroadcastReceiver = receiver
+
+        Log.i(TAG, "Event forwarding set up: notification callback=${AsterNotificationListenerService.onNotificationEvent != null}, sms receiver registered")
+    }
+
     private fun registerCommandHandlers() {
         // Create handlers that need cleanup and keep references
         mediaHandler = MediaHandler(this)
         intentHandler = IntentHandler(this)
+        cameraHandler = CameraHandler(this)
 
         // Register all command handlers
         val handlers = listOf(
@@ -329,12 +394,15 @@ class AsterService : Service() {
             mediaHandler!!,
             ShellHandler(),
             intentHandler!!,
-            // New handlers for accessibility, notifications, SMS, and overlay
             AccessibilityHandler(),
             NotificationHandler(),
             SmsHandler(this),
             OverlayHandler(this),
-            StorageHandler(this)
+            StorageHandler(this),
+            VolumeHandler(this),
+            ContactHandler(this),
+            AlarmHandler(this),
+            cameraHandler!!
         )
 
         handlers.forEach { handler ->

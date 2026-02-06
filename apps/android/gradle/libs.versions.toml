@@ -19,6 +19,7 @@ room = "2.6.1"
 accompanist = "0.36.0"
 splashscreen = "1.0.1"
 media3 = "1.5.1"
+camerax = "1.4.1"
 playServicesLocation = "21.3.0"
 
 [libraries]
@@ -71,6 +72,13 @@ accompanist-permissions = { group = "com.google.accompanist", name = "accompanis
 
 # Media
 media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
+media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
+
+# CameraX
+camerax-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
+camerax-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
+camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
+camerax-video = { group = "androidx.camera", name = "camera-video", version.ref = "camerax" }
 
 # Location
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }

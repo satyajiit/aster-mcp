@@ -51,6 +51,12 @@ class AsterNotificationListenerService : NotificationListenerService() {
             fun onActionClicked(actionId: String)
             fun onDismissed()
         }
+
+        /**
+         * Callback for forwarding notification events to the MCP server.
+         * Set by AsterService when event forwarding is active.
+         */
+        var onNotificationEvent: ((packageName: String, title: String, text: String, postTime: Long) -> Unit)? = null
     }
 
     private val notificationHistory = mutableListOf<JsonObject>()
@@ -89,6 +95,26 @@ class AsterNotificationListenerService : NotificationListenerService() {
         }
 
         if (BuildConfig.DEBUG) Log.d(TAG, "Notification posted from: ${sbn.packageName}")
+
+        // Forward notification event if callback is set
+        val callback = onNotificationEvent
+        if (callback == null) {
+            if (BuildConfig.DEBUG) Log.d(TAG, "Event forwarding callback not set, skipping notification from: ${sbn.packageName}")
+            return
+        }
+
+        val extras = sbn.notification.extras
+        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
+        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
+
+        // Skip if this is a duplicate of a recently received SMS
+        if (EventDeduplicator.isDuplicateOfSms(sbn.packageName, text, title)) {
+            if (BuildConfig.DEBUG) Log.d(TAG, "Skipping duplicate SMS notification from: ${sbn.packageName}")
+            return
+        }
+
+        if (BuildConfig.DEBUG) Log.d(TAG, "Forwarding notification event: ${sbn.packageName} | $title | $text")
+        callback(sbn.packageName, title, text, sbn.postTime)
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {

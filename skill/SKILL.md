@@ -109,6 +109,143 @@ Aster is built with a **security-first, privacy-first** architecture:
 
 ---
 
+## Proactive Event Forwarding (OpenClaw Callbacks)
+
+Aster can push real-time events from the phone to your AI agent via webhook. When enabled, these events arrive as HTTP POST payloads — your agent doesn't need to poll, the phone tells you what's happening.
+
+Configure via the dashboard at `/settings/openclaw` or CLI: `aster set-openclaw-callbacks`.
+
+### Webhook Format
+
+Events are sent as HTTP POST to the configured OpenClaw endpoint (`/hooks/agent` by default). The AI reads the `message` field. All event context is packed into `message` using standardized `[key] value` tags.
+
+Example raw HTTP POST payload for a notification event:
+```json
+{
+  "message": "[skill] aster\n[event] notification\n[device_id] 6241e40fb71c0cf7\n[model] samsung SM-S938B, Android 16\n[data-app] messaging\n[data-package] com.google.android.apps.messaging\n[data-title] John\n[data-text] Hey, are you free tonight?",
+  "wakeMode": "now",
+  "deliver": true,
+  "channel": "whatsapp",
+  "to": "+1234567890"
+}
+```
+
+- `message` — structured event text with standard headers (this is what the AI reads)
+- `wakeMode` — always `"now"` (wake the agent immediately)
+- `deliver` — always `true` for real events, `false` for test pings
+- `channel` / `to` — delivery channel and recipient, configured in the dashboard
+
+### Event Format
+
+Every event follows a standardized structure with 4 fixed headers and `[data-*]` fields:
+
+```
+[skill] aster
+[event] <event_name>
+[device_id] <device_uuid>
+[model] <manufacturer model, Android version>
+[data-key] value
+[data-key] value
+```
+
+- `[skill]` — always `aster`
+- `[event]` — event name: `sms`, `notification`, `device_online`, `device_offline`, `pairing`
+- `[device_id]` — UUID of the device (use this to target the device with Aster tools)
+- `[model]` — device manufacturer, model, and OS
+- `[data-*]` — event-specific fields, each prefixed with `data-` (e.g. `[data-app]`, `[data-sender]`)
+
+### Event Types
+
+**`sms`** — Incoming SMS
+```
+[skill] aster
+[event] sms
+[device_id] a1b2c3d4-5678-90ab
+[model] samsung SM-S938B, Android 15
+[data-sender] +1234567890
+[data-body] Hey are you free tonight?
+```
+
+**`notification`** — App notification (deduplicated against SMS)
+```
+[skill] aster
+[event] notification
+[device_id] a1b2c3d4-5678-90ab
+[model] samsung SM-S938B, Android 15
+[data-app] whatsapp
+[data-package] com.whatsapp
+[data-title] John
+[data-text] Meeting moved to 3pm
+```
+
+**`device_online`** — Approved device came online
+```
+[skill] aster
+[event] device_online
+[device_id] a1b2c3d4-5678-90ab
+[model] samsung SM-S938B, Android 15
+[data-status] connected
+```
+
+**`device_offline`** — Device went offline
+```
+[skill] aster
+[event] device_offline
+[device_id] a1b2c3d4-5678-90ab
+[model] samsung SM-S938B, Android 15
+[data-status] disconnected
+```
+
+**`pairing`** — New device needs approval (use `[device_id]` to approve)
+```
+[skill] aster
+[event] pairing
+[device_id] e5f6g7h8-9012-cdef
+[model] Samsung SM-S924B, Android 15
+[data-status] pending_approval
+[data-action] approve this device from the Aster dashboard or via aster devices approve
+```
+
+### How to React to Events
+
+When you receive a message with `[skill] aster`, parse the `[event]` and `[device_id]` to determine what happened and which device to act on.
+
+**SMS — reply, extract info, or escalate:**
+```
+[event] sms | [device_id] a1b2c3d4 | sender: +1234567890 | body: Running late, be there in 20
+→ aster_send_sms (deviceId: a1b2c3d4) to +1234567890: "No worries, see you soon!"
+
+[event] sms | [device_id] a1b2c3d4 | sender: +1800555 | body: Your OTP is 482913
+→ Extract OTP "482913", use aster_input_text (deviceId: a1b2c3d4) to enter it
+```
+
+**Notifications — monitor and act on behalf of user:**
+```
+[event] notification | [device_id] a1b2c3d4 | app: driver | text: Your driver is arriving
+→ aster_speak_tts (deviceId: a1b2c3d4) "Your Uber is almost here"
+
+[event] notification | [device_id] a1b2c3d4 | app: mShop | text: Your package was delivered
+→ aster_send_sms (deviceId: a1b2c3d4) to user: "Your Amazon package just arrived"
+```
+
+**Device lifecycle — manage connectivity:**
+```
+[event] device_offline | [device_id] a1b2c3d4
+→ Pause pending automations for device a1b2c3d4
+
+[event] device_online | [device_id] a1b2c3d4
+→ Resume queued tasks, aster_read_notifications (deviceId: a1b2c3d4) to catch up
+```
+
+**Pairing — approve or alert:**
+```
+[event] pairing | [device_id] e5f6g7h8 | model: Samsung SM-S924B
+→ If expected: approve device e5f6g7h8 via dashboard API
+→ If unexpected: alert user "Unknown device SM-S924B trying to connect"
+```
+
+---
+
 ## Example Usage
 
 **Your CoPilot on Mobile:**
@@ -149,6 +286,8 @@ aster devices list       # List connected devices
 aster devices approve    # Approve a pending device
 aster devices reject     # Reject a device
 aster devices remove     # Remove a device
+
+aster set-openclaw-callbacks  # Configure event forwarding to OpenClaw
 ```
 
 ---

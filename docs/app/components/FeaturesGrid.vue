@@ -13,7 +13,7 @@
       </div>
 
       <!-- Feature cards -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <FeatureCard
           v-for="feature in features"
           :key="feature.title"
@@ -73,6 +73,18 @@ const features = [
     title: 'Calls, SMS & Voice',
     description: 'Make calls, send SMS, or use make_call_with_voice to dial someone and speak a message via TTS on speakerphone — fully autonomous.',
     accent: 'from-sky-400 to-blue-400',
+  },
+  {
+    icon: 'lucide:radio',
+    title: 'Proactive Events',
+    description: 'Your AI doesn\'t just wait for commands — it reacts to incoming SMS, notifications, and device events in real-time via webhooks.',
+    accent: 'from-fuchsia-400 to-pink-400',
+  },
+  {
+    icon: 'lucide:camera',
+    title: 'Camera & Video',
+    description: 'Take photos or record video remotely. Pet cam, home security, package delivery — your AI\'s eyes are always on.',
+    accent: 'from-orange-400 to-red-400',
   },
 ]
 </script>

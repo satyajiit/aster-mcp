@@ -97,6 +97,8 @@ export const ShowOverlaySchema = z.object({
   deviceId: z.string().describe('The unique identifier of the device'),
   url: z.string().optional().describe('URL to load in the overlay WebView'),
   html: z.string().optional().describe('HTML content to render'),
+  showCloseButton: z.boolean().optional().default(true).describe('Show a close (X) button on the overlay (default: true)'),
+  timeout: z.number().optional().describe('Auto-dismiss overlay after this many seconds'),
 });
 
 export const VibrateSchema = z.object({
@@ -218,6 +220,62 @@ export const SearchMediaSchema = z.object({
   cameraModel: z.string().optional().describe('Filter by camera model'),
   sortBy: z.enum(['DATE_ASC', 'DATE_DESC', 'SIZE_ASC', 'SIZE_DESC', 'NAME_ASC', 'NAME_DESC']).optional().default('DATE_DESC'),
   limit: z.number().optional().default(100).describe('Maximum results to return'),
+});
+
+export const StopAudioSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+});
+
+export const GetVolumeSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+});
+
+export const SetVolumeSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  stream: z.enum(['media', 'ring', 'notification', 'alarm', 'call', 'system']).describe('Audio stream to control'),
+  level: z.number().optional().describe('Volume level to set (0 to stream max)'),
+  mute: z.boolean().optional().describe('Mute (true) or unmute (false) the stream'),
+});
+
+export const SearchContactsSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  name: z.string().optional().describe('Search by contact name'),
+  number: z.string().optional().describe('Search by phone number'),
+  limit: z.number().optional().default(20).describe('Maximum number of results (default: 20)'),
+});
+
+export const GetAlarmsSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+});
+
+export const SetAlarmSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  hour: z.number().describe('Hour in 24-hour format (0-23)'),
+  minute: z.number().describe('Minute (0-59)'),
+  message: z.string().optional().describe('Alarm label/message'),
+  days: z.array(z.number()).optional().describe('Recurring days (Calendar constants: 1=Sun, 2=Mon, ..., 7=Sat)'),
+  skipUi: z.boolean().optional().default(true).describe('Skip the alarm app UI (default: true)'),
+});
+
+export const DismissAlarmSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+});
+
+export const DeleteAlarmSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  alarmId: z.string().describe('Alarm ID to delete (from get_alarms)'),
+});
+
+export const TakePhotoSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  camera: z.enum(['front', 'back']).optional().default('back').describe('Camera to use (default: back)'),
+  quality: z.number().optional().default(75).describe('JPEG quality 1-100 (default: 75)'),
+});
+
+export const RecordVideoSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  camera: z.enum(['front', 'back']).optional().default('back').describe('Camera to use (default: back)'),
+  maxDuration: z.number().optional().default(8).describe('Maximum recording duration in seconds, 1-8 (default: 8)'),
 });
 
 // Tool definitions for MCP
@@ -473,13 +531,15 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'aster_show_overlay',
-    description: 'Show a system overlay with web content',
+    description: 'Show a system overlay with web content. Supports close button and auto-timeout.',
     inputSchema: {
       type: 'object',
       properties: {
         deviceId: { type: 'string', description: 'The unique identifier of the device' },
         url: { type: 'string', description: 'URL to load in the overlay' },
         html: { type: 'string', description: 'HTML content to render' },
+        showCloseButton: { type: 'boolean', description: 'Show a close (X) button on the overlay (default: true)', default: true },
+        timeout: { type: 'number', description: 'Auto-dismiss overlay after this many seconds' },
       },
       required: ['deviceId'],
     },
@@ -723,6 +783,132 @@ export const TOOL_DEFINITIONS = [
         cameraModel: { type: 'string', description: 'Filter by camera model' },
         sortBy: { type: 'string', enum: ['DATE_ASC', 'DATE_DESC', 'SIZE_ASC', 'SIZE_DESC', 'NAME_ASC', 'NAME_DESC'], default: 'DATE_DESC' },
         limit: { type: 'number', default: 100 },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_stop_audio',
+    description: 'Stop currently playing audio on the device',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_get_volume',
+    description: 'Get all audio stream volume levels (media, ring, notification, alarm, call, system) and ringer mode',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_set_volume',
+    description: 'Set volume level or mute/unmute a specific audio stream',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        stream: { type: 'string', enum: ['media', 'ring', 'notification', 'alarm', 'call', 'system'], description: 'Audio stream to control' },
+        level: { type: 'number', description: 'Volume level to set (0 to stream max)' },
+        mute: { type: 'boolean', description: 'Mute (true) or unmute (false) the stream' },
+      },
+      required: ['deviceId', 'stream'],
+    },
+  },
+  {
+    name: 'aster_search_contacts',
+    description: 'Search contacts by name or phone number. Returns matching contacts with all phone numbers and emails.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        name: { type: 'string', description: 'Search by contact name (fuzzy match)' },
+        number: { type: 'string', description: 'Search by phone number' },
+        limit: { type: 'number', description: 'Maximum number of results (default: 20)', default: 20 },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_get_alarms',
+    description: 'List device alarms. Tries stock Android clock provider first, falls back to next-alarm-only from AlarmManager. Not all OEMs expose full alarm lists.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_set_alarm',
+    description: 'Create a new alarm using the device clock app. Note: there is no standard Android API to edit or delete existing alarms by ID — to change an alarm, create a new one with the desired properties.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        hour: { type: 'number', description: 'Hour in 24-hour format (0-23)' },
+        minute: { type: 'number', description: 'Minute (0-59)' },
+        message: { type: 'string', description: 'Alarm label/message' },
+        days: { type: 'array', items: { type: 'number' }, description: 'Recurring days (Calendar constants: 1=Sun, 2=Mon, ..., 7=Sat)' },
+        skipUi: { type: 'boolean', description: 'Skip the alarm app UI (default: true)', default: true },
+      },
+      required: ['deviceId', 'hour', 'minute'],
+    },
+  },
+  {
+    name: 'aster_dismiss_alarm',
+    description: 'Dismiss an alarm that is currently ringing/firing. Only works while an alarm is actively going off. Requires Android 6.0+.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_delete_alarm',
+    description: 'Delete a saved alarm by its ID. Use get_alarms first to find alarm IDs. Works on devices with accessible clock content providers (stock Android, Samsung).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        alarmId: { type: 'string', description: 'Alarm ID to delete (from get_alarms results)' },
+      },
+      required: ['deviceId', 'alarmId'],
+    },
+  },
+  {
+    name: 'aster_take_photo',
+    description: 'Capture a photo using the device camera. Returns the image directly for viewing. Resolution: 1280x720.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        camera: { type: 'string', enum: ['front', 'back'], description: 'Camera to use (default: back)', default: 'back' },
+        quality: { type: 'number', description: 'JPEG quality 1-100 (default: 75)', default: 75 },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_record_video',
+    description: 'Record a short video clip (max 8 seconds) at 480p. No audio. Returns base64 MP4 if under 5MB, otherwise returns file path.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        camera: { type: 'string', enum: ['front', 'back'], description: 'Camera to use (default: back)', default: 'back' },
+        maxDuration: { type: 'number', description: 'Max recording duration 1-8 seconds (default: 8)', default: 8 },
       },
       required: ['deviceId'],
     },

@@ -240,16 +240,16 @@ const beforeItems = [
 
 const afterItems = [
   { icon: 'lucide:smartphone', label: 'Tap, swipe, navigate your phone', sub: 'Full screen control via UI automation' },
-  { icon: 'lucide:folder-open', label: 'Manage files & clear storage', sub: 'Read, write, delete — no hand-holding' },
-  { icon: 'lucide:image', label: 'Search & organize your photos', sub: '"Sunset pics from last vacation" — found.' },
-  { icon: 'lucide:bell', label: 'Read notifications, send SMS', sub: 'Never miss what matters again' },
+  { icon: 'lucide:camera', label: 'Take photos & record video remotely', sub: 'Pet cam, security cam, or just a quick snap on demand' },
+  { icon: 'lucide:radio', label: 'React to events in real-time', sub: 'SMS, notifications, device status — pushed to your AI instantly' },
+  { icon: 'lucide:bell', label: 'Read notifications, send SMS, make calls', sub: 'Never miss what matters again' },
 ]
 
 const ownPhoneItems = [
   { icon: 'lucide:phone-outgoing', label: 'It calls and speaks to you', sub: 'make_call_with_voice — dials you, enables speaker, and delivers a TTS message.' },
-  { icon: 'lucide:message-square-plus', label: 'It texts you updates', sub: 'send_sms — critical alerts straight to your number, even when you\'re offline.' },
-  { icon: 'lucide:eye', label: 'It monitors things for you', sub: 'Price drops, delivery updates, app notifications — handled.' },
-  { icon: 'lucide:bot', label: 'It runs tasks in the background', sub: 'Backup photos, clean storage, organize files — on its own time.' },
+  { icon: 'lucide:radio', label: 'It reacts to events proactively', sub: 'SMS arrives, notification fires, device goes offline — your AI knows instantly and acts.' },
+  { icon: 'lucide:camera', label: 'It sees through the camera', sub: 'Pet cam, baby monitor, doorbell cam — take photos or record video on demand or on events.' },
+  { icon: 'lucide:message-square-plus', label: 'It texts you everything', sub: 'OTPs, delivery updates, flight changes — forwarded to your WhatsApp in seconds.' },
 ]
 
 const vignettes = [
@@ -294,12 +294,12 @@ const vignettes = [
     detail: 'Searches by date, location, and content. Returns a curated gallery from your camera roll.',
   },
   {
-    emoji: '🧹',
-    emojiLabel: 'broom',
-    label: 'Digital cleanup',
-    labelColor: 'text-green-400/70',
-    scenario: '"My storage is full. Clean up whatever is safe to delete."',
-    detail: 'Analyzes storage, identifies junk — cached data, duplicate photos, old APKs — and clears it with your approval.',
+    emoji: '🐕',
+    emojiLabel: 'dog',
+    label: 'Pet cam',
+    labelColor: 'text-orange-400/70',
+    scenario: '"Send me a photo of my dog every hour — I\'m at work all day."',
+    detail: 'Your AI snaps a photo via the phone camera and forwards it to your WhatsApp. Your pup is safe, and you have the photos to prove it.',
   },
 ]
 

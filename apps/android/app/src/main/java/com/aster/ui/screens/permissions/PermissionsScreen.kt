@@ -182,10 +182,37 @@ fun PermissionsScreen(
                         arrayOf(
                             Manifest.permission.READ_SMS,
                             Manifest.permission.SEND_SMS,
+                            Manifest.permission.RECEIVE_SMS,
                             Manifest.permission.CALL_PHONE,
                             Manifest.permission.READ_PHONE_STATE
                         )
                     )
+                }
+            )
+
+            TerminalDivider()
+
+            PermissionItem(
+                name = "Camera",
+                description = "Required for photo and video capture",
+                icon = FeatherIcons.Camera,
+                iconColor = colors.violet,
+                isGranted = permissionResult.permissions[PermissionType.CAMERA] == true,
+                onClick = {
+                    permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA))
+                }
+            )
+
+            TerminalDivider()
+
+            PermissionItem(
+                name = "Contacts",
+                description = "Required to search and read contacts",
+                icon = FeatherIcons.Users,
+                iconColor = colors.blue,
+                isGranted = permissionResult.permissions[PermissionType.CONTACTS] == true,
+                onClick = {
+                    permissionLauncher.launch(arrayOf(Manifest.permission.READ_CONTACTS))
                 }
             )
         }

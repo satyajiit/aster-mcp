@@ -112,6 +112,36 @@ export interface FileContentResult {
   mimeType?: string;
 }
 
+export interface OpenClawConfig {
+  enabled: boolean;
+  endpoint: string;
+  webhookPath: string;
+  token: string;
+  hasToken: boolean;
+  channel: string;
+  deliverTo: string;
+  configuredAt: string;
+  events: {
+    notifications: boolean;
+    sms: boolean;
+    deviceConnected: boolean;
+    deviceDisconnected: boolean;
+    pairingRequired: boolean;
+  };
+}
+
+export interface OpenClawConfigResponse {
+  config: OpenClawConfig | null;
+  hasSourceToken: boolean;
+  sourceTokenPreview: string | null;
+}
+
+export interface OpenClawTestResult {
+  success: boolean;
+  status?: number;
+  error?: string;
+}
+
 export function useApi() {
   const config = useRuntimeConfig();
   const baseUrl = config.public.apiUrl;
@@ -170,5 +200,26 @@ export function useApi() {
 
     // Health
     getHealth: () => fetchJson<{ status: string; timestamp: number }>('/api/health'),
+
+    // OpenClaw
+    getOpenClawConfig: () => fetchJson<OpenClawConfigResponse>('/api/openclaw/config'),
+    prefillOpenClawToken: () => fetchJson<{ token: string | null }>('/api/openclaw/prefill-token', { method: 'POST' }),
+    saveOpenClawConfig: (config: {
+      enabled: boolean;
+      endpoint: string;
+      webhookPath: string;
+      token: string;
+      channel: string;
+      deliverTo: string;
+      events: { notifications: boolean; sms: boolean };
+    }) => fetchJson<{ success: boolean }>('/api/openclaw/config', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    }),
+    testOpenClawConnection: (endpoint: string, webhookPath: string, token?: string) =>
+      fetchJson<OpenClawTestResult>('/api/openclaw/test', {
+        method: 'POST',
+        body: JSON.stringify({ endpoint, webhookPath, token: token || '' }),
+      }),
   };
 }

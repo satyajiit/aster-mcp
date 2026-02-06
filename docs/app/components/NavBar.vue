@@ -12,6 +12,7 @@
       <div class="hidden md:flex items-center gap-8 text-sm text-text-secondary">
         <a href="#features" class="hover:text-aster transition-colors">Features</a>
         <a href="#use-cases" class="hover:text-aster transition-colors">Use Cases</a>
+        <a href="#proactive" class="hover:text-aster transition-colors">Proactive</a>
         <a href="#how-it-works" class="hover:text-aster transition-colors">How It Works</a>
         <a href="#setup" class="hover:text-aster transition-colors">Setup</a>
         <a href="#integrations" class="hover:text-aster transition-colors">Integrations</a>

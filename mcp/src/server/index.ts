@@ -11,6 +11,14 @@ import {
 import { TOOL_DEFINITIONS } from '../mcp/tools.js';
 import { handleToolCall } from '../mcp/handler.js';
 import { registerMcpHttpRoutes } from '../mcp/http.js';
+import {
+  getOpenClawConfig,
+  getOpenClawSourceToken,
+  getOpenClawSavedToken,
+  saveOpenClawConfig,
+  testOpenClawConnection,
+  type OpenClawConfig,
+} from '../openclaw/index.js';
 
 export function createApiServer(config: ServerConfig) {
   const app = Fastify({
@@ -155,6 +163,63 @@ export function createApiServer(config: ServerConfig) {
       approvedDevices: devices.filter(d => d.status === 'approved').length,
     };
   });
+
+  // --- OpenClaw Configuration ---
+
+  // Get current config (token masked) + source token availability
+  app.get('/api/openclaw/config', async () => {
+    const cfg = getOpenClawConfig();
+    const sourceToken = getOpenClawSourceToken();
+    return {
+      config: cfg,
+      hasSourceToken: !!sourceToken,
+      sourceTokenPreview: sourceToken ? `${sourceToken.slice(0, 8)}...` : null,
+    };
+  });
+
+  // Pre-fill token from ~/.openclaw/openclaw.json (local use only)
+  app.post('/api/openclaw/prefill-token', async () => {
+    const token = getOpenClawSourceToken();
+    return { token: token || null };
+  });
+
+  // Save config — empty token preserves existing saved token
+  app.post<{ Body: Partial<OpenClawConfig> }>('/api/openclaw/config', async (request) => {
+    const body = request.body;
+
+    // If token is empty, preserve existing saved token
+    let token = body.token || '';
+    if (!token) {
+      const existing = getOpenClawConfig();
+      // getOpenClawConfig masks the token, so read the raw saved token
+      token = getOpenClawSavedToken() || '';
+    }
+
+    saveOpenClawConfig({
+      enabled: body.enabled ?? true,
+      endpoint: body.endpoint || 'http://localhost:18789',
+      webhookPath: body.webhookPath || '/hooks/agent',
+      token,
+      channel: body.channel || 'whatsapp',
+      deliverTo: body.deliverTo || '',
+      configuredAt: new Date().toISOString(),
+      events: body.events ?? { notifications: true, sms: true, deviceConnected: true, deviceDisconnected: true, pairingRequired: true },
+    });
+    return { success: true };
+  });
+
+  // Test connection — empty token uses saved token as fallback
+  app.post<{ Body: { endpoint: string; webhookPath: string; token?: string } }>(
+    '/api/openclaw/test',
+    async (request) => {
+      const { endpoint, webhookPath } = request.body;
+      let token = request.body.token || '';
+      if (!token) {
+        token = getOpenClawSavedToken() || '';
+      }
+      return testOpenClawConnection(endpoint, webhookPath, token);
+    }
+  );
 
   return app;
 }

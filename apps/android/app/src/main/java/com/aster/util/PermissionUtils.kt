@@ -20,7 +20,9 @@ enum class PermissionType {
     NOTIFICATION_LISTENER,
     OVERLAY,
     STORAGE,
-    BATTERY
+    BATTERY,
+    CAMERA,
+    CONTACTS
 }
 
 /**
@@ -52,7 +54,9 @@ object PermissionUtils {
             PermissionType.NOTIFICATION_LISTENER to checkNotificationListenerPermission(context),
             PermissionType.OVERLAY to checkOverlayPermission(context),
             PermissionType.STORAGE to checkStoragePermission(context),
-            PermissionType.BATTERY to checkBatteryOptimization(context)
+            PermissionType.BATTERY to checkBatteryOptimization(context),
+            PermissionType.CAMERA to checkCameraPermission(context),
+            PermissionType.CONTACTS to checkContactsPermission(context)
         )
 
         val missing = permissions.filter { !it.value }.keys.toList()
@@ -103,6 +107,8 @@ object PermissionUtils {
             PermissionType.OVERLAY -> "Display Over Apps"
             PermissionType.STORAGE -> "Storage Access"
             PermissionType.BATTERY -> "Battery Optimization"
+            PermissionType.CAMERA -> "Camera"
+            PermissionType.CONTACTS -> "Contacts"
         }
     }
 
@@ -132,6 +138,10 @@ object PermissionUtils {
         ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.SEND_SMS
+        ) == PackageManager.PERMISSION_GRANTED &&
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECEIVE_SMS
         ) == PackageManager.PERMISSION_GRANTED &&
         ContextCompat.checkSelfPermission(
             context,
@@ -185,5 +195,19 @@ object PermissionUtils {
         } else {
             true
         }
+    }
+
+    fun checkCameraPermission(context: Context): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    fun checkContactsPermission(context: Context): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_CONTACTS
+        ) == PackageManager.PERMISSION_GRANTED
     }
 }

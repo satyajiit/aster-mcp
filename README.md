@@ -72,6 +72,8 @@
 - **Media Search** — Find photos and videos using natural language queries
 - **Calls, SMS & Voice** — Make calls, send SMS, or use `make_call_with_voice` to dial and speak a TTS message on speakerphone
 - **System Actions** — Back, Home, Recents, volume control, and more
+- **Camera & Video** — Take photos or record video remotely — pet cam, baby monitor, security checks
+- **Proactive Events** — Your AI reacts to incoming SMS, notifications, and device events in real-time via webhooks
 - **AI's Own Phone** — Dedicate a spare Android to your AI. It monitors, calls, texts, and acts on its own
 
 ## Web Dashboard
@@ -142,7 +144,7 @@ See [Integrations](#integrations) for Claude, OpenClaw, Moltbot, Clawbot, and ot
 ### CLI Commands
 
 ```bash
-aster start              # Start the server
+aster start              # Start the server (with optional event forwarding setup)
 aster stop               # Stop the server
 aster status             # Show server and device status
 aster dashboard          # Open web dashboard
@@ -151,6 +153,8 @@ aster devices list       # List connected devices
 aster devices approve    # Approve a pending device
 aster devices reject     # Reject a device
 aster devices remove     # Remove a device
+
+aster set-openclaw-callbacks  # Configure proactive event forwarding
 ```
 
 ### Example Prompts
@@ -176,6 +180,22 @@ Once connected, try these with your AI assistant:
 > "Text me when my delivery arrives" *(uses send_sms)*
 
 > "Back up new photos to Google Drive every night"
+
+## Proactive Event Forwarding
+
+Aster can push real-time events from the phone to your AI agent via webhook. Your AI reacts the moment something happens — no polling needed.
+
+| Event | Example |
+|-------|---------|
+| **SMS** | Auto-reply while driving, forward messages, extract info |
+| **Notifications** | Flight delays, delivery updates, ride arrivals — instant alerts |
+| **Device status** | Device online/offline, new pairing requests |
+
+Works out of the box with **OpenClaw**, **ClawdBot**, and **MoltBot**. Configure via dashboard or CLI:
+
+```bash
+aster set-openclaw-callbacks
+```
 
 ## Integrations
 

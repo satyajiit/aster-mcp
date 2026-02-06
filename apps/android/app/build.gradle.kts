@@ -15,8 +15,8 @@ android {
         applicationId = "com.aster"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -119,7 +119,14 @@ dependencies {
 
     // Media
     implementation(libs.media3.exoplayer)
+    implementation(libs.media3.session)
     implementation(libs.androidx.exifinterface)
+
+    // CameraX
+    implementation(libs.camerax.core)
+    implementation(libs.camerax.camera2)
+    implementation(libs.camerax.lifecycle)
+    implementation(libs.camerax.video)
 
     // Location
     implementation(libs.play.services.location)

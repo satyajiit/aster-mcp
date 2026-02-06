@@ -21,6 +21,7 @@ import {
   updateDeviceStatus,
   upsertDevice,
 } from '../db/index.js';
+import { forwardEventToOpenClaw, type DeviceContext } from '../openclaw/index.js';
 import type { ExtendedDeviceInfo } from '../types/index.js';
 
 // Store for connected devices
@@ -129,12 +130,18 @@ export function createWebSocketServer(config: ServerConfig): WebSocketServer {
       if (deviceId) {
         const connected = connectedDevices.get(deviceId);
         if (connected) {
+          const dev = connected.device;
+          const deviceCtx: DeviceContext = {
+            deviceId, manufacturer: dev.manufacturer, model: dev.model, osVersion: dev.osVersion,
+          };
           // Reject all pending commands
           for (const [, pending] of connected.pendingCommands) {
             clearTimeout(pending.timeout);
             pending.reject(new Error('Device disconnected'));
           }
           connectedDevices.delete(deviceId);
+
+          forwardEventToOpenClaw(deviceCtx, 'device_disconnected', {}, Date.now()).catch(() => {});
         }
         addLog(deviceId, 'info', 'Device disconnected');
         consola.info(`Device ${deviceId} disconnected`);
@@ -217,6 +224,21 @@ function handleMessage(
     const deviceId = getDeviceId();
     if (deviceId) {
       addLog(deviceId, 'debug', `Event: ${eventResult.data.eventType}`, eventResult.data.data);
+      const dev = connectedDevices.get(deviceId)?.device;
+      const deviceCtx: DeviceContext = {
+        deviceId,
+        manufacturer: dev?.manufacturer ?? '',
+        model: dev?.model ?? '',
+        osVersion: dev?.osVersion ?? '',
+      };
+      forwardEventToOpenClaw(
+        deviceCtx,
+        eventResult.data.eventType,
+        eventResult.data.data as Record<string, unknown>,
+        eventResult.data.timestamp
+      ).catch((err) => {
+        consola.debug('OpenClaw forward failed:', err);
+      });
     }
     return;
   }
@@ -312,6 +334,14 @@ function handleAuth(
 
   addLog(deviceId, 'info', `Device connected with status: ${device.status}`);
   consola.success(`Device ${deviceName} connected (status: ${device.status})`);
+
+  // Forward connection events to OpenClaw
+  const deviceCtx: DeviceContext = { deviceId, manufacturer, model, osVersion };
+  if (device.status === 'approved') {
+    forwardEventToOpenClaw(deviceCtx, 'device_connected', {}, Date.now()).catch(() => {});
+  } else if (device.status === 'pending') {
+    forwardEventToOpenClaw(deviceCtx, 'pairing_required', {}, Date.now()).catch(() => {});
+  }
 
   // Auto-fetch extended info for approved devices (with slight delay to ensure connection is stable)
   if (device.status === 'approved') {

@@ -209,6 +209,20 @@ const conversations = [
     response: 'Google Maps is open with 3 results nearby. "Blue Tokai" is 400m away with 4.6 stars — want me to start navigation?',
     assistant: assistants.clawdbot,
   },
+  {
+    prompt: 'I left my dog at home — take a photo and send it to my WhatsApp',
+    action: 'take_photo → forwarding to WhatsApp...',
+    actionIcon: 'lucide:camera',
+    response: 'Photo taken! Your pup is napping on the couch. Sent to your WhatsApp. Want me to check again in 30 minutes?',
+    assistant: assistants.openclaw,
+  },
+  {
+    prompt: 'If my flight gets delayed, call me and tell me the new time',
+    action: 'notification_event → delay detected → make_call_with_voice...',
+    actionIcon: 'lucide:plane',
+    response: 'Your flight to Delhi is delayed 45 min — new boarding time 3:15 PM, gate changed to B12. Calling you now.',
+    assistant: assistants.claude,
+  },
 ]
 
 // Headline slider

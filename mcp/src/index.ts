@@ -16,6 +16,7 @@ import {
   stopTailscaleServe,
 } from './util/tailscale.js';
 import { homedir } from 'os';
+import { loadOpenClawConfig } from './openclaw/index.js';
 
 config();
 
@@ -118,6 +119,7 @@ export async function startServer(overrides: Partial<ServerConfig> = {}): Promis
 
   // Initialize database
   initDatabase(serverConfig.dbPath);
+  loadOpenClawConfig();
 
   // Start WebSocket server for Android devices
   createWebSocketServer(serverConfig);
@@ -208,6 +210,7 @@ export async function startMcp(): Promise<void> {
 
   // Initialize database
   initDatabase(serverConfig.dbPath);
+  loadOpenClawConfig();
 
   // Start WebSocket server
   createWebSocketServer(serverConfig);

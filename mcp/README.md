@@ -146,7 +146,7 @@ Aster exposes a standard MCP HTTP endpoint at `http://localhost:5988/mcp`.
 ## Commands
 
 ```bash
-aster start              # Start the server
+aster start              # Start the server (with optional event forwarding setup)
 aster stop               # Stop the server
 aster status             # Show server and device status
 aster dashboard          # Open web dashboard
@@ -155,6 +155,22 @@ aster devices list       # List connected devices
 aster devices approve    # Approve a pending device
 aster devices reject     # Reject a device
 aster devices remove     # Remove a device
+
+aster set-openclaw-callbacks  # Configure proactive event forwarding
+```
+
+## Proactive Event Forwarding
+
+Aster can push real-time events from the phone to your AI agent via webhook — your AI reacts the moment something happens, no polling needed.
+
+- **Incoming SMS** — auto-reply while driving, forward OTPs, escalate urgent messages
+- **App notifications** — flight delays, delivery updates, ride arrivals — your AI knows instantly
+- **Device events** — device online/offline, new device pairing requests
+
+Works out of the box with **OpenClaw**, **ClawdBot**, and **MoltBot**. Configure via the dashboard at `/settings/openclaw` or CLI:
+
+```bash
+aster set-openclaw-callbacks
 ```
 
 ## Available MCP Tools

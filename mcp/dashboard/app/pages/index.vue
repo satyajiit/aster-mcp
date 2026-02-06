@@ -9,6 +9,7 @@ const logs = ref<LogEntry[]>([]);
 const loading = ref(true);
 const serverOnline = ref(false);
 const currentTime = ref(new Date());
+const openclawEnabled = ref<boolean | null>(null);
 
 // Update time every second
 let timeInterval: ReturnType<typeof setInterval>;
@@ -30,15 +31,17 @@ onUnmounted(() => {
 
 async function fetchData() {
   try {
-    const [statsData, devicesData, logsData] = await Promise.all([
+    const [statsData, devicesData, logsData, openclawData] = await Promise.all([
       api.getStats(),
       api.getDevices(),
       api.getLogs(20),
+      api.getOpenClawConfig().catch(() => null),
     ]);
 
     stats.value = statsData;
     devices.value = devicesData;
     logs.value = logsData;
+    openclawEnabled.value = openclawData?.config?.enabled ?? null;
     serverOnline.value = true;
   } catch {
     serverOnline.value = false;
@@ -127,6 +130,45 @@ function formatTime(date: Date): string {
         </div>
       </div>
 
+      <!-- OpenClaw Integration CTA -->
+      <NuxtLink
+        to="/settings/openclaw"
+        class="openclaw-cta animate-fade-in stagger-4"
+      >
+        <div class="cta-content">
+          <div class="flex items-center gap-3">
+            <div class="cta-icon">
+              <span>&#9889;</span>
+            </div>
+            <div>
+              <div class="cta-title">OpenClaw Integration</div>
+              <div class="cta-subtitle">
+                <template v-if="openclawEnabled === true">
+                  Event forwarding is active
+                </template>
+                <template v-else-if="openclawEnabled === false">
+                  Event forwarding is disabled
+                </template>
+                <template v-else>
+                  Forward notifications & SMS to Claude in real-time
+                </template>
+              </div>
+            </div>
+          </div>
+          <div class="cta-right">
+            <span
+              v-if="openclawEnabled !== null"
+              class="badge text-[9px]"
+              :class="openclawEnabled ? 'badge-emerald' : 'badge-amber'"
+            >
+              {{ openclawEnabled ? 'ACTIVE' : 'DISABLED' }}
+            </span>
+            <span v-else class="badge badge-muted text-[9px]">SETUP</span>
+            <span class="cta-arrow">&#8594;</span>
+          </div>
+        </div>
+      </NuxtLink>
+
       <!-- Main Content Grid -->
       <div class="grid grid-cols-3 gap-6">
         <!-- Devices List -->
@@ -204,6 +246,8 @@ function formatTime(date: Date): string {
           <div class="flex items-center gap-4">
             <NuxtLink to="/devices" class="hover:text-primary transition-colors">Devices</NuxtLink>
             <span class="text-terminal-dim">|</span>
+            <NuxtLink to="/settings/openclaw" class="hover:text-primary transition-colors">OpenClaw</NuxtLink>
+            <span class="text-terminal-dim">|</span>
             <a href="#" class="hover:text-primary transition-colors">Documentation</a>
           </div>
         </div>
@@ -212,3 +256,72 @@ function formatTime(date: Date): string {
   </div>
 </template>
 
+<style scoped>
+.openclaw-cta {
+  display: block;
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid var(--color-terminal-border);
+  border-radius: 2px;
+  padding: 16px 20px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.openclaw-cta:hover {
+  border-color: rgba(139, 92, 246, 0.35);
+  background: rgba(139, 92, 246, 0.04);
+  transform: translateY(-1px);
+}
+
+.cta-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cta-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 4px;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.cta-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-terminal-text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cta-subtitle {
+  font-size: 11px;
+  color: var(--color-terminal-dim);
+  margin-top: 2px;
+}
+
+.cta-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cta-arrow {
+  color: var(--color-terminal-dim);
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.openclaw-cta:hover .cta-arrow {
+  color: var(--color-violet);
+  transform: translateX(3px);
+}
+</style>

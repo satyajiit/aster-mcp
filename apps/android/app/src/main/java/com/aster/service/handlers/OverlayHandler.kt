@@ -47,7 +47,8 @@ class OverlayHandler(
     private data class OverlayInstance(
         val id: Int,
         val container: FrameLayout,
-        val webView: WebView
+        val webView: WebView,
+        val timeoutRunnable: Runnable? = null
     )
 
     override fun supportedActions() = listOf(
@@ -89,12 +90,14 @@ class OverlayHandler(
         val gravity = parseGravity(command.params?.get("gravity")?.jsonPrimitive?.contentOrNull)
         val draggable = command.params?.get("draggable")?.jsonPrimitive?.booleanOrNull ?: true
         val transparent = command.params?.get("transparent")?.jsonPrimitive?.booleanOrNull ?: false
+        val showCloseButton = command.params?.get("showCloseButton")?.jsonPrimitive?.booleanOrNull ?: true
+        val timeout = command.params?.get("timeout")?.jsonPrimitive?.intOrNull
 
         val overlayId = overlayIdCounter.getAndIncrement()
 
         try {
             mainHandler.post {
-                createOverlay(overlayId, url, html, width, height, x, y, gravity, draggable, transparent)
+                createOverlay(overlayId, url, html, width, height, x, y, gravity, draggable, transparent, showCloseButton, timeout)
             }
 
             return CommandResult.success(buildJsonObject {
@@ -120,7 +123,9 @@ class OverlayHandler(
         y: Int,
         gravity: Int,
         draggable: Boolean,
-        transparent: Boolean
+        transparent: Boolean,
+        showCloseButton: Boolean,
+        timeout: Int?
     ) {
         val container = FrameLayout(context)
         val webView = WebView(context)
@@ -151,6 +156,24 @@ class OverlayHandler(
             FrameLayout.LayoutParams.MATCH_PARENT
         ))
 
+        // Add close button if requested
+        if (showCloseButton) {
+            val closeButton = android.widget.TextView(context).apply {
+                text = "\u2715"
+                textSize = 16f
+                setTextColor(android.graphics.Color.WHITE)
+                setBackgroundColor(android.graphics.Color.parseColor("#99000000"))
+                setPadding(24, 8, 24, 8)
+                setOnClickListener { removeOverlay(overlayId) }
+            }
+            val closeParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.END
+            )
+            container.addView(closeButton, closeParams)
+        }
+
         // Window layout params
         val layoutParams = WindowManager.LayoutParams(
             width,
@@ -179,8 +202,15 @@ class OverlayHandler(
         // Add to window
         windowManager.addView(container, layoutParams)
 
+        // Auto-timeout
+        val timeoutRunnable = if (timeout != null && timeout > 0) {
+            Runnable { removeOverlay(overlayId) }.also {
+                mainHandler.postDelayed(it, timeout * 1000L)
+            }
+        } else null
+
         // Store instance
-        activeOverlays[overlayId] = OverlayInstance(overlayId, container, webView)
+        activeOverlays[overlayId] = OverlayInstance(overlayId, container, webView, timeoutRunnable)
 
         // Load content
         if (url != null) {
@@ -225,6 +255,20 @@ class OverlayHandler(
         }
     }
 
+    private fun removeOverlay(overlayId: Int) {
+        val instance = activeOverlays.remove(overlayId) ?: return
+        mainHandler.post {
+            try {
+                instance.timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+                instance.webView.destroy()
+                windowManager.removeView(instance.container)
+                if (BuildConfig.DEBUG) Log.d(TAG, "Overlay removed: $overlayId")
+            } catch (e: Exception) {
+                if (BuildConfig.DEBUG) Log.e(TAG, "Error removing overlay $overlayId", e)
+            }
+        }
+    }
+
     private fun hideOverlay(command: Command): CommandResult {
         val overlayId = command.params?.get("overlayId")?.jsonPrimitive?.intOrNull
             ?: return CommandResult.failure("Missing 'overlayId' parameter")
@@ -234,6 +278,7 @@ class OverlayHandler(
 
         mainHandler.post {
             try {
+                instance.timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
                 instance.webView.destroy()
                 windowManager.removeView(instance.container)
                 if (BuildConfig.DEBUG) Log.d(TAG, "Overlay hidden: $overlayId")
@@ -256,6 +301,7 @@ class OverlayHandler(
             ids.forEach { id ->
                 activeOverlays.remove(id)?.let { instance ->
                     try {
+                        instance.timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
                         instance.webView.destroy()
                         windowManager.removeView(instance.container)
                         hiddenCount++
@@ -309,6 +355,7 @@ class OverlayHandler(
         mainHandler.post {
             activeOverlays.values.forEach { instance ->
                 try {
+                    instance.timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
                     instance.webView.destroy()
                     windowManager.removeView(instance.container)
                 } catch (e: Exception) {
