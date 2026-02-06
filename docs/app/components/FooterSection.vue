@@ -12,7 +12,7 @@
         </div>
 
         <!-- Links -->
-        <div class="flex items-center gap-6 text-sm text-text-secondary">
+        <div class="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm text-text-secondary">
           <a
             href="https://github.com/satyajiit/aster-mcp"
             target="_blank"

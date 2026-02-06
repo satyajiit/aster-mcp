@@ -76,10 +76,10 @@
 
       <!-- npm badge -->
       <div class="mt-8 text-center">
-        <div class="inline-flex items-center gap-3 px-5 py-3 rounded-xl bg-surface-raised border border-border-dim">
+        <div class="inline-flex flex-wrap items-center justify-center gap-2 sm:gap-3 px-4 sm:px-5 py-3 rounded-xl bg-surface-raised border border-border-dim max-w-full">
           <Icon name="lucide:box" class="text-aster" />
           <span class="text-sm text-text-secondary">Also available on npm:</span>
-          <code class="text-sm font-mono text-aster">npm install -g aster-mcp</code>
+          <code class="text-sm font-mono text-aster break-all">npm install -g aster-mcp</code>
         </div>
       </div>
     </div>

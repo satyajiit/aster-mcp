@@ -34,11 +34,11 @@
       <!-- Android App Screenshots -->
       <Transition name="tab" mode="out-in">
         <div v-if="activeTab === 'app'" key="app">
-          <div class="flex justify-center gap-4 sm:gap-6">
+          <div class="flex justify-start sm:justify-center gap-4 sm:gap-6 overflow-x-auto pb-4 sm:pb-0 sm:overflow-x-visible snap-x snap-mandatory">
             <div
               v-for="shot in appScreenshots"
               :key="shot.src"
-              class="screenshot-card group relative rounded-2xl overflow-hidden border border-border-dim bg-surface-raised/60 backdrop-blur-sm hover:border-aster/20 transition-all duration-500"
+              class="screenshot-card group relative rounded-2xl overflow-hidden border border-border-dim bg-surface-raised/60 backdrop-blur-sm hover:border-aster/20 transition-all duration-500 flex-shrink-0 snap-center"
               style="width: 180px;"
             >
               <img

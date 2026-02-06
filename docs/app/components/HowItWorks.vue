@@ -188,7 +188,7 @@
           </div>
 
           <!-- Live log / trace output -->
-          <div class="rounded-xl bg-surface/60 border border-border-dim p-4 font-mono text-[11px] leading-loose min-h-[140px]">
+          <div class="rounded-xl bg-surface/60 border border-border-dim p-4 font-mono text-[11px] leading-loose min-h-[140px] overflow-x-auto">
             <Transition name="log" mode="out-in">
               <div :key="current" class="space-y-1.5">
                 <!-- Step 1 -->

@@ -9,7 +9,7 @@
     </div>
 
     <!-- Content -->
-    <div class="flex-1 pb-2">
+    <div class="flex-1 min-w-0 pb-2">
       <h3 class="text-lg font-semibold text-text-primary mb-1">{{ title }}</h3>
       <p class="text-sm text-text-secondary leading-relaxed">{{ description }}</p>
       <slot />
