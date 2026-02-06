@@ -1,6 +1,6 @@
 {
   "name": "aster-mcp",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "MCP server for Android device control - Control your Android with AI or give your AI its own phone",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
@@ -59,6 +59,7 @@
     "start": "node dist/index.js",
     "lint": "eslint src",
     "test": "vitest",
+    "postinstall": "npm rebuild better-sqlite3 2>/dev/null || true",
     "prepublishOnly": "pnpm build:all"
   },
   "dependencies": {
