@@ -39,7 +39,7 @@
             <h3 class="text-sm font-semibold text-text-primary">Install via ClawHub</h3>
           </div>
           <p class="text-xs text-text-secondary mb-3">
-            Available as a skill on <a href="https://clawhub.ai/aster" target="_blank" rel="noopener" class="text-aster hover:underline">ClawHub</a> for OpenClaw, MoltBot, and ClawBot.
+            Available as a skill on <a href="https://clawhub.ai/satyajit/aster" target="_blank" rel="noopener" class="text-aster hover:underline">ClawHub</a> for OpenClaw, MoltBot, and ClawBot.
           </p>
           <div class="rounded-lg bg-surface border border-border-dim overflow-hidden">
             <div class="flex items-center gap-2 px-3 py-2 border-b border-border-dim">

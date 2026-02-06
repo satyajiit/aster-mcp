@@ -12,7 +12,7 @@
   <a href="https://www.npmjs.com/package/aster-mcp"><img src="https://img.shields.io/npm/v/aster-mcp?style=flat-square&color=blue" alt="npm version" /></a>
   <a href="https://www.npmjs.com/package/aster-mcp"><img src="https://img.shields.io/npm/dm/aster-mcp?style=flat-square&color=green" alt="npm downloads" /></a>
   <a href="https://github.com/satyajiit/aster-mcp/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" /></a>
-  <a href="https://clawhub.ai/aster"><img src="https://img.shields.io/badge/ClawHub-skill-purple?style=flat-square" alt="ClawHub" /></a>
+  <a href="https://clawhub.ai/satyajit/aster"><img src="https://img.shields.io/badge/ClawHub-skill-purple?style=flat-square" alt="ClawHub" /></a>
   <a href="https://openclaw.ai"><img src="https://img.shields.io/badge/OpenClaw-compatible-orange?style=flat-square" alt="OpenClaw" /></a>
   <img src="https://img.shields.io/badge/40%2B-MCP_tools-2dd4bf?style=flat-square" alt="40+ MCP tools" />
   <img src="https://img.shields.io/badge/Android_7%2B-supported-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android 7+" />
@@ -196,7 +196,7 @@ Add to your `.mcp.json` or Claude settings:
 
 ### OpenClaw / Moltbot / Clawbot
 
-Aster is available as a skill on [ClawHub](https://clawhub.ai/aster). Install it directly:
+Aster is available as a skill on [ClawHub](https://clawhub.ai/satyajit/aster). Install it directly:
 
 ```bash
 clawhub install aster

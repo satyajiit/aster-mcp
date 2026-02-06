@@ -13,7 +13,7 @@
   <a href="https://www.npmjs.com/package/aster-mcp"><img src="https://img.shields.io/npm/dm/aster-mcp?style=flat-square&color=green" alt="npm downloads" /></a>
   <a href="https://github.com/satyajiit/aster-mcp/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" /></a>
   <a href="https://github.com/satyajiit/aster-mcp"><img src="https://img.shields.io/badge/MCP-compatible-brightgreen?style=flat-square" alt="MCP" /></a>
-  <a href="https://clawhub.ai/aster"><img src="https://img.shields.io/badge/ClawHub-skill-purple?style=flat-square" alt="ClawHub" /></a>
+  <a href="https://clawhub.ai/satyajit/aster"><img src="https://img.shields.io/badge/ClawHub-skill-purple?style=flat-square" alt="ClawHub" /></a>
   <a href="https://openclaw.ai"><img src="https://img.shields.io/badge/OpenClaw-compatible-orange?style=flat-square" alt="OpenClaw" /></a>
   <a href="https://github.com/satyajiit/aster-mcp"><img src="https://img.shields.io/github/stars/satyajiit/aster-mcp?style=flat-square" alt="GitHub stars" /></a>
   <img src="https://img.shields.io/badge/40%2B-MCP_tools-2dd4bf?style=flat-square" alt="40+ MCP tools" />
@@ -94,7 +94,7 @@ aster start
 
 ### OpenClaw / Moltbot / Clawbot (Recommended)
 
-Aster is a first-class skill on [ClawHub](https://clawhub.ai/aster). One command to install:
+Aster is a first-class skill on [ClawHub](https://clawhub.ai/satyajit/aster). One command to install:
 
 ```bash
 clawhub install aster
