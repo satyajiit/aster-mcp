@@ -5,7 +5,7 @@
 <h1 align="center">Aster</h1>
 
 <p align="center">
-  <strong>Control your Android device with AI</strong>
+  <strong>Control your Android with AI — or give your AI its own phone</strong>
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
 
 ---
 
-**Aster** bridges your Android device to AI assistants like Claude through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). Take screenshots, automate UI interactions, manage files, read notifications, and more — all through natural language.
+**Aster** bridges any Android device to AI assistants like Claude through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). Control your phone remotely — or plug a spare Android into a charger, install Aster, and give your AI its own device. It can call you, text you, monitor notifications, and act on its own. Screenshots, UI automation, file management, media search, and 40+ tools — all through natural language.
 
 <p align="center">
   <img src="./apps/android/screenshots/connection-setup.jpg" width="200" alt="Connection Setup" />
@@ -49,7 +49,9 @@
 - **Device Access** — Read notifications, SMS, clipboard, location, and battery info
 - **File Management** — Browse, read, write, and delete files on device storage
 - **Media Search** — Find photos and videos using natural language queries
+- **Calls, SMS & Voice** — Make calls, send SMS, or use `make_call_with_voice` to dial and speak a TTS message on speakerphone
 - **System Actions** — Back, Home, Recents, volume control, and more
+- **AI's Own Phone** — Dedicate a spare Android to your AI. It monitors, calls, texts, and acts on its own
 
 ## Web Dashboard
 
@@ -98,7 +100,7 @@ npm install -g aster-mcp
 
 ### 2. Install the Android App
 
-Download the Aster companion app from [Releases](https://github.com/satyajiit/aster-mcp/releases) and install it on your Android device.
+Download the Aster companion app from [Releases](https://github.com/satyajiit/aster-mcp/releases) and install it on your Android device — your daily phone or a spare one you want to dedicate to your AI.
 
 ### 3. Start the Server
 
@@ -108,7 +110,7 @@ aster start
 
 ### 4. Connect Your Device
 
-Open the Aster app on your Android device and enter the server address shown in the terminal.
+Open the Aster app on your Android device and enter the server address shown in the terminal. For a dedicated AI phone, just plug it into a charger and leave it connected — your AI now has its own device.
 
 ### 5. Configure Your AI Client
 
@@ -132,7 +134,9 @@ aster devices remove     # Remove a device
 
 ### Example Prompts
 
-Once connected, try these with Claude:
+Once connected, try these with your AI assistant:
+
+**Control your phone:**
 
 > "Take a screenshot of my phone"
 
@@ -143,6 +147,14 @@ Once connected, try these with Claude:
 > "Find photos from my trip to Mumbai last month"
 
 > "What apps are using the most storage?"
+
+**AI's own phone — let it act for you:**
+
+> "Call me if my flight gets delayed and tell me the new time" *(uses make_call_with_voice)*
+
+> "Text me when my delivery arrives" *(uses send_sms)*
+
+> "Back up new photos to Google Drive every night"
 
 ## Integrations
 
@@ -183,10 +195,11 @@ Aster exposes a standard MCP HTTP endpoint at `http://localhost:5988/mcp` that w
 | **Input** | `input_gesture`, `input_text`, `click_by_text`, `click_by_id` |
 | **Navigation** | `global_action`, `launch_intent` |
 | **Device** | `list_devices`, `get_device_info`, `get_battery`, `get_location` |
-| **Notifications** | `read_notifications`, `read_sms`, `post_notification` |
+| **Notifications** | `read_notifications`, `read_sms`, `send_sms`, `post_notification` |
 | **Files** | `list_files`, `read_file`, `write_file`, `delete_file` |
 | **Storage** | `analyze_storage`, `find_large_files`, `search_media` |
 | **Clipboard** | `get_clipboard`, `set_clipboard` |
+| **Calls** | `make_call`, `make_call_with_voice` |
 | **Audio** | `speak_tts`, `play_audio`, `vibrate` |
 | **Apps** | `list_packages`, `execute_shell` |
 
@@ -226,7 +239,7 @@ Aster/
 
 ## Tailscale Support
 
-Aster automatically detects Tailscale and displays your Tailscale IP for easy remote connections without port forwarding.
+Aster automatically detects Tailscale and displays your Tailscale IP for easy remote connections without port forwarding. Perfect for a dedicated AI phone that stays plugged in at home while you're away.
 
 ## License
 

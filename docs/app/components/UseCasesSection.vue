@@ -9,10 +9,10 @@
       <div class="text-center mb-20">
         <span class="text-xs font-semibold uppercase tracking-[0.2em] text-aster mb-4 block">Real-World Use Cases</span>
         <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-primary">
-          Things you'll actually say
+          Things you'll actually say &mdash; and things your AI will
         </h2>
         <p class="mt-4 text-text-secondary max-w-xl mx-auto">
-          Forget technical jargon. Just talk to your AI like a human &mdash; Aster handles the rest.
+          Forget technical jargon. Talk to your AI like a human, or let it act on its own device &mdash; Aster handles the rest.
         </p>
       </div>
 
@@ -195,16 +195,16 @@ const groups: Group[] = [
     tagClass: 'border-blue-500/10 text-blue-400/50 bg-blue-500/[0.04]',
     cards: [
       {
-        prompt: 'Call Mom and put it on speaker',
-        response: 'Calling "Mom" now...',
+        prompt: 'Call Mom and tell her I\'ll be 20 minutes late',
+        response: 'Calling Mom now. Speakerphone on — I\'ll speak your message once she picks up.',
         responseIcon: 'lucide:phone-call',
-        tools: ['make_call'],
+        tools: ['make_call_with_voice'],
       },
       {
-        prompt: 'Read my last SMS from the delivery guy',
-        response: '"Your package will arrive between 2-4 PM today. Please keep your phone handy."',
+        prompt: 'Read my last SMS from the delivery guy and reply "Thanks, I\'ll be home"',
+        response: 'Last SMS: "Your package will arrive between 2-4 PM." Sending reply now...',
         responseIcon: 'lucide:message-square',
-        tools: ['read_sms'],
+        tools: ['read_sms', 'send_sms'],
       },
       {
         prompt: 'Show "Do Not Disturb — In a Meeting" on my phone screen',
@@ -240,6 +240,35 @@ const groups: Group[] = [
         response: 'Launching Google Maps... Searching "coffee shop near me".',
         responseIcon: 'lucide:coffee',
         tools: ['launch_intent', 'input_text', 'click_by_text'],
+      },
+    ],
+  },
+  {
+    label: 'AI\'s Own Phone',
+    icon: 'lucide:smartphone-charging',
+    bg: 'bg-orange-500/10',
+    color: 'text-orange-400',
+    accentGradient: 'from-transparent via-orange-400/60 to-transparent',
+    responseBg: 'bg-orange-500/10',
+    tagClass: 'border-orange-500/10 text-orange-400/50 bg-orange-500/[0.04]',
+    cards: [
+      {
+        prompt: 'Call me if my flight gets delayed — and tell me the new time',
+        response: 'Monitoring airline notifications. If anything changes, I\'ll call you and speak the update.',
+        responseIcon: 'lucide:phone-outgoing',
+        tools: ['read_notifications', 'make_call_with_voice'],
+      },
+      {
+        prompt: 'Keep an eye on my delivery — text me when it arrives',
+        response: 'Watching for delivery app notifications. I\'ll send you an SMS as soon as the status updates to "Delivered".',
+        responseIcon: 'lucide:message-square-plus',
+        tools: ['read_notifications', 'send_sms'],
+      },
+      {
+        prompt: 'Back up all new photos from the AI phone to Google Drive every night',
+        response: 'Scheduled nightly sync. I\'ll search for new media, open Drive, and upload — all on my device, while you sleep.',
+        responseIcon: 'lucide:cloud-upload',
+        tools: ['search_media', 'launch_intent', 'input_text'],
       },
     ],
   },

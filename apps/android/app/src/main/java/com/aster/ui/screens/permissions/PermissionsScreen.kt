@@ -181,6 +181,7 @@ fun PermissionsScreen(
                     permissionLauncher.launch(
                         arrayOf(
                             Manifest.permission.READ_SMS,
+                            Manifest.permission.SEND_SMS,
                             Manifest.permission.CALL_PHONE,
                             Manifest.permission.READ_PHONE_STATE
                         )

@@ -119,9 +119,22 @@ export const PostNotificationSchema = z.object({
   })).optional().describe('Action buttons'),
 });
 
+export const SendSmsSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  number: z.string().describe('Phone number to send SMS to'),
+  message: z.string().describe('Text message content to send'),
+});
+
 export const MakeCallSchema = z.object({
   deviceId: z.string().describe('The unique identifier of the device'),
   number: z.string().describe('Phone number to call'),
+});
+
+export const MakeCallWithVoiceSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  number: z.string().describe('Phone number to call'),
+  text: z.string().describe('Text for the AI to speak during the call via TTS'),
+  waitSeconds: z.number().optional().default(8).describe('Seconds to wait after dialing before speaking (default: 8, to allow the call to be answered)'),
 });
 
 export const SetClipboardSchema = z.object({
@@ -252,6 +265,19 @@ export const TOOL_DEFINITIONS = [
         threadId: { type: 'string', description: 'Filter by conversation thread ID' },
       },
       required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_send_sms',
+    description: 'Send an SMS text message to a phone number',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        number: { type: 'string', description: 'Phone number to send SMS to' },
+        message: { type: 'string', description: 'Text message content to send' },
+      },
+      required: ['deviceId', 'number', 'message'],
     },
   },
   {
@@ -521,6 +547,20 @@ export const TOOL_DEFINITIONS = [
         number: { type: 'string', description: 'Phone number to call' },
       },
       required: ['deviceId', 'number'],
+    },
+  },
+  {
+    name: 'aster_make_call_with_voice',
+    description: 'Make a phone call and speak AI-generated text via TTS on speakerphone. The call is placed, speakerphone is enabled, and after a configurable wait (for the recipient to answer), the provided text is spoken through TTS routed to the call audio.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        number: { type: 'string', description: 'Phone number to call' },
+        text: { type: 'string', description: 'Text for the AI to speak during the call' },
+        waitSeconds: { type: 'number', description: 'Seconds to wait before speaking (default: 8)', default: 8 },
+      },
+      required: ['deviceId', 'number', 'text'],
     },
   },
   {

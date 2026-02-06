@@ -87,6 +87,7 @@ class AsterService : Service() {
 
     private val commandHandlers = mutableMapOf<String, CommandHandler>()
     private var mediaHandler: MediaHandler? = null
+    private var intentHandler: IntentHandler? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -170,9 +171,11 @@ class AsterService : Service() {
         releaseWakeLock()
         webSocketClient.disconnect()
 
-        // Release MediaHandler resources
+        // Release handler resources
         mediaHandler?.release()
         mediaHandler = null
+        intentHandler?.release()
+        intentHandler = null
 
         super.onDestroy()
     }
@@ -313,8 +316,9 @@ class AsterService : Service() {
     }
 
     private fun registerCommandHandlers() {
-        // Create MediaHandler and keep reference for cleanup
+        // Create handlers that need cleanup and keep references
         mediaHandler = MediaHandler(this)
+        intentHandler = IntentHandler(this)
 
         // Register all command handlers
         val handlers = listOf(
@@ -324,7 +328,7 @@ class AsterService : Service() {
             ClipboardHandler(this),
             mediaHandler!!,
             ShellHandler(),
-            IntentHandler(this),
+            intentHandler!!,
             // New handlers for accessibility, notifications, SMS, and overlay
             AccessibilityHandler(),
             NotificationHandler(),

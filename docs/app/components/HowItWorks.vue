@@ -17,7 +17,7 @@
           Watch a command propagate
         </h2>
         <p class="mt-4 text-sm text-text-secondary max-w-lg mx-auto leading-relaxed">
-          From natural language to hardware execution &mdash; trace the full path of an Aster command in real time.
+          From natural language to hardware execution &mdash; trace a command across AI, server, and device. Works the same whether the AI controls your phone or its own.
         </p>
       </div>
 
@@ -320,14 +320,14 @@ const scenarios: Scenario[] = [
     latency: '~90ms',
   },
   {
-    label: 'make call',
+    label: 'voice call',
     icon: 'lucide:phone',
-    prompt: '"Call Mom"',
-    aiCall: 'make_call({ contact: "Mom" })',
-    serverRoute: 'MAKE_CALL → resolve contact → dial',
-    deviceExec: 'Intent(ACTION_CALL) → dialer launched',
-    result: 'Phone call initiated to "Mom" (+91 98xxx). Dialer active on device.',
-    latency: '~210ms',
+    prompt: '"Call Mom and tell her I\'ll be late"',
+    aiCall: 'make_call_with_voice({ number: "+919XXXXXXXXX", text: "Hi Mom, I\'ll be about 20 minutes late.", waitSeconds: 8 })',
+    serverRoute: 'MAKE_CALL_WITH_VOICE → dial + speaker + TTS queue',
+    deviceExec: 'Intent(ACTION_CALL) → speakerphone on → TTS.speak()',
+    result: 'Called Mom, spoke message via TTS on speakerphone after 8s wait.',
+    latency: '~10s',
   },
   {
     label: 'notifications',
@@ -338,6 +338,16 @@ const scenarios: Scenario[] = [
     deviceExec: 'NotificationListenerService → extract + rank',
     result: '2 urgent Slack messages, 1 missed call from Mom, delivery arriving 2-4 PM.',
     latency: '~150ms',
+  },
+  {
+    label: 'AI calls you',
+    icon: 'lucide:phone-outgoing',
+    prompt: 'AI-initiated: flight delay detected on AI\'s phone',
+    aiCall: 'make_call_with_voice({ number: "+919XXX", text: "Your DEL-BOM flight is delayed 45 min. New gate B12.", waitSeconds: 8 })',
+    serverRoute: 'MAKE_CALL_WITH_VOICE → dial + enable speaker + TTS',
+    deviceExec: 'Intent(ACTION_CALL) → speakerphone → TTS.speak()',
+    result: 'Called owner, spoke: "Your DEL-BOM flight is delayed 45 min. New gate B12." via TTS on speakerphone.',
+    latency: '~10s (8s wait + TTS)',
   },
 ]
 

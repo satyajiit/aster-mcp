@@ -131,6 +131,10 @@ object PermissionUtils {
         ) == PackageManager.PERMISSION_GRANTED &&
         ContextCompat.checkSelfPermission(
             context,
+            Manifest.permission.SEND_SMS
+        ) == PackageManager.PERMISSION_GRANTED &&
+        ContextCompat.checkSelfPermission(
+            context,
             Manifest.permission.CALL_PHONE
         ) == PackageManager.PERMISSION_GRANTED
     }

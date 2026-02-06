@@ -5,10 +5,10 @@
       <div class="text-center mb-16">
         <span class="text-xs font-semibold uppercase tracking-[0.2em] text-aster mb-4 block">Capabilities</span>
         <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-primary">
-          Everything you need to control Android
+          40+ tools. Your phone or theirs.
         </h2>
         <p class="mt-4 text-text-secondary max-w-xl mx-auto">
-          40+ tools spanning screen control, file management, media intelligence, and device automation.
+          Screen control, file management, media intelligence, calls, SMS, and device automation &mdash; whether you're controlling your phone or your AI is running its own.
         </p>
       </div>
 
@@ -47,7 +47,7 @@ const features = [
   {
     icon: 'lucide:bell-ring',
     title: 'Notifications & SMS',
-    description: 'Read system notifications in real-time, access SMS conversations and threads.',
+    description: 'Read notifications in real-time, access SMS threads, or let your AI monitor its own phone and alert you when something matters.',
     accent: 'from-rose-400 to-pink-400',
   },
   {
@@ -70,8 +70,8 @@ const features = [
   },
   {
     icon: 'lucide:phone-call',
-    title: 'Calls & Overlays',
-    description: 'Initiate phone calls, display web overlays on device, and post custom notifications with action buttons.',
+    title: 'Calls, SMS & Voice',
+    description: 'Make calls, send SMS, or use make_call_with_voice to dial someone and speak a message via TTS on speakerphone — fully autonomous.',
     accent: 'from-sky-400 to-blue-400',
   },
 ]

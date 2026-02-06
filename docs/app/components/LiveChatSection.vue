@@ -11,7 +11,7 @@
           Like texting a super-powered assistant
         </h2>
         <p class="mt-4 text-text-secondary max-w-xl mx-auto">
-          Watch a real conversation unfold. Every message triggers actual tools on your Android device.
+          Watch a real conversation unfold. Every message triggers actual tools on the Android device &mdash; yours or the AI's own.
         </p>
       </div>
 
@@ -214,9 +214,9 @@ const script: { msg: Omit<Message, 'id'>; stepIndex?: number; delay: number }[] 
   { msg: { type: 'user', text: 'Yes! Delete the duplicates. Keep the best quality ones.', time: '9:43 AM' }, delay: 1000 },
   { msg: { type: 'action', text: 'delete_file → removing 117 duplicates...', icon: 'lucide:trash-2' }, stepIndex: 2, delay: 1500 },
   { msg: { type: 'ai', text: 'Done! Freed up 5.5 GB. You now have 9.7 GB free. Your photos are all intact — only exact duplicates were removed.', time: '9:43 AM' }, delay: 1200 },
-  { msg: { type: 'user', text: 'Perfect. Also, can you call Mom? I promised I\'d ring her this morning.', time: '9:44 AM' }, delay: 1000 },
-  { msg: { type: 'action', text: 'make_call → dialing "Mom"...', icon: 'lucide:phone-call' }, stepIndex: 3, delay: 800 },
-  { msg: { type: 'ai', text: 'Calling Mom now. I\'ve put it on speaker for you. Have a great chat!', time: '9:44 AM' }, delay: 800 },
+  { msg: { type: 'user', text: 'Perfect. Call Mom and tell her I\'ll be 20 min late for lunch.', time: '9:44 AM' }, delay: 1000 },
+  { msg: { type: 'action', text: 'make_call_with_voice → dialing Mom → TTS queued...', icon: 'lucide:phone-call' }, stepIndex: 3, delay: 800 },
+  { msg: { type: 'ai', text: 'Calling Mom now. Speakerphone on — I\'ll speak your message once she picks up.', time: '9:44 AM' }, delay: 800 },
 ]
 
 const steps: Omit<Step, 'id' | 'active'>[] = [
@@ -246,11 +246,11 @@ const steps: Omit<Step, 'id' | 'active'>[] = [
   },
   {
     icon: 'lucide:phone-call',
-    title: 'Call placed',
-    description: 'Initiated a phone call to a contact using natural language — no app switching needed.',
+    title: 'Voice call placed',
+    description: 'Called Mom with speakerphone and spoke a message via TTS — fully hands-free.',
     activeBg: 'bg-green-500/10 border-green-500/20',
     activeColor: 'text-green-400',
-    tools: ['make_call'],
+    tools: ['make_call_with_voice'],
   },
 ]
 

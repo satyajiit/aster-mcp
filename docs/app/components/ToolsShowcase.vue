@@ -104,8 +104,10 @@ const categories = [
     tools: [
       'read_notifications',
       'read_sms',
+      'send_sms',
       'post_notification',
       'make_call',
+      'make_call_with_voice',
       'show_toast',
     ],
   },

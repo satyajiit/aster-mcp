@@ -27,12 +27,14 @@ import {
   ListFilesSchema,
   ListPackagesSchema,
   MakeCallSchema,
+  MakeCallWithVoiceSchema,
   PlayAudioSchema,
   PostNotificationSchema,
   ReadFileSchema,
   ReadNotificationsSchema,
   ReadSmsSchema,
   SearchMediaSchema,
+  SendSmsSchema,
   SetClipboardSchema,
   ShowOverlaySchema,
   ShowToastSchema,
@@ -94,6 +96,9 @@ export async function handleToolCall(
       case 'aster_read_sms':
         return handleReadSms(args);
 
+      case 'aster_send_sms':
+        return handleSendSms(args);
+
       case 'aster_get_location':
         return handleGetLocation(args);
 
@@ -150,6 +155,9 @@ export async function handleToolCall(
 
       case 'aster_make_call':
         return handleMakeCall(args);
+
+      case 'aster_make_call_with_voice':
+        return handleMakeCallWithVoice(args);
 
       case 'aster_set_clipboard':
         return handleSetClipboard(args);
@@ -368,9 +376,22 @@ async function handlePostNotification(args: Record<string, unknown>): Promise<To
   return jsonResult(response.data);
 }
 
+async function handleSendSms(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, number, message } = SendSmsSchema.parse(args);
+  const response = await sendCommand(deviceId, 'send_sms', { number, message });
+  return jsonResult(response.data);
+}
+
 async function handleMakeCall(args: Record<string, unknown>): Promise<ToolResult> {
   const { deviceId, number } = MakeCallSchema.parse(args);
   const response = await sendCommand(deviceId, 'make_call', { number });
+  return jsonResult(response.data);
+}
+
+async function handleMakeCallWithVoice(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, number, text, waitSeconds } = MakeCallWithVoiceSchema.parse(args);
+  const timeout = ((waitSeconds || 8) + 2 + 60) * 1000; // 2s dialer + wait + 60s for TTS and overhead
+  const response = await sendCommand(deviceId, 'make_call_with_voice', { number, text, waitSeconds }, timeout);
   return jsonResult(response.data);
 }
 

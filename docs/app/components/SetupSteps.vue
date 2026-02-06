@@ -7,7 +7,7 @@
           Up and running in minutes
         </h2>
         <p class="mt-4 text-text-secondary max-w-xl mx-auto">
-          Four steps to connect your Android device to your AI assistant.
+          Four steps to connect any Android device &mdash; your daily phone or a spare one dedicated to your AI.
         </p>
       </div>
 
@@ -71,7 +71,7 @@ const steps = [
   },
   {
     title: 'Connect device to server',
-    description: 'Open the Aster app, enter your server\'s WebSocket URL, and tap Connect. Approve the device from the web dashboard.',
+    description: 'Open the Aster app, enter your server\'s WebSocket URL, and tap Connect. Approve the device from the web dashboard. Works with your daily phone or a spare Android plugged into a charger as your AI\'s dedicated device.',
   },
   {
     title: 'Configure your AI client',

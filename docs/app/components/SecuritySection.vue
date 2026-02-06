@@ -15,7 +15,7 @@
           Your data never leaves your network
         </h2>
         <p class="mt-4 text-text-secondary max-w-xl mx-auto">
-          Aster is fully self-hosted. No cloud, no telemetry, no third-party relay. Everything runs on your machine.
+          Aster is fully self-hosted. No cloud, no telemetry, no third-party relay &mdash; whether you're controlling your daily phone or running a dedicated AI device.
         </p>
       </div>
 

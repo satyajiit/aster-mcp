@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.provider.Telephony
+import android.telephony.SmsManager
 import androidx.core.content.ContextCompat
 import com.aster.data.model.Command
 import com.aster.service.CommandHandler
@@ -26,12 +27,14 @@ class SmsHandler(
     }
 
     override fun supportedActions() = listOf(
-        "read_sms"
+        "read_sms",
+        "send_sms"
     )
 
     override suspend fun handle(command: Command): CommandResult {
         return when (command.action) {
             "read_sms" -> readSms(command)
+            "send_sms" -> sendSms(command)
             else -> CommandResult.failure("Unknown action: ${command.action}")
         }
     }
@@ -67,6 +70,47 @@ class SmsHandler(
             })
         } catch (e: Exception) {
             CommandResult.failure("Failed to read SMS: ${e.message}")
+        }
+    }
+
+    private fun sendSms(command: Command): CommandResult {
+        // Check permission
+        if (ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.SEND_SMS
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            return CommandResult.failure("SEND_SMS permission not granted")
+        }
+
+        val number = command.params?.get("number")?.jsonPrimitive?.contentOrNull
+            ?: return CommandResult.failure("Missing 'number' parameter")
+        val message = command.params?.get("message")?.jsonPrimitive?.contentOrNull
+            ?: return CommandResult.failure("Missing 'message' parameter")
+
+        // Clean the phone number
+        val cleanNumber = number.replace(Regex("[^0-9+*#]"), "")
+        if (cleanNumber.isEmpty()) {
+            return CommandResult.failure("Invalid phone number")
+        }
+
+        return try {
+            val smsManager = context.getSystemService(SmsManager::class.java)
+            // Handle long messages by splitting into parts
+            val parts = smsManager.divideMessage(message)
+            if (parts.size == 1) {
+                smsManager.sendTextMessage(cleanNumber, null, message, null, null)
+            } else {
+                smsManager.sendMultipartTextMessage(cleanNumber, null, parts, null, null)
+            }
+            CommandResult.success(buildJsonObject {
+                put("sent", true)
+                put("number", cleanNumber)
+                put("message", message)
+                put("parts", parts.size)
+            })
+        } catch (e: Exception) {
+            CommandResult.failure("Failed to send SMS: ${e.message}")
         }
     }
 

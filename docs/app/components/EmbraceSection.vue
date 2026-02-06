@@ -246,8 +246,8 @@ const afterItems = [
 ]
 
 const ownPhoneItems = [
-  { icon: 'lucide:phone-outgoing', label: 'It calls you with reminders', sub: '"Your flight boards in 90 min — leave now."' },
-  { icon: 'lucide:message-square-plus', label: 'It sends you SMS alerts', sub: 'Critical notifications, even when you\'re offline.' },
+  { icon: 'lucide:phone-outgoing', label: 'It calls and speaks to you', sub: 'make_call_with_voice — dials you, enables speaker, and delivers a TTS message.' },
+  { icon: 'lucide:message-square-plus', label: 'It texts you updates', sub: 'send_sms — critical alerts straight to your number, even when you\'re offline.' },
   { icon: 'lucide:eye', label: 'It monitors things for you', sub: 'Price drops, delivery updates, app notifications — handled.' },
   { icon: 'lucide:bot', label: 'It runs tasks in the background', sub: 'Backup photos, clean storage, organize files — on its own time.' },
 ]

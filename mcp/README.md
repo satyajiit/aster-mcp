@@ -5,7 +5,7 @@
 <h1 align="center">Aster</h1>
 
 <p align="center">
-  <strong>Give your AI assistant hands. Control any Android device through natural language.</strong>
+  <strong>Control any Android with AI — or give your AI its own phone</strong>
 </p>
 
 <p align="center">
@@ -29,7 +29,7 @@
 
 ---
 
-Aster is an MCP server that bridges your Android device to AI assistants. Take screenshots, automate UI, manage files, read notifications, search photos, and more &mdash; all through natural language. Fully open source and privacy-first.
+Aster is an MCP server that bridges any Android device to AI assistants. Control your phone remotely &mdash; or give your AI a dedicated device and let it call you, text you, and act autonomously. Screenshots, UI automation, file management, notifications, media search, and 40+ tools &mdash; all through natural language. Fully open source and privacy-first.
 
 > **Built for [OpenClaw](https://openclaw.ai)** &mdash; works natively as a skill on OpenClaw, Moltbot, and Clawbot. Also supports Claude and any MCP-compatible client.
 
@@ -62,8 +62,9 @@ npm install -g aster-mcp
 # 1. Start the server
 aster start
 
-# 2. Install the Aster app on your Android device
-#    and connect using the address shown in terminal
+# 2. Install the Aster app on any Android device
+#    — your daily phone or a spare one for your AI
+#    Connect using the address shown in terminal
 
 # 3. Connect your AI assistant (see below)
 ```
@@ -78,7 +79,7 @@ Aster is a first-class skill on [ClawHub](https://clawhub.ai/aster). One command
 clawhub install aster
 ```
 
-That's it. Your AI assistant can now control your Android device. See the [skill configuration](https://github.com/satyajiit/aster-mcp/tree/main/skill) for advanced setup.
+That's it. Your AI assistant can now control your Android device — or use a dedicated phone as its own. See the [skill configuration](https://github.com/satyajiit/aster-mcp/tree/main/skill) for advanced setup.
 
 ### Claude Code / Claude Desktop
 
@@ -101,7 +102,7 @@ Aster exposes a standard MCP HTTP endpoint at `http://localhost:5988/mcp`.
 
 ## What Can It Do?
 
-Just talk to your AI assistant naturally:
+**Control your phone** — talk to your AI assistant naturally:
 
 > "Take a screenshot of my phone"
 
@@ -112,6 +113,14 @@ Just talk to your AI assistant naturally:
 > "Find photos from my trip to Mumbai last month"
 
 > "What apps are using the most storage?"
+
+**Give your AI its own phone** — plug in a spare Android and let it act:
+
+> "Call me if my flight gets delayed or the gate changes"
+
+> "Monitor delivery notifications and text me when the package arrives"
+
+> "Back up all new photos to Google Drive every night"
 
 ## Commands
 
@@ -135,10 +144,11 @@ aster devices remove     # Remove a device
 | **Input** | `input_gesture`, `input_text`, `click_by_text`, `click_by_id` |
 | **Navigation** | `global_action`, `launch_intent` |
 | **Device** | `list_devices`, `get_device_info`, `get_battery`, `get_location` |
-| **Notifications** | `read_notifications`, `read_sms`, `post_notification` |
+| **Notifications** | `read_notifications`, `read_sms`, `send_sms`, `post_notification` |
 | **Files** | `list_files`, `read_file`, `write_file`, `delete_file` |
 | **Storage** | `analyze_storage`, `find_large_files`, `search_media` |
 | **Clipboard** | `get_clipboard`, `set_clipboard` |
+| **Calls** | `make_call`, `make_call_with_voice` |
 | **Audio** | `speak_tts`, `play_audio`, `vibrate` |
 | **Apps** | `list_packages`, `execute_shell` (sandboxed, no root) |
 
@@ -157,7 +167,7 @@ Aster is built with a security-first, privacy-first architecture:
 ## Requirements
 
 - Node.js >= 20
-- Android device with Aster app installed
+- Any Android device with Aster app installed (your phone or a dedicated AI device)
 - Device and server on same network (or [Tailscale](https://tailscale.com) for secure remote access)
 
 ## License

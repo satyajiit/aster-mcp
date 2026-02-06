@@ -41,9 +41,9 @@
 
       <!-- Subheading -->
       <p class="animate-fade-up delay-200 text-lg sm:text-xl text-text-secondary max-w-2xl mx-auto leading-relaxed mb-10">
-        Aster bridges your Android device to AI assistants like Claude, OpenClaw, or MoltBot through the
+        Aster connects Android to AI assistants like Claude, OpenClaw, or MoltBot via
         <span class="text-text-primary font-medium">Model Context Protocol</span>.
-        Automate UI, manage files, search photos, and more &mdash; all with natural language.
+        Control your phone remotely &mdash; or give your AI a dedicated device and let it call, text, and act on its own.
       </p>
 
       <!-- CTA Buttons -->
