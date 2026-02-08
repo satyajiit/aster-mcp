@@ -270,25 +270,32 @@ fun PermissionsScreen(
                 }
             )
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                TerminalDivider()
+            TerminalDivider()
 
-                PermissionItem(
-                    name = "All Files Access",
-                    description = "Required for full file system access",
-                    icon = FeatherIcons.Folder,
-                    iconColor = colors.rose,
-                    isGranted = permissionResult.permissions[PermissionType.STORAGE] == true,
-                    onClick = {
+            PermissionItem(
+                name = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) "All Files Access" else "Storage Access",
+                description = "Required for full file system access",
+                icon = FeatherIcons.Folder,
+                iconColor = colors.rose,
+                isGranted = permissionResult.permissions[PermissionType.STORAGE] == true,
+                onClick = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         context.startActivity(
                             Intent(
                                 Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
                                 Uri.parse("package:${context.packageName}")
                             )
                         )
+                    } else {
+                        permissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                                Manifest.permission.READ_EXTERNAL_STORAGE
+                            )
+                        )
                     }
-                )
-            }
+                }
+            )
 
             TerminalDivider()
 
