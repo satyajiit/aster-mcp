@@ -26,7 +26,7 @@ class AsterWebSocketClient @Inject constructor(
         private const val HEARTBEAT_INTERVAL_MS = 30_000L
         private const val RECONNECT_BASE_DELAY_MS = 30_000L
         private const val RECONNECT_MAX_DELAY_MS = 30_000L
-        private const val APP_VERSION = "1.0.0"
+        private val APP_VERSION = BuildConfig.VERSION_NAME
     }
 
     private val json = Json {

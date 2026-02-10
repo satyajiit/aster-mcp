@@ -95,7 +95,12 @@ class SmsHandler(
         }
 
         return try {
-            val smsManager = context.getSystemService(SmsManager::class.java)
+            @Suppress("DEPRECATION")
+            val smsManager = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                context.getSystemService(SmsManager::class.java)
+            } else {
+                SmsManager.getDefault()
+            }
             // Handle long messages by splitting into parts
             val parts = smsManager.divideMessage(message)
             if (parts.size == 1) {

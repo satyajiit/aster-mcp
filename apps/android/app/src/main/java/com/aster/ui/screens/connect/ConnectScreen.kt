@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.aster.BuildConfig
 import com.aster.data.local.SettingsDataStore
 import com.aster.data.model.ConnectionState
 import com.aster.data.websocket.AsterWebSocketClient
@@ -615,7 +616,7 @@ private fun AsterFooter(modifier: Modifier = Modifier) {
 
         // Version
         Text(
-            text = "ASTER v1.0.0",
+            text = "ASTER v${BuildConfig.VERSION_NAME}",
             style = TerminalTextStyles.StatLabel,
             color = colors.primary
         )
