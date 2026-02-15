@@ -1,0 +1,12 @@
+{
+  "latest": "3.14.3",
+  "versions": [
+    {
+      "version": "3.14.3",
+      "url": "https://aster.theappstack.in/runtimes/python/python-3.14.3-android-arm64.tar.gz",
+      "sha256": "387f7f9475d1a303fddad32b3c6b6fe8cb65f46a38f0447037c62dfd79ef9e80",
+      "sizeBytes": 11717077,
+      "unpackedSizeBytes": 36700160
+    }
+  ]
+}
