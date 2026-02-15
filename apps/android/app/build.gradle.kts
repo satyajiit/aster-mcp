@@ -58,6 +58,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        aidl = true
     }
 
     packaging {
@@ -130,6 +131,17 @@ dependencies {
 
     // Location
     implementation(libs.play.services.location)
+
+    // Ktor (Local MCP server)
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.cio)
+    implementation(libs.ktor.server.content.negotiation)
+    implementation(libs.ktor.server.sse)
+    implementation(libs.ktor.server.double.receive)
+    implementation(libs.ktor.serialization.kotlinx.json)
+
+    // MCP SDK
+    implementation(libs.mcp.kotlin.sdk)
 
     // Testing
     testImplementation(libs.junit)

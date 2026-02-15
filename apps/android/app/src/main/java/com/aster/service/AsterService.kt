@@ -7,30 +7,41 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.provider.Telephony
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.aster.BuildConfig
 import com.aster.R
 import com.aster.data.local.SettingsDataStore
-import com.aster.data.model.Command
-import com.aster.data.model.ConnectionState
 import com.aster.data.websocket.AsterWebSocketClient
 import com.aster.receiver.SmsBroadcastReceiver
-import com.aster.service.handlers.*
+import com.aster.service.mode.ConnectionMode
+import com.aster.service.mode.IpcMode
+import com.aster.service.mode.McpMode
+import com.aster.service.mode.ModeConfig
+import com.aster.service.mode.ModeState
+import com.aster.service.mode.ModeType
+import com.aster.service.mode.RemoteWsMode
 import com.aster.ui.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
-import android.content.IntentFilter
-import android.provider.Telephony
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -40,28 +51,47 @@ class AsterService : Service() {
         private const val TAG = "AsterService"
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "aster_service_channel"
-        private const val WAKE_LOCK_TIMEOUT_MS = 10 * 60 * 1000L // 10 minutes
-        private const val WAKE_LOCK_RENEWAL_INTERVAL_MS = 9 * 60 * 1000L // Renew every 9 minutes
+        private const val WAKE_LOCK_TIMEOUT_MS = 10 * 60 * 1000L
+        private const val WAKE_LOCK_RENEWAL_INTERVAL_MS = 9 * 60 * 1000L
 
         const val ACTION_START = "com.aster.action.START"
         const val ACTION_STOP = "com.aster.action.STOP"
-        const val ACTION_CONNECT = "com.aster.action.CONNECT"
-        const val ACTION_DISCONNECT = "com.aster.action.DISCONNECT"
         const val ACTION_NOTIFICATION_DISMISSED = "com.aster.action.NOTIFICATION_DISMISSED"
 
+        const val EXTRA_MODE_TYPE = "mode_type"
+        const val EXTRA_CONFIG_JSON = "config_json"
         const val EXTRA_SERVER_URL = "server_url"
 
-        /**
-         * Track if the service is running. Updated in onCreate/onDestroy.
-         * Use this instead of getRunningServices() which is deprecated.
-         */
         @Volatile
         var isRunning: Boolean = false
             private set
 
+        /** Set of currently active mode types (supports concurrent modes). */
+        @Volatile
+        var activeModeTypes: Set<ModeType> = emptySet()
+            private set
+
+        /** Legacy accessor — returns the first active mode or null. */
+        val activeModeType: ModeType?
+            get() = activeModeTypes.firstOrNull()
+
+        fun startService(context: Context, modeType: ModeType, configJson: String) {
+            val intent = Intent(context, AsterService::class.java).apply {
+                action = ACTION_START
+                putExtra(EXTRA_MODE_TYPE, modeType.name)
+                putExtra(EXTRA_CONFIG_JSON, configJson)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
         fun startService(context: Context, serverUrl: String? = null) {
             val intent = Intent(context, AsterService::class.java).apply {
                 action = ACTION_START
+                putExtra(EXTRA_MODE_TYPE, ModeType.REMOTE_WS.name)
                 serverUrl?.let { putExtra(EXTRA_SERVER_URL, it) }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -71,9 +101,20 @@ class AsterService : Service() {
             }
         }
 
+        /** Stop a specific mode. If it's the last active mode, the service stops. */
+        fun stopMode(context: Context, modeType: ModeType) {
+            val intent = Intent(context, AsterService::class.java).apply {
+                action = ACTION_STOP
+                putExtra(EXTRA_MODE_TYPE, modeType.name)
+            }
+            context.startService(intent)
+        }
+
+        /** Stop all modes and the entire service. */
         fun stopService(context: Context) {
             val intent = Intent(context, AsterService::class.java).apply {
                 action = ACTION_STOP
+                // No EXTRA_MODE_TYPE = stop all
             }
             context.startService(intent)
         }
@@ -81,20 +122,32 @@ class AsterService : Service() {
 
     @Inject
     lateinit var webSocketClient: AsterWebSocketClient
-
     @Inject
     lateinit var settingsDataStore: SettingsDataStore
+
+    @Inject
+    lateinit var ipcMode: IpcMode
+
+    @Inject
+    lateinit var mcpMode: McpMode
+
+    @Inject
+    lateinit var remoteWsMode: RemoteWsMode
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var wakeLockRenewalJob: Job? = null
-
-    private val commandHandlers = mutableMapOf<String, CommandHandler>()
-    private var mediaHandler: MediaHandler? = null
-    private var intentHandler: IntentHandler? = null
-    private var cameraHandler: CameraHandler? = null
     private var smsBroadcastReceiver: SmsBroadcastReceiver? = null
+
+    /** Active modes keyed by type. */
+    private val activeModes = mutableMapOf<ModeType, ConnectionMode>()
+
+    /** Status observe jobs per mode. */
+    private val statusObserveJobs = mutableMapOf<ModeType, Job>()
+
+    /** Error auto-stop jobs per mode. */
+    private val errorStopJobs = mutableMapOf<ModeType, Job>()
 
     override fun onCreate() {
         super.onCreate()
@@ -102,19 +155,225 @@ class AsterService : Service() {
         if (BuildConfig.DEBUG) Log.d(TAG, "Service created")
 
         createNotificationChannel()
-
-        // Call startForeground immediately in onCreate to meet Android's requirements
-        // Must be called within 5 seconds of startForegroundService()
-        startForegroundWithType(createNotification(ConnectionState.DISCONNECTED))
-
-        registerCommandHandlers()
+        startForegroundWithType(createNotification("Aster", "Starting..."))
         setupEventForwarding()
-        observeConnectionState()
-        observeCommands()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (BuildConfig.DEBUG) Log.d(TAG, "Service started with action: ${intent?.action}")
+
+        when (intent?.action) {
+            ACTION_START -> {
+                acquireWakeLock()
+                acquireWifiLock()
+
+                val modeTypeName = intent.getStringExtra(EXTRA_MODE_TYPE) ?: ModeType.REMOTE_WS.name
+                val modeType = ModeType.fromString(modeTypeName)
+
+                serviceScope.launch {
+                    try {
+                        // If this specific mode is already running, stop it first (restart)
+                        activeModes[modeType]?.let { existingMode ->
+                            existingMode.stop()
+                            statusObserveJobs[modeType]?.cancel()
+                            errorStopJobs[modeType]?.cancel()
+                        }
+
+                        val mode = getModeForType(modeType)
+                        val config = buildConfig(modeType, intent)
+
+                        activeModes[modeType] = mode
+                        activeModeTypes = activeModes.keys.toSet()
+
+                        // Observe status for notification updates + auto-stop on error
+                        statusObserveJobs[modeType] = serviceScope.launch {
+                            mode.statusFlow.collect { status ->
+                                updateNotification()
+
+                                if (status.state == ModeState.ERROR) {
+                                    errorStopJobs[modeType]?.cancel()
+                                    errorStopJobs[modeType] = serviceScope.launch {
+                                        delay(5000)
+                                        if (mode.statusFlow.value.state == ModeState.ERROR) {
+                                            Log.i(
+                                                TAG,
+                                                "Auto-stopping $modeType after sustained error"
+                                            )
+                                            stopModeInternal(modeType)
+                                        }
+                                    }
+                                } else {
+                                    errorStopJobs[modeType]?.cancel()
+                                    errorStopJobs.remove(modeType)
+                                }
+                            }
+                        }
+
+                        mode.start(config)
+
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to start mode $modeType", e)
+                        activeModes.remove(modeType)
+                        activeModeTypes = activeModes.keys.toSet()
+                        updateNotification()
+                    }
+                }
+            }
+
+            ACTION_STOP -> {
+                val modeTypeName = intent?.getStringExtra(EXTRA_MODE_TYPE)
+
+                serviceScope.launch {
+                    if (modeTypeName != null) {
+                        // Stop a specific mode
+                        val modeType = ModeType.fromString(modeTypeName)
+                        stopModeInternal(modeType)
+                    } else {
+                        // Stop all modes
+                        stopAllModesAndShutdown()
+                    }
+                }
+            }
+
+            ACTION_NOTIFICATION_DISMISSED -> {
+                if (BuildConfig.DEBUG) Log.d(TAG, "Notification dismissed, recreating...")
+                updateNotification()
+            }
+        }
+
+        return START_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onDestroy() {
+        if (BuildConfig.DEBUG) Log.d(TAG, "Service destroyed")
+        isRunning = false
+        activeModeTypes = emptySet()
+
+        AsterNotificationListenerService.onNotificationEvent = null
+        EventDeduplicator.stopCleanup()
+        smsBroadcastReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: Exception) {}
+        }
+        smsBroadcastReceiver = null
+
+        serviceScope.cancel()
+        releaseWifiLock()
+        releaseWakeLock()
+
+        super.onDestroy()
+    }
+
+    /** Stop a single mode. If no modes remain, stop the service. */
+    private suspend fun stopModeInternal(modeType: ModeType) {
+        try {
+            activeModes[modeType]?.stop()
+        } catch (e: Exception) {
+            Log.w(TAG, "Error stopping mode $modeType", e)
+        }
+        activeModes.remove(modeType)
+        statusObserveJobs[modeType]?.cancel()
+        statusObserveJobs.remove(modeType)
+        errorStopJobs[modeType]?.cancel()
+        errorStopJobs.remove(modeType)
+        activeModeTypes = activeModes.keys.toSet()
+
+        if (activeModes.isEmpty()) {
+            releaseWifiLock()
+            releaseWakeLock()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        } else {
+            updateNotification()
+        }
+    }
+
+    private suspend fun stopAllModesAndShutdown() {
+        activeModes.values.forEach { mode ->
+            try {
+                mode.stop()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error stopping mode", e)
+            }
+        }
+        activeModes.clear()
+        statusObserveJobs.values.forEach { it.cancel() }
+        statusObserveJobs.clear()
+        errorStopJobs.values.forEach { it.cancel() }
+        errorStopJobs.clear()
+        activeModeTypes = emptySet()
+        releaseWifiLock()
+        releaseWakeLock()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
+    private fun getModeForType(type: ModeType): ConnectionMode = when (type) {
+        ModeType.IPC -> ipcMode
+        ModeType.LOCAL_MCP -> mcpMode
+        ModeType.REMOTE_WS -> remoteWsMode
+    }
+
+    private suspend fun buildConfig(type: ModeType, intent: Intent): ModeConfig {
+        return when (type) {
+            ModeType.IPC -> {
+                val token = ipcMode.generateToken()
+                ModeConfig.IpcConfig(token)
+            }
+
+            ModeType.LOCAL_MCP -> {
+                val port = settingsDataStore.mcpPort.first()
+                ModeConfig.McpConfig(port)
+            }
+
+            ModeType.REMOTE_WS -> {
+                val url = intent.getStringExtra(EXTRA_SERVER_URL)
+                    ?: intent.getStringExtra(EXTRA_CONFIG_JSON)
+                    ?: settingsDataStore.serverUrl.first()
+                    ?: ""
+                ModeConfig.RemoteConfig(url)
+            }
+        }
+    }
+
+    private fun updateNotification() {
+        if (activeModes.isEmpty()) return
+        val (title, text) = buildNotificationText()
+        startForegroundWithType(createNotification(title, text))
+    }
+
+    private fun buildNotificationText(): Pair<String, String> {
+        if (activeModes.isEmpty()) return "Aster" to "Idle"
+
+        // Check for errors first
+        val errorMode =
+            activeModes.entries.find { it.value.statusFlow.value.state == ModeState.ERROR }
+        if (errorMode != null) {
+            val otherRunning = activeModes.size - 1
+            val suffix = if (otherRunning > 0) " (+$otherRunning active)" else ""
+            return "Aster" to "Error: ${errorMode.value.statusFlow.value.message}$suffix"
+        }
+
+        // Build status text showing all active modes
+        val runningModes = activeModes.entries
+            .filter { it.value.statusFlow.value.state == ModeState.RUNNING }
+            .map { entry ->
+                when (entry.key) {
+                    ModeType.IPC -> "IPC"
+                    ModeType.LOCAL_MCP -> "MCP"
+                    ModeType.REMOTE_WS -> "Remote"
+                }
+            }
+
+        return if (runningModes.isNotEmpty()) {
+            "Aster" to "Active: ${runningModes.joinToString(" + ")}"
+        } else {
+            "Aster" to "Starting..."
+        }
     }
 
     private fun startForegroundWithType(notification: Notification) {
-        // Use ServiceCompat for better compatibility across Android versions
         ServiceCompat.startForeground(
             this,
             NOTIFICATION_ID,
@@ -127,142 +386,49 @@ class AsterService : Service() {
         )
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (BuildConfig.DEBUG) Log.d(TAG, "Service started with action: ${intent?.action}")
-
-        when (intent?.action) {
-            ACTION_START, ACTION_CONNECT -> {
-                acquireWakeLock()
-                acquireWifiLock()
-
-                val serverUrl = intent.getStringExtra(EXTRA_SERVER_URL)
-                if (serverUrl != null) {
-                    webSocketClient.connect(serverUrl)
-                } else {
-                    // Try to connect with saved URL
-                    serviceScope.launch {
-                        val savedUrl = settingsDataStore.serverUrl.first()
-                        if (!savedUrl.isNullOrBlank()) {
-                            webSocketClient.connect(savedUrl)
-                        }
-                    }
-                }
-            }
-
-            ACTION_STOP, ACTION_DISCONNECT -> {
-                webSocketClient.disconnect()
-                releaseWifiLock()
-                releaseWakeLock()
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-            }
-
-            ACTION_NOTIFICATION_DISMISSED -> {
-                // On Android 14+, users can dismiss foreground notifications.
-                // Recreate the notification to keep it visible while service runs.
-                if (BuildConfig.DEBUG) Log.d(TAG, "Notification dismissed by user, recreating...")
-                val currentState = webSocketClient.connectionState.value
-                startForegroundWithType(createNotification(currentState))
-            }
-        }
-
-        return START_STICKY
-    }
-
-    override fun onBind(intent: Intent?): IBinder? = null
-
-    override fun onDestroy() {
-        if (BuildConfig.DEBUG) Log.d(TAG, "Service destroyed")
-        isRunning = false
-
-        // Tear down event forwarding
-        AsterNotificationListenerService.onNotificationEvent = null
-        EventDeduplicator.stopCleanup()
-        smsBroadcastReceiver?.let {
-            try { unregisterReceiver(it) } catch (_: Exception) {}
-        }
-        smsBroadcastReceiver = null
-
-        serviceScope.cancel()
-        releaseWifiLock()
-        releaseWakeLock()
-        webSocketClient.disconnect()
-
-        // Release handler resources
-        mediaHandler?.release()
-        mediaHandler = null
-        intentHandler?.release()
-        intentHandler = null
-        cameraHandler?.release()
-        cameraHandler = null
-
-        super.onDestroy()
-    }
-
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Aster Service",
-                NotificationManager.IMPORTANCE_DEFAULT // Higher importance for visibility
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
-                description = "Maintains connection to MCP server"
+                description = "Maintains Aster service in the background"
                 setShowBadge(false)
-                setSound(null, null) // Silent but visible
+                setSound(null, null)
             }
-
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
         }
     }
 
-    private fun createNotification(state: ConnectionState): Notification {
+    private fun createNotification(title: String, text: String): Notification {
         val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
+            this, 0,
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Delete intent to recreate notification when dismissed on Android 14+
         val deleteIntent = PendingIntent.getService(
-            this,
-            1,
+            this, 1,
             Intent(this, AsterService::class.java).apply {
                 action = ACTION_NOTIFICATION_DISMISSED
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val (title, text) = when (state) {
-            ConnectionState.DISCONNECTED -> "Aster" to "Disconnected"
-            ConnectionState.CONNECTING -> "Aster" to "Connecting..."
-            ConnectionState.CONNECTED -> "Aster" to "Connected"
-            ConnectionState.PENDING_APPROVAL -> "Aster" to "Awaiting approval..."
-            ConnectionState.APPROVED -> "Aster" to "Connected & Ready"
-            ConnectionState.REJECTED -> "Aster" to "Connection rejected"
-            ConnectionState.ERROR -> "Aster" to "Connection error"
-        }
-
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(text)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
-            .setDeleteIntent(deleteIntent) // Recreate when dismissed
+            .setDeleteIntent(deleteIntent)
             .setOngoing(true)
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            // Show notification immediately without 10s delay on Android 12+
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
-    }
-
-    private fun updateNotification(state: ConnectionState) {
-        // Use startForeground instead of notify to keep notification associated
-        // with the foreground service (especially important on Android 14+)
-        startForegroundWithType(createNotification(state))
     }
 
     private fun acquireWakeLock() {
@@ -272,11 +438,9 @@ class AsterService : Service() {
                 PowerManager.PARTIAL_WAKE_LOCK,
                 "Aster::ServiceWakeLock"
             ).apply {
-                acquire(WAKE_LOCK_TIMEOUT_MS) // Acquire with timeout
+                acquire(WAKE_LOCK_TIMEOUT_MS)
             }
-            if (BuildConfig.DEBUG) Log.d(TAG, "Wake lock acquired with ${WAKE_LOCK_TIMEOUT_MS}ms timeout")
-
-            // Start periodic renewal to keep wake lock active while service runs
+            if (BuildConfig.DEBUG) Log.d(TAG, "Wake lock acquired")
             startWakeLockRenewal()
         }
     }
@@ -288,7 +452,6 @@ class AsterService : Service() {
                 delay(WAKE_LOCK_RENEWAL_INTERVAL_MS)
                 wakeLock?.let {
                     if (it.isHeld) {
-                        // Release and re-acquire to reset the timeout
                         it.release()
                         it.acquire(WAKE_LOCK_TIMEOUT_MS)
                         if (BuildConfig.DEBUG) Log.d(TAG, "Wake lock renewed")
@@ -337,130 +500,51 @@ class AsterService : Service() {
     private fun setupEventForwarding() {
         EventDeduplicator.startCleanup(serviceScope)
 
-        // Forward notification events via WebSocket
         AsterNotificationListenerService.onNotificationEvent = { packageName, title, text, postTime ->
-            val connected = webSocketClient.isConnected()
-            if (BuildConfig.DEBUG) Log.d(TAG, "Notification event callback fired: $packageName | ws_connected=$connected")
-            if (connected) {
-                val data = mapOf<String, JsonElement>(
-                    "packageName" to JsonPrimitive(packageName),
-                    "title" to JsonPrimitive(title),
-                    "text" to JsonPrimitive(text),
-                    "postTime" to JsonPrimitive(postTime)
-                )
-                webSocketClient.sendEvent("notification", data)
-                if (BuildConfig.DEBUG) Log.d(TAG, "Notification event sent via WebSocket: $packageName")
-            } else {
-                Log.w(TAG, "WebSocket not connected, dropping notification event: $packageName")
-            }
+            val data = mapOf<String, JsonElement>(
+                "packageName" to JsonPrimitive(packageName),
+                "title" to JsonPrimitive(title),
+                "text" to JsonPrimitive(text),
+                "postTime" to JsonPrimitive(postTime)
+            )
+            forwardEvent("notification", data)
         }
 
-        // Register SMS broadcast receiver
         val receiver = SmsBroadcastReceiver()
         receiver.onSmsReceived = { sender, body, timestamp ->
-            val connected = webSocketClient.isConnected()
-            if (BuildConfig.DEBUG) Log.d(TAG, "SMS event callback fired: $sender | ws_connected=$connected")
-            if (connected) {
-                val data = mapOf<String, JsonElement>(
-                    "sender" to JsonPrimitive(sender),
-                    "body" to JsonPrimitive(body),
-                    "receivedAt" to JsonPrimitive(timestamp)
-                )
-                webSocketClient.sendEvent("sms_received", data)
-                if (BuildConfig.DEBUG) Log.d(TAG, "SMS event sent via WebSocket: $sender")
-            } else {
-                Log.w(TAG, "WebSocket not connected, dropping SMS event: $sender")
-            }
+            val data = mapOf<String, JsonElement>(
+                "sender" to JsonPrimitive(sender),
+                "body" to JsonPrimitive(body),
+                "receivedAt" to JsonPrimitive(timestamp)
+            )
+            forwardEvent("sms_received", data)
         }
         val filter = IntentFilter(Telephony.Sms.Intents.SMS_RECEIVED_ACTION)
         registerReceiver(receiver, filter)
         smsBroadcastReceiver = receiver
 
-        Log.i(TAG, "Event forwarding set up: notification callback=${AsterNotificationListenerService.onNotificationEvent != null}, sms receiver registered")
+        Log.i(TAG, "Event forwarding set up")
     }
 
-    private fun registerCommandHandlers() {
-        // Create handlers that need cleanup and keep references
-        mediaHandler = MediaHandler(this)
-        intentHandler = IntentHandler(this)
-        cameraHandler = CameraHandler(this)
-
-        // Register all command handlers
-        val handlers = listOf(
-            DeviceInfoHandler(this),
-            FileSystemHandler(this),
-            PackageHandler(this),
-            ClipboardHandler(this),
-            mediaHandler!!,
-            ShellHandler(),
-            intentHandler!!,
-            AccessibilityHandler(),
-            NotificationHandler(),
-            SmsHandler(this),
-            OverlayHandler(this),
-            StorageHandler(this),
-            VolumeHandler(this),
-            ContactHandler(this),
-            AlarmHandler(this),
-            cameraHandler!!
-        )
-
-        handlers.forEach { handler ->
-            handler.supportedActions().forEach { action ->
-                commandHandlers[action] = handler
-            }
-        }
-
-        if (BuildConfig.DEBUG) Log.d(TAG, "Registered ${commandHandlers.size} command actions")
-    }
-
-    private fun observeConnectionState() {
-        serviceScope.launch {
-            webSocketClient.connectionState.collect { state ->
-                if (BuildConfig.DEBUG) Log.d(TAG, "Connection state: $state")
-                updateNotification(state)
-            }
-        }
-    }
-
-    private fun observeCommands() {
-        serviceScope.launch {
-            webSocketClient.incomingCommands.collect { command ->
-                handleCommand(command)
-            }
-        }
-    }
-
-    private suspend fun handleCommand(command: Command) {
-        if (BuildConfig.DEBUG) Log.d(TAG, "Handling command: ${command.action} (id: ${command.id})")
-
-        val handler = commandHandlers[command.action]
-
-        if (handler == null) {
-            if (BuildConfig.DEBUG) Log.w(TAG, "No handler for action: ${command.action}")
-            webSocketClient.sendCommandResponse(
-                id = command.id,
-                success = false,
-                error = "Unknown action: ${command.action}"
+    /** Forward events to ALL active modes that support it. */
+    private fun forwardEvent(eventType: String, data: Map<String, JsonElement>) {
+        // IPC mode — push via callback
+        if (activeModes.containsKey(ModeType.IPC)) {
+            val json = kotlinx.serialization.json.Json.encodeToString(
+                kotlinx.serialization.json.JsonObject.serializer(),
+                kotlinx.serialization.json.JsonObject(data)
             )
-            return
+            ipcMode.broadcastEvent(eventType, json)
         }
 
-        try {
-            val result = handler.handle(command)
-            webSocketClient.sendCommandResponse(
-                id = command.id,
-                success = result.success,
-                data = result.data,
-                error = result.error
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Error handling command ${command.action}", e)
-            webSocketClient.sendCommandResponse(
-                id = command.id,
-                success = false,
-                error = e.message ?: "Unknown error"
-            )
+        // Remote WS — push via WebSocket
+        if (activeModes.containsKey(ModeType.REMOTE_WS) && webSocketClient.isConnected()) {
+            webSocketClient.sendEvent(eventType, data)
+        }
+
+        // MCP doesn't have server-initiated events
+        if (activeModes.containsKey(ModeType.LOCAL_MCP)) {
+            if (BuildConfig.DEBUG) Log.d(TAG, "Event $eventType in MCP mode (no push channel)")
         }
     }
 }

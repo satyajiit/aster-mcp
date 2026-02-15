@@ -28,3 +28,15 @@
 -keepclasseswithmembers class * {
     @dagger.hilt.* <methods>;
 }
+
+# Ktor
+-dontwarn io.ktor.**
+-keep class io.ktor.** { *; }
+-keepclassmembers class io.ktor.** { *; }
+
+# MCP SDK
+-dontwarn io.modelcontextprotocol.**
+-keep class io.modelcontextprotocol.** { *; }
+
+# AIDL interfaces
+-keep class com.aster.ipc.** { *; }

@@ -3,86 +3,55 @@ package com.aster.ui.theme
 import androidx.compose.ui.graphics.Color
 
 /**
- * Terminal-inspired color palette matching the Aster Nuxt dashboard.
- * Blue-slate backgrounds with cyan accent - sophisticated CRT aesthetic.
+ * Aster color system — matches aster-one's Tamagui design language.
+ * Dual dark/light palettes with teal/emerald accent.
  */
-object AsterColors {
-    // Background layers (blue-slate palette)
-    val TerminalBg = Color(0xFF0F172A)              // Deep blue-slate
-    val TerminalSurface = Color(0xFF1E293B)         // Card/panel backgrounds
-    val TerminalSurfaceElevated = Color(0xFF334155) // Elevated surfaces
-    val TerminalHover = Color(0xFF475569)           // Hover states
+object AsterDarkColors {
+    val bg = Color(0xFF06060C)
+    val surface1 = Color(0xFF10101E)
+    val surface2 = Color(0xFF161628)
+    val surface3 = Color(0xFF1C1C34)
+    val text = Color(0xFFECF0F6)
+    val textSubtle = Color(0xFF7B8BA2)
+    val textMuted = Color(0xFF4A5670)
+    val primary = Color(0xFF2DD4BF)
+    val accent = Color(0xFF34D399)
+    val border = Color(0xFF1A1A30)
+    val borderBright = Color(0xFF252548)
+}
 
-    // Borders (slate with transparency feel)
-    val TerminalBorder = Color(0xFF2D3B4F)          // Subtle borders ~12% slate
-    val TerminalBorderBright = Color(0xFF3D4D65)    // Prominent borders ~20% slate
+object AsterLightColors {
+    val bg = Color(0xFFF8FAFB)
+    val surface1 = Color(0xFFFFFFFF)
+    val surface2 = Color(0xFFF4F7F9)
+    val surface3 = Color(0xFFEBF0F4)
+    val text = Color(0xFF0C1222)
+    val textSubtle = Color(0xFF4A5568)
+    val textMuted = Color(0xFF90A1B5)
+    val primary = Color(0xFF0D9488)
+    val accent = Color(0xFF10B981)
+    val border = Color(0xFFE2E9F0)
+    val borderBright = Color(0xFFD1DAE5)
+}
 
-    // Text hierarchy
-    val TerminalText = Color(0xFFF1F5F9)            // Primary text (off-white)
-    val TerminalTextBright = Color(0xFFFFFFFF)      // Pure white emphasis
-    val TerminalMuted = Color(0xFF94A3B8)           // Secondary text (gray)
-    val TerminalDim = Color(0xFF64748B)             // Tertiary text (darker gray)
+object SemanticColors {
+    // Success (emerald)
+    val success = Color(0xFF10B981)
+    val successDim = Color(0xFF059669)
+    val successBright = Color(0xFF34D399)
 
-    // Primary accent - Cyan (replacing phosphor green)
-    val Primary = Color(0xFF22D3EE)                 // Main cyan accent
-    val PrimaryDim = Color(0xFF06B6D4)              // Darker cyan
-    val PrimaryBright = Color(0xFF67E8F9)           // Lighter cyan
-    val PrimaryGlow = Color(0x2622D3EE)             // 15% opacity glow
+    // Warning (amber)
+    val warning = Color(0xFFF59E0B)
+    val warningDim = Color(0xFFD97706)
+    val warningBright = Color(0xFFFBBF24)
 
-    // Semantic colors - Success (Emerald)
-    val Emerald = Color(0xFF10B981)
-    val EmeraldDim = Color(0xFF059669)
-    val EmeraldBright = Color(0xFF34D399)
-    val EmeraldGlow = Color(0x2610B981)
+    // Error (rose)
+    val error = Color(0xFFF43F5E)
+    val errorDim = Color(0xFFE11D48)
+    val errorBright = Color(0xFFFB7185)
 
-    // Semantic colors - Warning (Amber)
-    val Amber = Color(0xFFF59E0B)
-    val AmberDim = Color(0xFFD97706)
-    val AmberBright = Color(0xFFFBBF24)
-    val AmberGlow = Color(0x26F59E0B)
-
-    // Semantic colors - Error (Rose)
-    val Rose = Color(0xFFF43F5E)
-    val RoseDim = Color(0xFFE11D48)
-    val RoseBright = Color(0xFFFB7185)
-    val RoseGlow = Color(0x26F43F5E)
-
-    // Semantic colors - Info (Violet)
-    val Violet = Color(0xFF8B5CF6)
-    val VioletDim = Color(0xFF7C3AED)
-    val VioletBright = Color(0xFFA78BFA)
-    val VioletGlow = Color(0x268B5CF6)
-
-    // Semantic colors - Blue
-    val Blue = Color(0xFF3B82F6)
-    val BlueDim = Color(0xFF2563EB)
-    val BlueBright = Color(0xFF60A5FA)
-    val BlueGlow = Color(0x263B82F6)
-
-    // Semantic colors - Indigo
-    val Indigo = Color(0xFF6366F1)
-    val IndigoDim = Color(0xFF4F46E5)
-    val IndigoBright = Color(0xFF818CF8)
-    val IndigoGlow = Color(0x266366F1)
-
-    // Legacy status colors (for compatibility)
-    val TerminalRed = Rose
-    val TerminalYellow = Amber
-    val TerminalBlue = Blue
-    val TerminalCyan = Primary
-    val TerminalMagenta = Violet
-
-    // Status shorthand
-    val Success = Color(0xFF22C55E)
-    val Warning = Color(0xFFEAB308)
-    val Error = Color(0xFFEF4444)
-    val Info = Color(0xFF3B82F6)
-
-    // macOS-style window dots
-    val DotClose = Color(0xFFFF5F57)
-    val DotMinimize = Color(0xFFFEBC2E)
-    val DotMaximize = Color(0xFF28C840)
-
-    // Scanline effect color
-    val Scanline = Color(0x0494A3B8)                // ~1.5% opacity slate
+    // Info (violet)
+    val info = Color(0xFF8B5CF6)
+    val infoDim = Color(0xFF7C3AED)
+    val infoBright = Color(0xFFA78BFA)
 }

@@ -26,6 +26,14 @@ class SettingsDataStore @Inject constructor(
         val AUTO_CONNECT = booleanPreferencesKey("auto_connect")
         val AUTO_START_ON_BOOT = booleanPreferencesKey("auto_start_on_boot")
         val DEVICE_ID = stringPreferencesKey("device_id")
+
+        // New keys for revamp
+        val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
+        val LAST_MODE = stringPreferencesKey("last_mode")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
+        val IPC_TOKEN = stringPreferencesKey("ipc_token")
+        val MCP_PORT = intPreferencesKey("mcp_port")
+        val AUTO_START_MODE = stringPreferencesKey("auto_start_mode")
     }
 
     val serverConfig: Flow<ServerConfig> = dataStore.data.map { prefs ->
@@ -46,6 +54,30 @@ class SettingsDataStore @Inject constructor(
 
     val deviceId: Flow<String?> = dataStore.data.map { prefs ->
         prefs[Keys.DEVICE_ID]
+    }
+
+    val onboardingComplete: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[Keys.ONBOARDING_COMPLETE] ?: false
+    }
+
+    val lastMode: Flow<String?> = dataStore.data.map { prefs ->
+        prefs[Keys.LAST_MODE]
+    }
+
+    val themeMode: Flow<String> = dataStore.data.map { prefs ->
+        prefs[Keys.THEME_MODE] ?: "system"
+    }
+
+    val ipcToken: Flow<String?> = dataStore.data.map { prefs ->
+        prefs[Keys.IPC_TOKEN]
+    }
+
+    val mcpPort: Flow<Int> = dataStore.data.map { prefs ->
+        prefs[Keys.MCP_PORT] ?: 8080
+    }
+
+    val autoStartMode: Flow<String?> = dataStore.data.map { prefs ->
+        prefs[Keys.AUTO_START_MODE]
     }
 
     suspend fun saveServerUrl(url: String) {
@@ -77,6 +109,46 @@ class SettingsDataStore @Inject constructor(
     suspend fun clearDeviceId() {
         dataStore.edit { prefs ->
             prefs.remove(Keys.DEVICE_ID)
+        }
+    }
+
+    suspend fun setOnboardingComplete(complete: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[Keys.ONBOARDING_COMPLETE] = complete
+        }
+    }
+
+    suspend fun setLastMode(mode: String) {
+        dataStore.edit { prefs ->
+            prefs[Keys.LAST_MODE] = mode
+        }
+    }
+
+    suspend fun setThemeMode(mode: String) {
+        dataStore.edit { prefs ->
+            prefs[Keys.THEME_MODE] = mode
+        }
+    }
+
+    suspend fun saveIpcToken(token: String) {
+        dataStore.edit { prefs ->
+            prefs[Keys.IPC_TOKEN] = token
+        }
+    }
+
+    suspend fun setMcpPort(port: Int) {
+        dataStore.edit { prefs ->
+            prefs[Keys.MCP_PORT] = port
+        }
+    }
+
+    suspend fun setAutoStartMode(mode: String?) {
+        dataStore.edit { prefs ->
+            if (mode != null) {
+                prefs[Keys.AUTO_START_MODE] = mode
+            } else {
+                prefs.remove(Keys.AUTO_START_MODE)
+            }
         }
     }
 }

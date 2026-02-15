@@ -29,4 +29,7 @@
     <string name="notification_title">Aster Active</string>
     <string name="notification_text_connected">Connected to server</string>
     <string name="notification_text_disconnected">Disconnected</string>
+
+    <!-- IPC -->
+    <string name="ipc_service_description">Allows aster-one to communicate with Aster via secure IPC</string>
 </resources>

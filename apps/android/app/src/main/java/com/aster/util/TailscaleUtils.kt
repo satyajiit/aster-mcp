@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.os.Build
 import android.util.Log
 import java.net.NetworkInterface
 
@@ -110,6 +109,24 @@ object TailscaleUtils {
     }
 
     /**
+     * Get the Tailscale DNS hostname (e.g., device-name.tailnet.ts.net).
+     * Requires MagicDNS to be enabled in Tailscale.
+     * Runs a reverse DNS lookup on the 100.x.x.x IP — must be called off main thread.
+     */
+    fun getTailscaleDnsName(): String? {
+        val ip = getTailscaleIp() ?: return null
+        return try {
+            val addr = java.net.InetAddress.getByName(ip)
+            val hostName = addr.canonicalHostName
+            // canonicalHostName returns the IP string if reverse lookup fails
+            if (hostName != ip && hostName.contains(".")) hostName else null
+        } catch (e: Exception) {
+            Log.w(TAG, "Error resolving Tailscale DNS name: ${e.message}")
+            null
+        }
+    }
+
+    /**
      * Get the launch intent for Tailscale app.
      */
     fun getLaunchIntent(context: Context): Intent? {
@@ -168,23 +185,27 @@ object TailscaleUtils {
     data class TailscaleStatus(
         val isInstalled: Boolean,
         val isVpnActive: Boolean,
-        val tailscaleIp: String?
+        val tailscaleIp: String?,
+        val tailscaleDnsName: String? = null
     ) {
         val isReady: Boolean get() = isInstalled && isVpnActive
     }
 
     /**
      * Get complete Tailscale status.
+     * Note: DNS resolution can block — call from a background thread or coroutine.
      */
     fun getStatus(context: Context): TailscaleStatus {
         val installed = isInstalled(context)
         val vpnActive = if (installed) isVpnActive(context) else false
         val ip = if (vpnActive) getTailscaleIp() else null
+        val dnsName = if (ip != null) getTailscaleDnsName() else null
 
         return TailscaleStatus(
             isInstalled = installed,
             isVpnActive = vpnActive,
-            tailscaleIp = ip
+            tailscaleIp = ip,
+            tailscaleDnsName = dnsName
         )
     }
 }

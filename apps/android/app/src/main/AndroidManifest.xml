@@ -89,6 +89,16 @@
                 android:value="device_control" />
         </service>
 
+        <!-- IPC Bound Service for aster-one communication -->
+        <service
+            android:name=".service.AsterIpcService"
+            android:exported="true"
+            android:description="@string/ipc_service_description">
+            <intent-filter>
+                <action android:name="com.aster.ipc.IAsterService" />
+            </intent-filter>
+        </service>
+
         <!-- Accessibility Service -->
         <service
             android:name=".service.AsterAccessibilityService"

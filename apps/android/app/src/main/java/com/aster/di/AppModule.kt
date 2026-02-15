@@ -4,7 +4,10 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.room.Room
 import com.aster.data.local.SettingsDataStore
+import com.aster.data.local.db.AsterDatabase
+import com.aster.data.local.db.ToolCallLogDao
 import com.aster.data.websocket.AsterWebSocketClient
 import dagger.Module
 import dagger.Provides
@@ -58,5 +61,21 @@ object AppModule {
         @ApplicationContext context: Context
     ): AsterWebSocketClient {
         return AsterWebSocketClient(okHttpClient, context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAsterDatabase(@ApplicationContext context: Context): AsterDatabase {
+        return Room.databaseBuilder(
+            context,
+            AsterDatabase::class.java,
+            "aster_db"
+        ).build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideToolCallLogDao(database: AsterDatabase): ToolCallLogDao {
+        return database.toolCallLogDao()
     }
 }

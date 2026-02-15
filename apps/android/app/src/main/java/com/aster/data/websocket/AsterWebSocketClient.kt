@@ -5,14 +5,36 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import com.aster.BuildConfig
-import com.aster.data.model.*
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
-import kotlinx.serialization.encodeToString
+import com.aster.data.model.AuthMessage
+import com.aster.data.model.AuthResult
+import com.aster.data.model.Command
+import com.aster.data.model.CommandResponse
+import com.aster.data.model.ConnectionState
+import com.aster.data.model.DeviceStatus
+import com.aster.data.model.EventMessage
+import com.aster.data.model.HeartbeatMessage
+import com.aster.data.model.IncomingMessage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
-import okhttp3.*
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 import java.security.MessageDigest
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -137,6 +159,7 @@ class AsterWebSocketClient @Inject constructor(
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 Log.e(TAG, "WebSocket failure: ${t.message}", t)
+                _connectionState.value = ConnectionState.ERROR
                 scope.launch {
                     _errors.emit("Connection failed: ${t.message}")
                 }
@@ -313,7 +336,10 @@ class AsterWebSocketClient @Inject constructor(
 
     private fun handleDisconnect() {
         heartbeatJob?.cancel()
-        _connectionState.value = ConnectionState.DISCONNECTED
+        // Preserve ERROR state so the UI can show it; reconnect will reset to CONNECTING
+        if (_connectionState.value != ConnectionState.ERROR) {
+            _connectionState.value = ConnectionState.DISCONNECTED
+        }
 
         if (shouldReconnect) {
             scheduleReconnect()

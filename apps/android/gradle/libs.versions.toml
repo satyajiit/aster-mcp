@@ -21,6 +21,8 @@ splashscreen = "1.0.1"
 media3 = "1.5.1"
 camerax = "1.4.1"
 playServicesLocation = "21.3.0"
+ktor = "3.2.3"
+mcpSdk = "0.8.3"
 
 [libraries]
 # Core
@@ -86,6 +88,17 @@ play-services-location = { group = "com.google.android.gms", name = "play-servic
 # Compose Icons
 compose-icons-feather = { group = "br.com.devsrsouza.compose.icons", name = "feather", version.ref = "composeIcons" }
 compose-icons-tabler = { group = "br.com.devsrsouza.compose.icons", name = "tabler-icons", version.ref = "composeIcons" }
+
+# Ktor (Local MCP server)
+ktor-server-core = { group = "io.ktor", name = "ktor-server-core", version.ref = "ktor" }
+ktor-server-cio = { group = "io.ktor", name = "ktor-server-cio", version.ref = "ktor" }
+ktor-server-content-negotiation = { group = "io.ktor", name = "ktor-server-content-negotiation", version.ref = "ktor" }
+ktor-server-sse = { group = "io.ktor", name = "ktor-server-sse", version.ref = "ktor" }
+ktor-server-double-receive = { group = "io.ktor", name = "ktor-server-double-receive", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
+
+# MCP SDK
+mcp-kotlin-sdk = { group = "io.modelcontextprotocol", name = "kotlin-sdk", version.ref = "mcpSdk" }
 
 # Testing
 junit = { group = "junit", name = "junit", version = "4.13.2" }
