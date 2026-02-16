@@ -5,25 +5,25 @@
       "version": "tiny-v1",
       "label": "Tiny (~75 MB)",
       "url": "https://github.com/satyajiit/aster-mcp/releases/download/runtimes-whisper-v1/whisper-ggml-tiny-v1.tar.xz",
-      "sha256": "PLACEHOLDER_RUN_PACKAGE_SCRIPT",
-      "sizeBytes": 0,
-      "unpackedSizeBytes": 77704192
+      "sha256": "9d030d2791672e60ebfda0a586388eda94e88bd1e7200842cbeee834fcc2c824",
+      "sizeBytes": 67153140,
+      "unpackedSizeBytes": 77691713
     },
     {
       "version": "base-v1",
       "label": "Base (~142 MB)",
       "url": "https://github.com/satyajiit/aster-mcp/releases/download/runtimes-whisper-v1/whisper-ggml-base-v1.tar.xz",
-      "sha256": "PLACEHOLDER_RUN_PACKAGE_SCRIPT",
-      "sizeBytes": 0,
-      "unpackedSizeBytes": 147964416
+      "sha256": "632e97fab40b2fa2d651ccda3dee7ee6a3bdfb267600032909d86fbcfdb5ff9c",
+      "sizeBytes": 128603816,
+      "unpackedSizeBytes": 147951465
     },
     {
       "version": "small-v1",
       "label": "Small (~466 MB)",
       "url": "https://github.com/satyajiit/aster-mcp/releases/download/runtimes-whisper-v1/whisper-ggml-small-v1.tar.xz",
-      "sha256": "PLACEHOLDER_RUN_PACKAGE_SCRIPT",
-      "sizeBytes": 0,
-      "unpackedSizeBytes": 487628800
+      "sha256": "f21c211c47faba2069a6cf6bf6b8fc78d983cc1300f1729dc8632111c475f4c7",
+      "sizeBytes": 434170936,
+      "unpackedSizeBytes": 487601967
     }
   ]
 }
