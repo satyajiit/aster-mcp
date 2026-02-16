@@ -1,0 +1,29 @@
+{
+  "latest": "base-v1",
+  "versions": [
+    {
+      "version": "tiny-v1",
+      "label": "Tiny (~75 MB)",
+      "url": "https://github.com/satyajiit/aster-mcp/releases/download/runtimes-whisper-v1/whisper-ggml-tiny-v1.tar.xz",
+      "sha256": "PLACEHOLDER_RUN_PACKAGE_SCRIPT",
+      "sizeBytes": 0,
+      "unpackedSizeBytes": 77704192
+    },
+    {
+      "version": "base-v1",
+      "label": "Base (~142 MB)",
+      "url": "https://github.com/satyajiit/aster-mcp/releases/download/runtimes-whisper-v1/whisper-ggml-base-v1.tar.xz",
+      "sha256": "PLACEHOLDER_RUN_PACKAGE_SCRIPT",
+      "sizeBytes": 0,
+      "unpackedSizeBytes": 147964416
+    },
+    {
+      "version": "small-v1",
+      "label": "Small (~466 MB)",
+      "url": "https://github.com/satyajiit/aster-mcp/releases/download/runtimes-whisper-v1/whisper-ggml-small-v1.tar.xz",
+      "sha256": "PLACEHOLDER_RUN_PACKAGE_SCRIPT",
+      "sizeBytes": 0,
+      "unpackedSizeBytes": 487628800
+    }
+  ]
+}

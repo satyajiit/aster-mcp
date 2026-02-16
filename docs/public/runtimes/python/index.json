@@ -3,7 +3,7 @@
   "versions": [
     {
       "version": "3.14.3",
-      "url": "https://aster.theappstack.in/runtimes/python/python-3.14.3-android-arm64.tar.gz",
+      "url": "https://github.com/satyajiit/aster-mcp/releases/download/runtimes-python-v3.14.3/python-3.14.3-android-arm64.tar.gz",
       "sha256": "04a0009bc83284f7d0704141c37b1937c7ff9d59ba10e3e2c4f2650c9fdbf445",
       "sizeBytes": 9884777,
       "unpackedSizeBytes": 30883840

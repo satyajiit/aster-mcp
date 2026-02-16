@@ -348,7 +348,7 @@ cat > "$INDEX_PATH" << INDEX_EOF
   "versions": [
     {
       "version": "${PYTHON_VERSION}",
-      "url": "https://aster.theappstack.in/runtimes/python/${ARCHIVE_NAME}",
+      "url": "https://github.com/satyajiit/aster-mcp/releases/download/runtimes-python-v${PYTHON_VERSION}/${ARCHIVE_NAME}",
       "sha256": "${ARCHIVE_SHA256}",
       "sizeBytes": ${ARCHIVE_SIZE},
       "unpackedSizeBytes": ${UNPACKED_SIZE:-$((SIZE_AFTER * 1048576))}
@@ -368,6 +368,13 @@ echo ">>> Cleaning up work directory..."
 rm -rf "$WORK_DIR"
 
 echo ""
-echo "Done! Copy the following files to docs/public/runtimes/python/:"
-echo "  $ARCHIVE_PATH"
-echo "  $INDEX_PATH"
+echo "Done! Next steps:"
+echo ""
+echo "  1. Upload archive as GitHub Release asset:"
+echo "     gh release create runtimes-python-v${PYTHON_VERSION} --repo satyajiit/aster-mcp --title 'Python ${PYTHON_VERSION} Android Runtime'"
+echo "     gh release upload runtimes-python-v${PYTHON_VERSION} --repo satyajiit/aster-mcp $ARCHIVE_PATH"
+echo ""
+echo "  2. Copy index.json to GitHub Pages (archive stays on Releases):"
+echo "     cp $INDEX_PATH docs/public/runtimes/python/index.json"
+echo ""
+echo "  3. Deploy GitHub Pages to make the updated index.json live"
