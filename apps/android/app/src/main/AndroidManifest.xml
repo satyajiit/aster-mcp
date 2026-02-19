@@ -99,6 +99,18 @@
             </intent-filter>
         </service>
 
+        <!-- IPC Approval Activity — launched by aster-one to request IPC connection -->
+        <activity
+            android:name=".ui.IpcApprovalActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Aster.Transparent"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="com.aster.action.REQUEST_IPC_APPROVAL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- Accessibility Service -->
         <service
             android:name=".service.AsterAccessibilityService"
