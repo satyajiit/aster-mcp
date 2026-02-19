@@ -14,8 +14,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.*
-import java.io.ByteArrayOutputStream
-import android.util.Base64
+import java.io.File
+import java.io.FileOutputStream
 import kotlin.coroutines.resume
 
 /**
@@ -462,9 +462,10 @@ class AsterAccessibilityService : AccessibilityService() {
 
     /**
      * Take a screenshot (Android 11+).
-     * Returns base64 encoded PNG or null if not supported/failed.
+     * Saves the screenshot as JPEG to the Aster media directory and returns the File,
+     * or null if not supported/failed.
      */
-    suspend fun takeScreenshot(): String? {
+    suspend fun takeScreenshot(): File? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             if (BuildConfig.DEBUG) Log.w(TAG, "Screenshot via Accessibility requires Android 11+")
             return null
@@ -479,17 +480,29 @@ class AsterAccessibilityService : AccessibilityService() {
                             screenshot.colorSpace
                         )
                         if (bitmap != null) {
-                            val outputStream = ByteArrayOutputStream()
-                            // Create a software copy for compression
-                            val softwareBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
-                            softwareBitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-                            val base64 = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
-                            softwareBitmap.recycle()
+                            var softwareBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
                             bitmap.recycle()
                             screenshot.hardwareBuffer.close()
 
+                            // Downscale if wider than 1280px
+                            val maxWidth = 1280
+                            if (softwareBitmap.width > maxWidth) {
+                                val scale = maxWidth.toFloat() / softwareBitmap.width
+                                val newHeight = (softwareBitmap.height * scale).toInt()
+                                val scaled = Bitmap.createScaledBitmap(softwareBitmap, maxWidth, newHeight, true)
+                                softwareBitmap.recycle()
+                                softwareBitmap = scaled
+                            }
+
+                            val mediaDir = getAsterMediaDir("screenshots")
+                            val file = File(mediaDir, "screenshot_${System.currentTimeMillis()}.jpg")
+                            FileOutputStream(file).use { out ->
+                                softwareBitmap.compress(Bitmap.CompressFormat.JPEG, 75, out)
+                            }
+                            softwareBitmap.recycle()
+
                             if (continuation.isActive) {
-                                continuation.resume(base64)
+                                continuation.resume(file)
                             }
                         } else {
                             screenshot.hardwareBuffer.close()
@@ -519,6 +532,12 @@ class AsterAccessibilityService : AccessibilityService() {
                 callback
             )
         }
+    }
+
+    private fun getAsterMediaDir(subDir: String): File {
+        val dir = File(applicationContext.getExternalFilesDir(null), "aster_media/$subDir")
+        if (!dir.exists()) dir.mkdirs()
+        return dir
     }
 
     /**

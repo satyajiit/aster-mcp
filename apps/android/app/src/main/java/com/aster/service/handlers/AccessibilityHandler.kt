@@ -363,12 +363,12 @@ class AccessibilityHandler : CommandHandler {
     }
 
     private suspend fun takeScreenshot(service: AsterAccessibilityService): CommandResult {
-        val base64 = service.takeScreenshot()
-        return if (base64 != null) {
+        val file = service.takeScreenshot()
+        return if (file != null) {
             CommandResult.success(buildJsonObject {
-                put("screenshot", base64)
-                put("format", "png")
-                put("encoding", "base64")
+                put("filePath", file.absolutePath)
+                put("format", "jpeg")
+                put("sizeKB", file.length() / 1024)
             })
         } else {
             CommandResult.failure("Failed to take screenshot. Requires Android 11+ with accessibility screenshot permission.")

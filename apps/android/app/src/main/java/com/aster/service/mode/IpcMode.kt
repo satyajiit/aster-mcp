@@ -1,6 +1,7 @@
 package com.aster.service.mode
 
 import android.os.Binder
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.aster.data.local.db.ToolCallLogger
 import com.aster.data.model.Command
@@ -31,6 +32,8 @@ class IpcMode(
     companion object {
         private const val TAG = "IpcMode"
         private const val TOKEN_LENGTH = 32
+        /** Results above this byte size are offloaded to PFD pipe instead of Binder. */
+        private const val LARGE_RESULT_THRESHOLD = 500_000 // ~500 KB
     }
 
     override val modeType = ModeType.IPC
@@ -42,6 +45,7 @@ class IpcMode(
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val authenticatedUids = ConcurrentHashMap<Int, Long>()
     private val callbacks = ConcurrentHashMap<Int, IAsterCallback>()
+    private val largeResults = ConcurrentHashMap<String, ByteArray>()
     private var currentToken: String = ""
 
     val token: String get() = currentToken
@@ -115,7 +119,7 @@ class IpcMode(
                 errorMessage = result.error
             )
 
-            return Json.encodeToString(
+            val resultJson = Json.encodeToString(
                 JsonObject.serializer(),
                 buildJsonObject {
                     put("success", JsonPrimitive(result.success))
@@ -123,6 +127,41 @@ class IpcMode(
                     result.error?.let { put("error", JsonPrimitive(it)) }
                 }
             )
+
+            val resultBytes = resultJson.toByteArray(Charsets.UTF_8)
+            if (resultBytes.size > LARGE_RESULT_THRESHOLD) {
+                val resultId = java.util.UUID.randomUUID().toString()
+                largeResults[resultId] = resultBytes
+                Log.d(TAG, "Large result for '$action' (${resultBytes.size} bytes) stored as $resultId")
+                return """{"_largeResult":"$resultId"}"""
+            }
+
+            return resultJson
+        }
+
+        override fun readLargeResult(resultId: String): ParcelFileDescriptor {
+            val callingUid = Binder.getCallingUid()
+            requireAuthenticated(callingUid)
+
+            val data = largeResults.remove(resultId)
+                ?: throw IllegalArgumentException("No large result found for ID: $resultId")
+
+            val pipe = ParcelFileDescriptor.createPipe()
+            val readSide = pipe[0]
+            val writeSide = pipe[1]
+
+            Thread {
+                try {
+                    ParcelFileDescriptor.AutoCloseOutputStream(writeSide).use { out ->
+                        out.write(data)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to write large result to pipe", e)
+                }
+            }.start()
+
+            Log.d(TAG, "Streaming large result $resultId (${data.size} bytes) via PFD pipe")
+            return readSide
         }
 
         override fun registerCallback(callback: IAsterCallback) {
@@ -170,6 +209,7 @@ class IpcMode(
         _statusFlow.value = ModeStatus(state = ModeState.STOPPING, message = "Stopping IPC...")
         authenticatedUids.clear()
         callbacks.clear()
+        largeResults.clear()
         scope.coroutineContext.cancelChildren()
         _statusFlow.value = ModeStatus(state = ModeState.IDLE)
         Log.i(TAG, "IPC mode stopped")

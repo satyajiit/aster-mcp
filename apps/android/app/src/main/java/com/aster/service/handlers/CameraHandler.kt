@@ -1,7 +1,6 @@
 package com.aster.service.handlers
 
 import android.content.Context
-import android.util.Base64
 import android.util.Log
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -23,12 +22,11 @@ import com.aster.BuildConfig
 import com.aster.data.model.Command
 import com.aster.service.CommandHandler
 import com.aster.service.CommandResult
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*
-import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
 import kotlin.coroutines.resume
 
 class CameraHandler(
@@ -111,19 +109,24 @@ class CameraHandler(
                                     val buffer = image.planes[0].buffer
                                     val bytes = ByteArray(buffer.remaining())
                                     buffer.get(bytes)
+                                    val width = image.width
+                                    val height = image.height
                                     image.close()
 
                                     cameraProvider.unbindAll()
                                     lifecycleOwner.stop()
 
-                                    val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                                    val mediaDir = getAsterMediaDir("photos")
+                                    val file = File(mediaDir, "photo_${System.currentTimeMillis()}.jpg")
+                                    FileOutputStream(file).use { it.write(bytes) }
 
                                     if (continuation.isActive) {
                                         continuation.resume(CommandResult.success(buildJsonObject {
-                                            put("photo", base64)
+                                            put("filePath", file.absolutePath)
                                             put("format", "jpeg")
-                                            put("width", image.width)
-                                            put("height", image.height)
+                                            put("width", width)
+                                            put("height", height)
+                                            put("sizeKB", bytes.size / 1024)
                                         }))
                                     }
                                 } catch (e: Exception) {
@@ -131,7 +134,7 @@ class CameraHandler(
                                     cameraProvider.unbindAll()
                                     lifecycleOwner.stop()
                                     if (continuation.isActive) {
-                                        continuation.resume(CommandResult.failure("Failed to encode photo: ${e.message}"))
+                                        continuation.resume(CommandResult.failure("Failed to save photo: ${e.message}"))
                                     }
                                 }
                             }
@@ -202,7 +205,8 @@ class CameraHandler(
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, videoCapture)
 
-                val outputFile = File.createTempFile("video", ".mp4", context.cacheDir)
+                val videoDir = getAsterMediaDir("videos")
+                val outputFile = File(videoDir, "video_${System.currentTimeMillis()}.mp4")
                 val outputOptions = FileOutputOptions.Builder(outputFile).build()
 
                 // Start recording (no audio)
@@ -223,30 +227,14 @@ class CameraHandler(
                                 }
 
                                 if (continuation.isActive) {
-                                    val fileSizeMB = outputFile.length() / (1024.0 * 1024.0)
+                                    val fileSizeKB = outputFile.length() / 1024
 
-                                    if (outputFile.length() < 5 * 1024 * 1024) {
-                                        // Under 5MB: return base64
-                                        val bytes = outputFile.readBytes()
-                                        val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-                                        outputFile.delete()
-
-                                        continuation.resume(CommandResult.success(buildJsonObject {
-                                            put("video", base64)
-                                            put("format", "mp4")
-                                            put("sizeMB", fileSizeMB)
-                                            put("durationSeconds", maxDurationSec)
-                                        }))
-                                    } else {
-                                        // Over 5MB: return path
-                                        continuation.resume(CommandResult.success(buildJsonObject {
-                                            put("filePath", outputFile.absolutePath)
-                                            put("format", "mp4")
-                                            put("sizeMB", fileSizeMB)
-                                            put("durationSeconds", maxDurationSec)
-                                            put("note", "File exceeds 5MB, returning path instead of base64")
-                                        }))
-                                    }
+                                    continuation.resume(CommandResult.success(buildJsonObject {
+                                        put("filePath", outputFile.absolutePath)
+                                        put("format", "mp4")
+                                        put("sizeKB", fileSizeKB)
+                                        put("durationSeconds", maxDurationSec)
+                                    }))
                                 }
                             }
                         }
@@ -281,6 +269,12 @@ class CameraHandler(
         } catch (_: Exception) {}
         activeRecording = null
         lifecycleOwner.stop()
+    }
+
+    private fun getAsterMediaDir(subDir: String): File {
+        val dir = File(context.getExternalFilesDir(null), "aster_media/$subDir")
+        if (!dir.exists()) dir.mkdirs()
+        return dir
     }
 }
 
