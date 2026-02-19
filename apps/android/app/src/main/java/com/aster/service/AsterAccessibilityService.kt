@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Bitmap
 import android.graphics.Path
+import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -49,6 +50,14 @@ class AsterAccessibilityService : AccessibilityService() {
         const val ACTION_QUICK_SETTINGS = "QUICK_SETTINGS"
         const val ACTION_POWER_DIALOG = "POWER_DIALOG"
         const val ACTION_LOCK_SCREEN = "LOCK_SCREEN"
+
+        // IME action constants
+        const val ACTION_ENTER = "ENTER"
+        const val ACTION_SEARCH = "SEARCH"
+        const val ACTION_DONE = "DONE"
+        const val ACTION_GO = "GO"
+        const val ACTION_NEXT = "NEXT"
+        const val ACTION_PREVIOUS = "PREVIOUS"
 
         // Gesture types
         const val GESTURE_TAP = "TAP"
@@ -178,7 +187,14 @@ class AsterAccessibilityService : AccessibilityService() {
      * Perform a global action.
      */
     fun performGlobalActionByName(actionName: String): Boolean {
-        val action = when (actionName.uppercase()) {
+        val upper = actionName.uppercase()
+
+        // IME actions — dispatch to focused input field
+        if (upper in listOf(ACTION_ENTER, ACTION_SEARCH, ACTION_DONE, ACTION_GO, ACTION_NEXT, ACTION_PREVIOUS)) {
+            return performImeAction(upper)
+        }
+
+        val action = when (upper) {
             ACTION_BACK -> GLOBAL_ACTION_BACK
             ACTION_HOME -> GLOBAL_ACTION_HOME
             ACTION_RECENTS -> GLOBAL_ACTION_RECENTS
@@ -200,6 +216,49 @@ class AsterAccessibilityService : AccessibilityService() {
         }
 
         return performGlobalAction(action)
+    }
+
+    /**
+     * Perform an IME action (Enter, Search, Done, Go, Next, Previous)
+     * on the currently focused editable node.
+     * Strategy 1: ACTION_IME_ENTER via accessibility (API 30+)
+     * Strategy 2: Inject KEYCODE_ENTER via shell input command
+     */
+    private fun performImeAction(actionName: String): Boolean {
+        val rootNode = rootInActiveWindow
+
+        // Strategy 1: ACTION_IME_ENTER on focused node (API 30+)
+        if (rootNode != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val focusedNode = findFocusedEditableNode(rootNode)
+                if (focusedNode != null) {
+                    try {
+                        val result = focusedNode.performAction(
+                            AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id
+                        )
+                        if (result) return true
+                    } finally {
+                        focusedNode.recycle()
+                    }
+                }
+            } finally {
+                rootNode.recycle()
+            }
+        }
+
+        // Strategy 2: Inject key event via shell (works across all apps and IME states)
+        return try {
+            val keyCode = when (actionName) {
+                ACTION_SEARCH -> "84"  // KEYCODE_SEARCH
+                else -> "66"           // KEYCODE_ENTER
+            }
+            val pb = ProcessBuilder("input", "keyevent", keyCode)
+            val process = pb.start()
+            process.waitFor() == 0
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) Log.e(TAG, "Failed to inject key event for $actionName", e)
+            false
+        }
     }
 
     /**
@@ -424,35 +483,72 @@ class AsterAccessibilityService : AccessibilityService() {
     /**
      * Click on a node by its text content.
      */
-    fun clickByText(text: String): Boolean {
+    suspend fun clickByText(text: String): Boolean {
         val rootNode = rootInActiveWindow ?: return false
 
         try {
             val nodes = rootNode.findAccessibilityNodeInfosByText(text)
-            if (nodes.isNotEmpty()) {
-                // Find a clickable node
-                for (node in nodes) {
-                    if (node.isClickable) {
-                        val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            if (nodes.isEmpty()) return false
+
+            // Separate non-editable from editable nodes.
+            // Editable nodes (input fields) contain the typed text — not the target.
+            val targets = nodes.filter { !it.isEditable }
+            val editables = nodes.filter { it.isEditable }
+
+            // Strategy 1: Find a clickable non-editable node or clickable parent
+            for (node in targets) {
+                if (node.isClickable) {
+                    val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    nodes.forEach { it.recycle() }
+                    return result
+                }
+                var parent = node.parent
+                while (parent != null) {
+                    if (parent.isClickable && !parent.isEditable) {
+                        val result = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        parent.recycle()
                         nodes.forEach { it.recycle() }
                         return result
                     }
-                    // Try parent if node itself is not clickable
-                    var parent = node.parent
-                    while (parent != null) {
-                        if (parent.isClickable) {
-                            val result = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                            parent.recycle()
-                            nodes.forEach { it.recycle() }
-                            return result
-                        }
-                        val grandParent = parent.parent
-                        parent.recycle()
-                        parent = grandParent
-                    }
+                    val grandParent = parent.parent
+                    parent.recycle()
+                    parent = grandParent
                 }
-                nodes.forEach { it.recycle() }
             }
+
+            // Strategy 2: Try ACTION_CLICK on non-clickable nodes directly.
+            // Some apps handle clicks at adapter level without setting isClickable.
+            for (node in targets) {
+                if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                    nodes.forEach { it.recycle() }
+                    return true
+                }
+            }
+
+            // Strategy 3: Tap the center of the first non-editable node's bounds
+            // using dispatchGesture — simulates an actual screen tap.
+            for (node in targets) {
+                val bounds = Rect()
+                node.getBoundsInScreen(bounds)
+                if (bounds.width() > 0 && bounds.height() > 0) {
+                    val cx = bounds.centerX().toFloat()
+                    val cy = bounds.centerY().toFloat()
+                    nodes.forEach { it.recycle() }
+                    val gesture = createTapGesture(cx, cy, 100)
+                    return performGesture(gesture)
+                }
+            }
+
+            // Strategy 4: Last resort — try editable nodes (original behavior)
+            for (node in editables) {
+                if (node.isClickable) {
+                    val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    nodes.forEach { it.recycle() }
+                    return result
+                }
+            }
+
+            nodes.forEach { it.recycle() }
         } finally {
             rootNode.recycle()
         }

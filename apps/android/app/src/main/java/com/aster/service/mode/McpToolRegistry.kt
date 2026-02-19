@@ -146,6 +146,7 @@ object McpToolRegistry {
                 )
 
                 val startTime = System.currentTimeMillis()
+                toolCallLogger.onToolStarted(action, "LOCAL_MCP")
                 try {
                     val result = handler.handle(command)
                     val duration = System.currentTimeMillis() - startTime

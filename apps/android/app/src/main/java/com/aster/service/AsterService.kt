@@ -29,6 +29,7 @@ import com.aster.service.mode.ModeConfig
 import com.aster.service.mode.ModeState
 import com.aster.service.mode.ModeType
 import com.aster.service.mode.RemoteWsMode
+import com.aster.service.overlay.ToolExecutionOverlay
 import com.aster.ui.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -134,6 +135,9 @@ class AsterService : Service() {
     @Inject
     lateinit var remoteWsMode: RemoteWsMode
 
+    @Inject
+    lateinit var toolExecutionOverlay: ToolExecutionOverlay
+
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
@@ -157,6 +161,7 @@ class AsterService : Service() {
         createNotificationChannel()
         startForegroundWithType(createNotification("Aster", "Starting..."))
         setupEventForwarding()
+        toolExecutionOverlay.attach(this, serviceScope)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -258,6 +263,7 @@ class AsterService : Service() {
         }
         smsBroadcastReceiver = null
 
+        toolExecutionOverlay.detach()
         serviceScope.cancel()
         releaseWifiLock()
         releaseWakeLock()

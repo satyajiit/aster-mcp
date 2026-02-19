@@ -106,6 +106,7 @@ class IpcMode(
             )
 
             val startTime = System.currentTimeMillis()
+            toolCallLogger.onToolStarted(action, "IPC")
             val result = runBlocking {
                 handler.handle(command)
             }

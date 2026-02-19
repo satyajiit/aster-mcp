@@ -427,7 +427,7 @@ class AccessibilityHandler : CommandHandler {
         return results
     }
 
-    private fun clickByText(
+    private suspend fun clickByText(
         service: AsterAccessibilityService,
         command: Command
     ): CommandResult {
@@ -440,7 +440,15 @@ class AccessibilityHandler : CommandHandler {
                 put("clickedText", text)
             })
         } else {
-            CommandResult.failure("Could not find or click element with text: $text")
+            // Help the AI debug: check if the element exists at all
+            val hierarchy = service.getScreenHierarchy()
+            val found = findElementsInHierarchy(hierarchy, text, exact = false)
+            val hint = if (found.isEmpty()) {
+                "No element with text '$text' found on screen. Try take_screenshot or get_screen_hierarchy to see what's visible, or use input_gesture to tap by coordinates."
+            } else {
+                "Found ${found.size} element(s) containing '$text' but none were clickable. Try input_gesture with tap coordinates instead, or use find_element to locate the element and get its bounds."
+            }
+            CommandResult.failure(hint)
         }
     }
 

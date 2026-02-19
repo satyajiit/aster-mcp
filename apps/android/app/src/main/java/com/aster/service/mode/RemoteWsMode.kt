@@ -96,6 +96,7 @@ class RemoteWsMode(
         }
 
         val startTime = System.currentTimeMillis()
+        toolCallLogger.onToolStarted(command.action, "REMOTE_WS")
         try {
             val result = handler.handle(command)
             val duration = System.currentTimeMillis() - startTime
