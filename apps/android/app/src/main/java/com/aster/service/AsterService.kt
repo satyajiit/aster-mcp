@@ -380,16 +380,19 @@ class AsterService : Service() {
     }
 
     private fun startForegroundWithType(notification: Notification) {
-        ServiceCompat.startForeground(
-            this,
-            NOTIFICATION_ID,
-            notification,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-            } else {
-                0
+        val fgsType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            // Only include camera type if permission is granted
+            if (checkSelfPermission(android.Manifest.permission.CAMERA)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
             }
-        )
+            type
+        } else {
+            0
+        }
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, fgsType)
     }
 
     private fun createNotificationChannel() {
