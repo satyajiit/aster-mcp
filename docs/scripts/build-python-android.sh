@@ -170,12 +170,13 @@ fi
 echo "    Include dir: $INCLUDE_DIR"
 echo "    Lib dir:     $LIB_DIR"
 
-# Compile and link
+# Compile and link (16KB page alignment for Android 15+)
 "$CC" \
     -O2 \
     -I"$INCLUDE_DIR" \
     -L"$LIB_DIR" \
     -Wl,-rpath,'$ORIGIN/../lib' \
+    -Wl,-z,max-page-size=16384 \
     -o python3 \
     launcher.c \
     -lpython${PYTHON_MAJOR_MINOR}
