@@ -76,6 +76,7 @@ object McpToolRegistry {
             )
         ),
         "read_sms" to ToolDef("Read SMS messages", emptyMap()),
+        "count_sms" to ToolDef("Count SMS messages in a date window", emptyMap()),
         "show_overlay" to ToolDef(
             "Show screen overlay",
             mapOf("text" to PropDef("string", "Overlay text"))

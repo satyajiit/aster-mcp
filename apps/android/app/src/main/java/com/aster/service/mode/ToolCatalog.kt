@@ -110,6 +110,7 @@ object ToolCatalog {
         // -- Communication --
         "send_sms" to ToolEntry("Send SMS", "Send text messages", "Communication"),
         "read_sms" to ToolEntry("Read SMS", "Read inbox, sent, or all messages", "Communication"),
+        "count_sms" to ToolEntry("Count SMS", "Count messages in a date window", "Communication"),
         "make_call" to ToolEntry("Phone Call", "Initiate a phone call", "Communication"),
         "make_call_with_voice" to ToolEntry(
             "Call & Speak",
