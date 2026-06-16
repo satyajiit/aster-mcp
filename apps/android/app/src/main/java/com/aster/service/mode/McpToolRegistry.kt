@@ -59,6 +59,13 @@ object McpToolRegistry {
             mapOf("action" to PropDef("string", "Intent action"))
         ),
         "get_accessibility_info" to ToolDef("Get accessibility tree info", emptyMap()),
+        "observe" to ToolDef(
+            "Observe the current screen as a flat indexed list of actionable elements " +
+                "with stable refs. Optional params (all optional): mode " +
+                "(actionable|text|full, default actionable), searchText (narrow to " +
+                "matching elements), maxElements (token-budget cap).",
+            emptyMap()
+        ),
         "perform_gesture" to ToolDef(
             "Perform accessibility gesture",
             mapOf("gesture" to PropDef("string", "Gesture type"))
@@ -104,7 +111,98 @@ object McpToolRegistry {
             )
         ),
         "take_photo" to ToolDef("Take a photo", emptyMap()),
-        "take_screenshot" to ToolDef("Take a screenshot", emptyMap()),
+        "take_screenshot" to ToolDef(
+            "Take a screenshot (JPEG). Set annotate=true to overlay numbered Set-of-Marks boxes.",
+            mapOf(
+                "annotate" to PropDef("boolean", "Overlay numbered boxes aligned to observe refs")
+            ),
+            // annotate is optional — the handler defaults it to false. Mark nothing required so
+            // a plain {} screenshot call is valid (matches the ref-action `required = emptyList()`
+            // convention used elsewhere in this registry).
+            required = emptyList()
+        ),
+        // -- P3: synchronization (SPEC §3.3) --
+        "wait_for_idle" to ToolDef(
+            "Wait until the screen stops changing",
+            mapOf(
+                "quietMs" to PropDef("integer", "Quiet window in ms before idle (default 500)"),
+                "timeout" to PropDef("integer", "Max wait in ms (default 5000)")
+            ),
+            // Both optional in practice; the handler applies server-side defaults.
+            required = emptyList()
+        ),
+        "wait_for" to ToolDef(
+            "Wait until an element appears or disappears",
+            mapOf(
+                "text" to PropDef("string", "Element text substring to wait for"),
+                "viewId" to PropDef("string", "Exact viewId to wait for"),
+                "role" to PropDef("string", "Element role to wait for"),
+                "gone" to PropDef("boolean", "Wait for the element to DISAPPEAR (default false)"),
+                "timeout" to PropDef("integer", "Max wait in ms (default 5000)")
+            ),
+            // All optional; the handler enforces the at-least-one-target rule at runtime.
+            // required = emptyList() dodges the generic "all params required" default that
+            // would otherwise demand text+viewId+role+gone+timeout together.
+            required = emptyList()
+        ),
+        // -- P2: ref-addressed screen actions (SPEC §3.2). ref/x/y are mutually exclusive,
+        // so NONE of their params are marked required (each ref tool passes an empty
+        // `required` list); marking ref/x/y/snapshot_id required would reject valid
+        // ref-only/coord-only calls (SPEC §7, Task 9 done-bar).
+        "tap" to ToolDef(
+            "Tap an element by ref (preferred) or by x,y coordinates",
+            mapOf(
+                "ref" to PropDef("string", "Element ref from screen_observe"),
+                "snapshot_id" to PropDef("string", "Snapshot id from screen_observe"),
+                "x" to PropDef("number", "X coordinate (coordinate fallback)"),
+                "y" to PropDef("number", "Y coordinate (coordinate fallback)")
+            ),
+            required = emptyList()
+        ),
+        "long_press" to ToolDef(
+            "Long-press an element by ref or coordinates",
+            mapOf(
+                "ref" to PropDef("string", "Element ref from screen_observe"),
+                "snapshot_id" to PropDef("string", "Snapshot id"),
+                "x" to PropDef("number", "X coordinate"),
+                "y" to PropDef("number", "Y coordinate"),
+                "duration" to PropDef("integer", "Press duration ms (min 500)")
+            ),
+            required = emptyList()
+        ),
+        "set_text" to ToolDef(
+            "Set text into a specific field by ref",
+            mapOf(
+                "ref" to PropDef("string", "Editable element ref"),
+                "text" to PropDef("string", "Text to enter"),
+                "snapshot_id" to PropDef("string", "Snapshot id"),
+                "mode" to PropDef("string", "replace (default) | append"),
+                "submit" to PropDef("boolean", "Press IME Enter after typing")
+            ),
+            required = emptyList()
+        ),
+        "set_toggle" to ToolDef(
+            "Set a switch/checkbox on or off by ref",
+            mapOf(
+                "ref" to PropDef("string", "Checkable element ref"),
+                "on" to PropDef("boolean", "Desired state"),
+                "snapshot_id" to PropDef("string", "Snapshot id")
+            ),
+            required = emptyList()
+        ),
+        "perform" to ToolDef(
+            "Invoke an accessibility action on an element by ref",
+            mapOf(
+                "ref" to PropDef("string", "Element ref"),
+                "action" to PropDef("string", "Action name (e.g. expand, collapse, dismiss, select)"),
+                "snapshot_id" to PropDef("string", "Snapshot id")
+            ),
+            required = emptyList()
+        ),
+        "press_key" to ToolDef(
+            "Press a hardware/IME key",
+            mapOf("key" to PropDef("string", "Key name: ENTER, BACK, TAB, DEL, DPAD_UP…"))
+        ),
     )
 
     fun registerTools(
@@ -126,7 +224,10 @@ object McpToolRegistry {
                             }
                         }
                     },
-                    required = def.params.filter { it.key != "optional" }.keys.toList()
+                    // An explicit `required` list (incl. empty, used by the ref-addressed
+                    // screen actions whose ref/x/y/snapshot_id are mutually exclusive and
+                    // thus all optional) wins; otherwise default to all params required.
+                    required = def.required ?: def.params.keys.toList()
                 )
             } else {
                 ToolSchema(properties = buildJsonObject {}, required = emptyList())
@@ -185,6 +286,12 @@ object McpToolRegistry {
         }
     }
 
-    private data class ToolDef(val description: String, val params: Map<String, PropDef>)
+    private data class ToolDef(
+        val description: String,
+        val params: Map<String, PropDef>,
+        // null → all params required (default convention); an explicit list (incl. empty)
+        // overrides it, e.g. ref-addressed actions mark nothing required.
+        val required: List<String>? = null
+    )
     private data class PropDef(val type: String, val description: String)
 }

@@ -19,6 +19,12 @@ android {
         versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Ship a single ABI so bundled ML Kit's per-ABI OCR model (~4 MB) is not multiplied.
+        // arm64-v8a is the only supported target (matches aster-one NDK policy; 16 KB page align).
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     signingConfigs {
@@ -122,6 +128,11 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
     implementation(libs.androidx.exifinterface)
+
+    // ML Kit (on-device OCR). Bundled Latin text-recognition adds ~4 MB per script per ABI.
+    // Bounded to arm64-v8a (see defaultConfig.ndk.abiFilters) so net growth is ~4 MB.
+    // No new permissions, no Play Services dependency, no minSdk change (ML Kit minSdk 21; project is 26).
+    implementation(libs.mlkit.text.recognition)
 
     // CameraX
     implementation(libs.camerax.core)

@@ -1,9 +1,12 @@
 package com.aster.service.handlers
 
+import android.graphics.Rect
 import com.aster.data.model.Command
 import com.aster.service.AsterAccessibilityService
 import com.aster.service.CommandHandler
 import com.aster.service.CommandResult
+import com.aster.service.Mark
+import com.aster.service.ScreenActionResult
 import kotlinx.serialization.json.*
 
 /**
@@ -13,6 +16,7 @@ import kotlinx.serialization.json.*
 class AccessibilityHandler : CommandHandler {
 
     override fun supportedActions() = listOf(
+        "observe",
         "get_screen_hierarchy",
         "input_gesture",
         "global_action",
@@ -21,7 +25,17 @@ class AccessibilityHandler : CommandHandler {
         "find_element",
         "click_by_text",
         "click_by_view_id",
-        "scroll"
+        "scroll",
+        // -- P2: ref-addressed actions (SPEC §3.2) --
+        "tap",
+        "set_text",
+        "long_press",
+        "set_toggle",
+        "perform",
+        "press_key",
+        // -- P3: synchronization (SPEC §3.3) --
+        "wait_for_idle",
+        "wait_for"
     )
 
     override suspend fun handle(command: Command): CommandResult {
@@ -29,15 +43,24 @@ class AccessibilityHandler : CommandHandler {
             ?: return CommandResult.failure("Accessibility service not enabled. Please enable it in Settings > Accessibility > Aster")
 
         return when (command.action) {
+            "observe" -> observe(service, command)
             "get_screen_hierarchy" -> getScreenHierarchyFiltered(service, command)
             "input_gesture" -> inputGesture(service, command)
             "global_action" -> globalAction(service, command)
             "input_text" -> inputText(service, command)
-            "take_screenshot" -> takeScreenshot(service)
+            "take_screenshot" -> takeScreenshot(service, command)
             "find_element" -> findElement(service, command)
             "click_by_text" -> clickByText(service, command)
             "click_by_view_id" -> clickByViewId(service, command)
             "scroll" -> scroll(service, command)
+            "tap" -> tap(service, command)
+            "set_text" -> setText(service, command)
+            "long_press" -> longPress(service, command)
+            "set_toggle" -> setToggle(service, command)
+            "perform" -> perform(service, command)
+            "press_key" -> pressKey(service, command)
+            "wait_for_idle" -> waitForIdle(service, command)
+            "wait_for" -> waitFor(service, command)
             else -> CommandResult.failure("Unknown action: ${command.action}")
         }
     }
@@ -60,6 +83,19 @@ class AccessibilityHandler : CommandHandler {
         val filtered = filterHierarchy(hierarchy, mode, maxDepth, includeInvisible, searchText)
 
         return CommandResult.success(filtered)
+    }
+
+    private fun observe(
+        service: AsterAccessibilityService,
+        command: Command
+    ): CommandResult {
+        val mode = command.params?.get("mode")?.jsonPrimitive?.contentOrNull ?: "actionable"
+        val searchText = command.params?.get("searchText")?.jsonPrimitive?.contentOrNull
+        val maxElements = command.params?.get("maxElements")?.jsonPrimitive?.intOrNull
+            ?: com.aster.service.accessibility.ElementFilter.MAX_ELEMENTS_DEFAULT
+
+        val observation = service.observe(mode, searchText, maxElements)
+        return CommandResult.success(observation)
     }
 
     private fun filterHierarchy(
@@ -190,10 +226,14 @@ class AccessibilityHandler : CommandHandler {
 
                 val success = service.performTap(x, y, duration.coerceAtLeast(50L))
                 if (success) {
+                    val (w, h, density) = service.screenMetrics()
                     CommandResult.success(buildJsonObject {
                         put("gestureType", "TAP")
                         put("x", x)
                         put("y", y)
+                        put("screen", buildJsonObject {
+                            put("width", w); put("height", h); put("density", density)
+                        })
                     })
                 } else {
                     CommandResult.failure("Failed to perform tap gesture")
@@ -226,10 +266,14 @@ class AccessibilityHandler : CommandHandler {
 
                 val success = service.performLongPress(x, y, duration.coerceAtLeast(500L))
                 if (success) {
+                    val (w, h, density) = service.screenMetrics()
                     CommandResult.success(buildJsonObject {
                         put("gestureType", "LONG_PRESS")
                         put("x", x)
                         put("y", y)
+                        put("screen", buildJsonObject {
+                            put("width", w); put("height", h); put("density", density)
+                        })
                     })
                 } else {
                     CommandResult.failure("Failed to perform long press gesture")
@@ -274,15 +318,69 @@ class AccessibilityHandler : CommandHandler {
 
                 val success = service.performSwipe(startX, startY, endX, endY, duration)
                 if (success) {
+                    val (w, h, density) = service.screenMetrics()
                     CommandResult.success(buildJsonObject {
                         put("gestureType", "SWIPE")
                         put("startX", startX)
                         put("startY", startY)
                         put("endX", endX)
                         put("endY", endY)
+                        put("screen", buildJsonObject {
+                            put("width", w); put("height", h); put("density", density)
+                        })
                     })
                 } else {
                     CommandResult.failure("Failed to perform swipe gesture")
+                }
+            }
+
+            "PINCH" -> {
+                val cx = command.params?.get("cx")?.jsonPrimitive?.floatOrNull
+                    ?: return CommandResult.failure("Missing 'cx' (pinch center x)")
+                val cy = command.params?.get("cy")?.jsonPrimitive?.floatOrNull
+                    ?: return CommandResult.failure("Missing 'cy' (pinch center y)")
+                val startGap = command.params?.get("startGap")?.jsonPrimitive?.floatOrNull
+                    ?: return CommandResult.failure("Missing 'startGap'")
+                val endGap = command.params?.get("endGap")?.jsonPrimitive?.floatOrNull
+                    ?: return CommandResult.failure("Missing 'endGap'")
+                val success = service.pinchGesture(cx, cy, startGap, endGap, duration)
+                if (success) {
+                    val (w, h, density) = service.screenMetrics()
+                    CommandResult.success(buildJsonObject {
+                        put("gestureType", "PINCH")
+                        put("cx", cx); put("cy", cy)
+                        put("startGap", startGap); put("endGap", endGap)
+                        put("screen", buildJsonObject {
+                            put("width", w); put("height", h); put("density", density)
+                        })
+                    })
+                } else {
+                    CommandResult.failure("Failed to perform pinch gesture")
+                }
+            }
+
+            "DRAG" -> {
+                val startX = command.params?.get("startX")?.jsonPrimitive?.floatOrNull
+                    ?: return CommandResult.failure("Missing 'startX'")
+                val startY = command.params?.get("startY")?.jsonPrimitive?.floatOrNull
+                    ?: return CommandResult.failure("Missing 'startY'")
+                val endX = command.params?.get("endX")?.jsonPrimitive?.floatOrNull
+                    ?: return CommandResult.failure("Missing 'endX'")
+                val endY = command.params?.get("endY")?.jsonPrimitive?.floatOrNull
+                    ?: return CommandResult.failure("Missing 'endY'")
+                val success = service.dragGesture(startX, startY, endX, endY, duration.coerceAtLeast(300L))
+                if (success) {
+                    val (w, h, density) = service.screenMetrics()
+                    CommandResult.success(buildJsonObject {
+                        put("gestureType", "DRAG")
+                        put("startX", startX); put("startY", startY)
+                        put("endX", endX); put("endY", endY)
+                        put("screen", buildJsonObject {
+                            put("width", w); put("height", h); put("density", density)
+                        })
+                    })
+                } else {
+                    CommandResult.failure("Failed to perform drag gesture")
                 }
             }
 
@@ -362,16 +460,44 @@ class AccessibilityHandler : CommandHandler {
         }
     }
 
-    private suspend fun takeScreenshot(service: AsterAccessibilityService): CommandResult {
-        val file = service.takeScreenshot()
-        return if (file != null) {
+    private suspend fun takeScreenshot(
+        service: AsterAccessibilityService,
+        command: Command
+    ): CommandResult {
+        val annotate = command.params?.get("annotate")?.jsonPrimitive?.booleanOrNull ?: false
+        val marks: List<Mark> = if (annotate) parseMarks(command.params?.get("marks")) else emptyList()
+
+        val result = service.takeScreenshot(annotate = annotate, marks = marks)
+        return if (result != null) {
             CommandResult.success(buildJsonObject {
-                put("filePath", file.absolutePath)
+                put("filePath", result.file.absolutePath)
                 put("format", "jpeg")
-                put("sizeKB", file.length() / 1024)
+                put("sizeKB", result.file.length() / 1024)
+                put("scale", result.scale)
+                put("width", result.realW)
+                put("height", result.realH)
+                put("annotated", annotate && marks.isNotEmpty())
             })
         } else {
             CommandResult.failure("Failed to take screenshot. Requires Android 11+ with accessibility screenshot permission.")
+        }
+    }
+
+    /**
+     * Parse a real-px marks array `[{ "index": 7, "x":, "y":, "w":, "h": }, …]` into [Mark]s.
+     * Each mark's bounds are REAL screen pixels (the service multiplies by `scale` before drawing).
+     * Malformed entries are skipped (fail-soft — annotation is best-effort overlay).
+     */
+    private fun parseMarks(element: JsonElement?): List<Mark> {
+        val array = element as? JsonArray ?: return emptyList()
+        return array.mapNotNull { entry ->
+            val obj = entry as? JsonObject ?: return@mapNotNull null
+            val index = obj["index"]?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
+            val x = obj["x"]?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
+            val y = obj["y"]?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
+            val w = obj["w"]?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
+            val h = obj["h"]?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
+            Mark(index = index, bounds = Rect(x, y, x + w, y + h))
         }
     }
 
@@ -469,21 +595,329 @@ class AccessibilityHandler : CommandHandler {
         }
     }
 
-    private fun scroll(
+    /**
+     * Ref-addressed scroll (SPEC §3.2). Accepts direction|amount|ref|untilText and routes to
+     * [AsterAccessibilityService.scrollRef]; the legacy `{direction}` shape still works
+     * (amount/ref/untilText all optional → single page scroll on the auto-picked scrollable).
+     */
+    private suspend fun scroll(
         service: AsterAccessibilityService,
         command: Command
     ): CommandResult {
         val direction = command.params?.get("direction")?.jsonPrimitive?.contentOrNull
             ?: return CommandResult.failure("Missing 'direction' parameter")
+        val amount = command.params?.get("amount")?.jsonPrimitive?.contentOrNull
+        val ref = command.params?.get("ref")?.jsonPrimitive?.contentOrNull
+        val untilText = command.params?.get("untilText")?.jsonPrimitive?.contentOrNull
 
-        val success = service.scroll(direction)
-        return if (success) {
-            CommandResult.success(buildJsonObject {
-                put("direction", direction)
-                put("scrolled", true)
-            })
+        // P3 verify-after-act: snapshot revision + foreground BEFORE scrolling (SPEC §3.4).
+        val preRevision = service.screenRevision()
+        val preForeground = service.foregroundPackage()
+
+        val (scrolled, found) = service.scrollRef(ref, snapshotIdOf(command), direction, amount, untilText)
+        return if (scrolled || found == true) {
+            // Scroll auto-resolves its container (no single ResolvedBy strategy), so resolvedBy
+            // is null; settleAndVerify still adds changed/foreground_after/settled. The
+            // scroll-specific fields ride along as `extra`.
+            settleAndVerify(
+                service, command, preRevision, preForeground,
+                resolvedBy = null, actOk = true,
+                extra = buildJsonObject {
+                    put("direction", direction)
+                    put("scrolled", scrolled)
+                    amount?.let { put("amount", it) }
+                    ref?.let { put("ref", it) }
+                    if (untilText != null) put("found", found ?: false)
+                }
+            )
+        } else if (untilText != null && found == false) {
+            CommandResult.failure("Scrolled to the end without finding '$untilText'.")
         } else {
             CommandResult.failure("Failed to scroll. No scrollable element found.")
         }
+    }
+
+    // ------------------------------------------------------------------
+    // P2 — ref-addressed action handlers (SPEC §3.2)
+    // ------------------------------------------------------------------
+
+    private fun snapshotIdOf(command: Command): String? =
+        command.params?.get("snapshot_id")?.jsonPrimitive?.contentOrNull
+
+    private suspend fun tap(
+        service: AsterAccessibilityService,
+        command: Command
+    ): CommandResult {
+        // P3 verify-after-act: snapshot revision + foreground BEFORE acting (SPEC §3.4).
+        val preRevision = service.screenRevision()
+        val preForeground = service.foregroundPackage()
+
+        val ref = command.params?.get("ref")?.jsonPrimitive?.contentOrNull
+        if (ref != null) {
+            val resolvedBy = service.tapRef(ref, snapshotIdOf(command))
+                ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
+            return settleAndVerify(
+                service, command, preRevision, preForeground,
+                resolvedBy = resolvedBy.wire, actOk = true,
+                extra = buildJsonObject { put("ref", ref) }
+            )
+        }
+        // Coordinate fallback (vision path): {x,y}.
+        val x = command.params?.get("x")?.jsonPrimitive?.floatOrNull
+            ?: return CommandResult.failure("Provide 'ref' or both 'x' and 'y'")
+        val y = command.params?.get("y")?.jsonPrimitive?.floatOrNull
+            ?: return CommandResult.failure("Provide 'ref' or both 'x' and 'y'")
+        val ok = service.performTap(x, y, 100L)
+        return if (ok) {
+            settleAndVerify(
+                service, command, preRevision, preForeground,
+                resolvedBy = ScreenActionResult.ResolvedBy.CENTER_TAP.wire, actOk = true,
+                extra = buildJsonObject { put("x", x); put("y", y) }
+            )
+        } else {
+            CommandResult.failure("Failed to perform tap at ($x,$y)")
+        }
+    }
+
+    private suspend fun longPress(
+        service: AsterAccessibilityService,
+        command: Command
+    ): CommandResult {
+        val duration = command.params?.get("duration")?.jsonPrimitive?.longOrNull ?: 600L
+        // P3 verify-after-act: snapshot revision + foreground BEFORE acting (SPEC §3.4).
+        val preRevision = service.screenRevision()
+        val preForeground = service.foregroundPackage()
+
+        val ref = command.params?.get("ref")?.jsonPrimitive?.contentOrNull
+        if (ref != null) {
+            val resolvedBy = service.longPressRef(ref, snapshotIdOf(command), duration)
+                ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
+            return settleAndVerify(
+                service, command, preRevision, preForeground,
+                resolvedBy = resolvedBy.wire, actOk = true,
+                extra = buildJsonObject { put("ref", ref) }
+            )
+        }
+        val x = command.params?.get("x")?.jsonPrimitive?.floatOrNull
+            ?: return CommandResult.failure("Provide 'ref' or both 'x' and 'y'")
+        val y = command.params?.get("y")?.jsonPrimitive?.floatOrNull
+            ?: return CommandResult.failure("Provide 'ref' or both 'x' and 'y'")
+        val ok = service.performLongPress(x, y, duration.coerceAtLeast(500L))
+        return if (ok) {
+            settleAndVerify(
+                service, command, preRevision, preForeground,
+                resolvedBy = ScreenActionResult.ResolvedBy.CENTER_TAP.wire, actOk = true,
+                extra = buildJsonObject { put("x", x); put("y", y) }
+            )
+        } else {
+            CommandResult.failure("Failed to perform long press at ($x,$y)")
+        }
+    }
+
+    private suspend fun setText(
+        service: AsterAccessibilityService,
+        command: Command
+    ): CommandResult {
+        val ref = command.params?.get("ref")?.jsonPrimitive?.contentOrNull
+            ?: return CommandResult.failure("Missing 'ref' parameter")
+        val text = command.params?.get("text")?.jsonPrimitive?.contentOrNull
+            ?: return CommandResult.failure("Missing 'text' parameter")
+        val mode = command.params?.get("mode")?.jsonPrimitive?.contentOrNull ?: "replace"
+        val submit = command.params?.get("submit")?.jsonPrimitive?.booleanOrNull ?: false
+        // P3 verify-after-act: snapshot revision + foreground BEFORE acting (SPEC §3.4).
+        val preRevision = service.screenRevision()
+        val preForeground = service.foregroundPackage()
+        val resolvedBy = service.setTextRef(ref, snapshotIdOf(command), text, mode, submit)
+            ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
+        return settleAndVerify(
+            service, command, preRevision, preForeground,
+            resolvedBy = resolvedBy.wire, actOk = true,
+            extra = buildJsonObject { put("ref", ref); put("mode", mode); put("submit", submit) }
+        )
+    }
+
+    private suspend fun setToggle(
+        service: AsterAccessibilityService,
+        command: Command
+    ): CommandResult {
+        val ref = command.params?.get("ref")?.jsonPrimitive?.contentOrNull
+            ?: return CommandResult.failure("Missing 'ref' parameter")
+        val on = command.params?.get("on")?.jsonPrimitive?.booleanOrNull
+            ?: return CommandResult.failure("Missing 'on' (boolean) parameter")
+        // P3 verify-after-act: snapshot revision + foreground BEFORE acting (SPEC §3.4).
+        val preRevision = service.screenRevision()
+        val preForeground = service.foregroundPackage()
+        val result = service.setToggleRef(ref, snapshotIdOf(command), on)
+            ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
+        val (resolvedBy, alreadyInState) = result
+        return settleAndVerify(
+            service, command, preRevision, preForeground,
+            resolvedBy = resolvedBy.wire, actOk = true,
+            extra = buildJsonObject { put("ref", ref); put("on", on); put("already_in_state", alreadyInState) }
+        )
+    }
+
+    private suspend fun perform(
+        service: AsterAccessibilityService,
+        command: Command
+    ): CommandResult {
+        val ref = command.params?.get("ref")?.jsonPrimitive?.contentOrNull
+            ?: return CommandResult.failure("Missing 'ref' parameter")
+        val action = command.params?.get("action")?.jsonPrimitive?.contentOrNull
+            ?: return CommandResult.failure("Missing 'action' parameter")
+        // P3 verify-after-act: snapshot revision + foreground BEFORE acting (SPEC §3.4).
+        val preRevision = service.screenRevision()
+        val preForeground = service.foregroundPackage()
+        val resolvedBy = service.performActionOnRef(ref, snapshotIdOf(command), action)
+            ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
+        return settleAndVerify(
+            service, command, preRevision, preForeground,
+            resolvedBy = resolvedBy.wire, actOk = true,
+            extra = buildJsonObject { put("ref", ref); put("action", action) }
+        )
+    }
+
+    private fun pressKey(
+        service: AsterAccessibilityService,
+        command: Command
+    ): CommandResult {
+        val key = command.params?.get("key")?.jsonPrimitive?.contentOrNull
+            ?: return CommandResult.failure("Missing 'key' parameter")
+        val ok = service.pressKey(key)
+        return if (ok) {
+            CommandResult.success(buildJsonObject { put("ok", true); put("key", key) })
+        } else {
+            CommandResult.failure("Failed to press key '$key' (unknown key or input keyevent failed)")
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // P3 — synchronization handlers (SPEC §3.3)
+    // ------------------------------------------------------------------
+
+    private suspend fun waitForIdle(
+        service: AsterAccessibilityService,
+        command: Command
+    ): CommandResult {
+        val quietMs = command.params?.get("quietMs")?.jsonPrimitive?.longOrNull ?: 500L
+        val timeout = command.params?.get("timeout")?.jsonPrimitive?.longOrNull ?: 5_000L
+
+        val start = System.currentTimeMillis()
+        val idle = service.waitForIdle(quietMs = quietMs, timeoutMs = timeout)
+        val waited = System.currentTimeMillis() - start
+
+        return CommandResult.success(buildJsonObject {
+            put("idle", idle)
+            put("waited_ms", waited)
+        })
+    }
+
+    private suspend fun waitFor(
+        service: AsterAccessibilityService,
+        command: Command
+    ): CommandResult {
+        val text = command.params?.get("text")?.jsonPrimitive?.contentOrNull
+        val viewId = command.params?.get("viewId")?.jsonPrimitive?.contentOrNull
+        val role = command.params?.get("role")?.jsonPrimitive?.contentOrNull
+        val gone = command.params?.get("gone")?.jsonPrimitive?.booleanOrNull ?: false
+        val timeout = command.params?.get("timeout")?.jsonPrimitive?.longOrNull ?: 5_000L
+
+        if (text == null && viewId == null && role == null) {
+            return CommandResult.failure(
+                "wait_for requires at least one target: 'text', 'viewId', or 'role'"
+            )
+        }
+
+        val matched = service.waitFor(
+            text = text,
+            viewId = viewId,
+            role = role,
+            gone = gone,
+            timeoutMs = timeout,
+            observe = { observeElements(service) }
+        )
+
+        return CommandResult.success(buildJsonObject {
+            put("matched", matched)
+            put("gone", gone)
+            put("foreground_after", service.foregroundPackage() ?: JsonNull.toString())
+        })
+    }
+
+    /**
+     * Returns the current observe-shaped element array for wait_for matching.
+     *
+     * Backed by the P1 `observe()` builder (SPEC §3.1) so wait_for matches against the same
+     * indexed element model the rest of the loop uses. ScreenWaitMatcher reads only
+     * text/viewId/role, all of which observe() emits per element.
+     */
+    private fun observeElements(service: AsterAccessibilityService): JsonArray {
+        val observation = service.observe(
+            mode = "actionable",
+            searchText = null,
+            maxElements = com.aster.service.accessibility.ElementFilter.MAX_ELEMENTS_DEFAULT,
+        )
+        // observe() returns a JsonObject with an `elements` array, or `{error}` when there is
+        // no active window — in the latter case treat it as "nothing on screen yet".
+        val obj = observation as? JsonObject ?: return JsonArray(emptyList())
+        return obj["elements"]?.jsonArray ?: JsonArray(emptyList())
+    }
+
+    // ------------------------------------------------------------------
+    // P3 — auto-settle + verify-after-act (SPEC §3.3 / §3.4)
+    // ------------------------------------------------------------------
+
+    /**
+     * Whether a ref action should auto-settle (SPEC §3.3 auto-settle, default true).
+     * Read once per action from params.
+     */
+    private fun shouldSettle(command: Command): Boolean =
+        command.params?.get("settle")?.jsonPrimitive?.booleanOrNull ?: true
+
+    /**
+     * Auto-settle + verify-after-act (SPEC §3.3 / §3.4). Called by every ref action handler
+     * AFTER the act. When [settle] is on, waits for quiescence, then derives `changed` from the
+     * ScreenSyncTracker revision delta OR a foreground-package change, and reports
+     * `foreground_after`. `changed` is HONEST: false when nothing moved (no fake-success).
+     *
+     * Single source of truth for the SPEC {ok, resolved_by, changed, foreground_after, settled}
+     * ref-action result shape — do NOT duplicate this shape elsewhere.
+     *
+     * @param preRevision   service.screenRevision() captured BEFORE the act.
+     * @param preForeground service.foregroundPackage() captured BEFORE the act.
+     * @param resolvedBy    which re-resolution strategy resolved the ref (the 4-strategy wire
+     *                      value from ScreenActionResult.ResolvedBy.wire); pass "" / null if a
+     *                      coordinate action with no ref resolution.
+     * @param actOk         whether the underlying act returned success.
+     * @param extra         optional extra fields the specific action wants merged into the result.
+     */
+    suspend fun settleAndVerify(
+        service: AsterAccessibilityService,
+        command: Command,
+        preRevision: Long,
+        preForeground: String?,
+        resolvedBy: String?,
+        actOk: Boolean,
+        extra: JsonObject = JsonObject(emptyMap())
+    ): CommandResult {
+        val settle = shouldSettle(command)
+        var settled = true
+        if (settle) {
+            // Default quiet/timeout per SPEC §3.3 (quietMs=500, timeout=5000).
+            settled = service.waitForIdle(quietMs = 500L, timeoutMs = 5_000L)
+        }
+        val postRevision = service.screenRevision()
+        val foregroundAfter = service.foregroundPackage()
+        val changed = (postRevision != preRevision) || (foregroundAfter != preForeground)
+
+        val body = buildJsonObject {
+            put("ok", actOk)
+            if (resolvedBy != null) put("resolved_by", resolvedBy)
+            put("changed", changed)
+            if (foregroundAfter != null) put("foreground_after", foregroundAfter)
+            if (settle) put("settled", settled)
+            extra.forEach { (k, v) -> put(k, v) }
+        }
+        return if (actOk) CommandResult.success(body) else CommandResult(success = false, data = body, error = "Action failed")
     }
 }

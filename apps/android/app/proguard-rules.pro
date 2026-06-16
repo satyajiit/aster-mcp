@@ -38,5 +38,10 @@
 -dontwarn io.modelcontextprotocol.**
 -keep class io.modelcontextprotocol.** { *; }
 
+# ML Kit (on-device OCR). Bundled consumer-proguard handles the model asset under
+# resource shrinking; explicit keep/dontwarn matches the per-dep pattern above.
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+
 # AIDL interfaces
 -keep class com.aster.ipc.** { *; }

@@ -30,6 +30,11 @@ object ToolCatalog {
 
     private val catalog = mapOf(
         // -- Screen Control --
+        "observe" to ToolEntry(
+            "Observe Screen",
+            "Indexed actionable-element view of the current screen with stable refs",
+            "Screen Control"
+        ),
         "get_screen_hierarchy" to ToolEntry(
             "Screen Hierarchy",
             "Read the UI accessibility tree",
@@ -37,7 +42,7 @@ object ToolCatalog {
         ),
         "take_screenshot" to ToolEntry(
             "Screenshot",
-            "Capture screen as PNG image",
+            "Capture screen as JPEG; optional annotate adds numbered boxes (Set-of-Marks)",
             "Screen Control"
         ),
         "input_gesture" to ToolEntry(
@@ -66,6 +71,42 @@ object ToolCatalog {
             "Screen Control"
         ),
         "scroll" to ToolEntry("Scroll", "Scroll in any direction", "Screen Control"),
+        "tap" to ToolEntry("Tap", "Tap an element by ref or coordinates", "Screen Control"),
+        "long_press" to ToolEntry(
+            "Long Press",
+            "Long-press an element by ref or coordinates",
+            "Screen Control"
+        ),
+        "set_text" to ToolEntry(
+            "Set Text",
+            "Type text into a specific field by ref (replace or append)",
+            "Screen Control"
+        ),
+        "set_toggle" to ToolEntry(
+            "Set Toggle",
+            "Set a switch or checkbox on/off by ref",
+            "Screen Control"
+        ),
+        "perform" to ToolEntry(
+            "Perform Action",
+            "Invoke an accessibility action on an element by ref",
+            "Screen Control"
+        ),
+        "press_key" to ToolEntry(
+            "Press Key",
+            "Press a hardware/IME key (Enter, Back, Tab, arrows…)",
+            "Screen Control"
+        ),
+        "wait_for_idle" to ToolEntry(
+            "Wait for Idle",
+            "Wait until the screen stops changing",
+            "Screen Control"
+        ),
+        "wait_for" to ToolEntry(
+            "Wait for Element",
+            "Wait until an element appears or disappears",
+            "Screen Control"
+        ),
         "global_action" to ToolEntry(
             "System Action",
             "Home, back, recents, and other system actions",

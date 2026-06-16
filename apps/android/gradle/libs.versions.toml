@@ -23,6 +23,7 @@ camerax = "1.4.1"
 playServicesLocation = "21.3.0"
 ktor = "3.2.3"
 mcpSdk = "0.8.3"
+mlkitTextRecognition = "16.0.1"
 
 [libraries]
 # Core
@@ -99,6 +100,9 @@ ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serializatio
 
 # MCP SDK
 mcp-kotlin-sdk = { group = "io.modelcontextprotocol", name = "kotlin-sdk", version.ref = "mcpSdk" }
+
+# ML Kit (on-device OCR — BUNDLED, model in APK, no Play Services / no network)
+mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
 
 # Testing
 junit = { group = "junit", name = "junit", version = "4.13.2" }
