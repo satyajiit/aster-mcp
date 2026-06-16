@@ -63,7 +63,9 @@ object McpToolRegistry {
             "Observe the current screen as a flat indexed list of actionable elements " +
                 "with stable refs. Optional params (all optional): mode " +
                 "(actionable|text|full, default actionable), searchText (narrow to " +
-                "matching elements), maxElements (token-budget cap).",
+                "matching elements), maxElements (token-budget cap), ocr (boolean: omit " +
+                "for auto — OCR only when the a11y tree is sparse; true forces on-device " +
+                "OCR pseudo-elements, false disables them).",
             emptyMap()
         ),
         "perform_gesture" to ToolDef(
@@ -202,6 +204,29 @@ object McpToolRegistry {
         "press_key" to ToolDef(
             "Press a hardware/IME key",
             mapOf("key" to PropDef("string", "Key name: ENTER, BACK, TAB, DEL, DPAD_UP…"))
+        ),
+        // Screen Control /goal P7 — schemas for the two remaining SPEC §3.2
+        // action names that the catalog already lists but the MCP registry did
+        // not yet declare (the embedded-MCP transport now exposes them too).
+        "scroll" to ToolDef(
+            "Scroll a container by ref (or the auto-picked main scrollable); " +
+                "untilText repeats scrolling until that text appears (scroll-to-find)",
+            mapOf(
+                "direction" to PropDef("string", "up | down | left | right"),
+                "ref" to PropDef("string", "Scrollable container ref (optional; auto-picked if omitted)"),
+                "amount" to PropDef("string", "page (default) | halfpage | toEdge"),
+                "untilText" to PropDef("string", "Scroll-to-find: repeat until this text appears"),
+                "snapshot_id" to PropDef("string", "Snapshot id from screen_observe")
+            ),
+            // direction is the only meaningful requirement; the handler validates it at runtime.
+            required = emptyList()
+        ),
+        "global_action" to ToolDef(
+            "Perform a system global action: BACK, HOME, RECENTS, NOTIFICATIONS, " +
+                "QUICK_SETTINGS, POWER_DIALOG, LOCK_SCREEN, and IME actions",
+            mapOf(
+                "action" to PropDef("string", "BACK | HOME | RECENTS | NOTIFICATIONS | QUICK_SETTINGS | POWER_DIALOG | LOCK_SCREEN | …")
+            )
         ),
     )
 

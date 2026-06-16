@@ -11,12 +11,23 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 sealed interface ToolEvent {
-    data class Started(val toolName: String, val connectionType: String) : ToolEvent
+    data class Started(
+        val toolName: String,
+        val connectionType: String,
+        // Screen Control /goal P7 — overlay/audit context.
+        val target: String? = null,
+        val risk: String? = null
+    ) : ToolEvent
     data class Completed(
         val toolName: String,
         val connectionType: String,
         val success: Boolean,
-        val durationMs: Long
+        val durationMs: Long,
+        // Screen Control /goal P7 — overlay/audit context.
+        val target: String? = null,
+        val resolvedBy: String? = null,
+        val risk: String? = null,
+        val approval: String? = null
     ) : ToolEvent
 }
 
@@ -29,8 +40,13 @@ class ToolCallLogger @Inject constructor(
     private val _toolEvents = MutableSharedFlow<ToolEvent>(replay = 0, extraBufferCapacity = 16)
     val toolEvents: SharedFlow<ToolEvent> = _toolEvents.asSharedFlow()
 
-    fun onToolStarted(action: String, connectionType: String) {
-        _toolEvents.tryEmit(ToolEvent.Started(action, connectionType))
+    fun onToolStarted(
+        action: String,
+        connectionType: String,
+        target: String? = null,
+        risk: String? = null
+    ) {
+        _toolEvents.tryEmit(ToolEvent.Started(action, connectionType, target, risk))
     }
 
     fun log(
@@ -38,10 +54,15 @@ class ToolCallLogger @Inject constructor(
         connectionType: String,
         success: Boolean,
         durationMs: Long = 0,
-        errorMessage: String? = null
+        errorMessage: String? = null,
+        // Screen Control /goal P7 audit fields.
+        target: String? = null,
+        resolvedBy: String? = null,
+        risk: String? = null,
+        approval: String? = null
     ) {
         _toolEvents.tryEmit(
-            ToolEvent.Completed(action, connectionType, success, durationMs)
+            ToolEvent.Completed(action, connectionType, success, durationMs, target, resolvedBy, risk, approval)
         )
         scope.launch {
             dao.insert(
@@ -50,7 +71,11 @@ class ToolCallLogger @Inject constructor(
                     connectionType = connectionType,
                     success = success,
                     durationMs = durationMs,
-                    errorMessage = errorMessage
+                    errorMessage = errorMessage,
+                    target = target,
+                    resolvedBy = resolvedBy,
+                    risk = risk,
+                    approval = approval
                 )
             )
         }

@@ -32,7 +32,8 @@ object ToolCatalog {
         // -- Screen Control --
         "observe" to ToolEntry(
             "Observe Screen",
-            "Indexed actionable-element view of the current screen with stable refs",
+            "Indexed actionable-element view of the current screen with stable refs; " +
+                "falls back to on-device OCR when the accessibility tree is sparse",
             "Screen Control"
         ),
         "get_screen_hierarchy" to ToolEntry(

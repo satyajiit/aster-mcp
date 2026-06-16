@@ -20,6 +20,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
@@ -34,6 +35,17 @@ class IpcMode(
         private const val TOKEN_LENGTH = 32
         /** Results above this byte size are offloaded to PFD pipe instead of Binder. */
         private const val LARGE_RESULT_THRESHOLD = 500_000 // ~500 KB
+
+        /**
+         * Screen-control action names (Screen Control /goal P7). While the kill
+         * switch is engaged, an executeCommand for any of these is fast-rejected
+         * (the in-flight loop is aborted within one action).
+         */
+        private val SCREEN_CONTROL_ACTIONS = setOf(
+            "tap", "set_text", "long_press", "set_toggle", "perform", "scroll",
+            "input_gesture", "press_key", "global_action", "input_text",
+            "click_by_text", "click_by_view_id", "launch_intent"
+        )
     }
 
     override val modeType = ModeType.IPC
@@ -47,6 +59,10 @@ class IpcMode(
     private val callbacks = ConcurrentHashMap<Int, IAsterCallback>()
     private val largeResults = ConcurrentHashMap<String, ByteArray>()
     private var currentToken: String = ""
+
+    /** Kill-switch flag (P7). Set true on STOP; cleared on the next start(). */
+    @Volatile
+    private var killed = false
 
     val token: String get() = currentToken
 
@@ -70,6 +86,20 @@ class IpcMode(
         override fun executeCommand(action: String, paramsJson: String): String {
             val callingUid = Binder.getCallingUid()
             requireAuthenticated(callingUid)
+
+            // Kill switch (P7): once engaged, refuse every screen-control action
+            // until a fresh connect (start() clears `killed`). The session is
+            // already severed (authenticatedUids cleared), so the typical path is
+            // a SecurityException above; this is the belt-and-braces second stop.
+            if (killed && action in SCREEN_CONTROL_ACTIONS) {
+                return Json.encodeToString(
+                    JsonObject.serializer(),
+                    buildJsonObject {
+                        put("success", JsonPrimitive(false))
+                        put("error", JsonPrimitive("Screen control stopped by the kill switch. Reconnect to resume."))
+                    }
+                )
+            }
 
             val handler = commandHandlers[action]
                 ?: run {
@@ -105,19 +135,46 @@ class IpcMode(
                 params = params
             )
 
+            // Screen Control /goal P7 audit context: the observed target text
+            // rides in the action params; `resolved_by` comes back in the
+            // action result. Only meaningful for screen-control actions; other
+            // actions log null for these (defaulted).
+            val isScreenAction = action in SCREEN_CONTROL_ACTIONS
+            val targetText = if (isScreenAction) {
+                (params["target_text"] as? JsonPrimitive)?.contentOrNull
+            } else null
+            // P7 audit (SPEC §3.6): the kernel stamps `risk` ("low"|"high" — high only after
+            // the owner confirms a high-risk dispatch) and `approval` ("approved" on the
+            // screen:confirm re-dispatch) into device.execute params. Read them honestly:
+            // absent → null (no fabrication). Only meaningful for screen-control actions.
+            val risk = if (isScreenAction) {
+                (params["risk"] as? JsonPrimitive)?.contentOrNull
+            } else null
+            val approval = if (isScreenAction) {
+                (params["approval"] as? JsonPrimitive)?.contentOrNull
+            } else null
+
             val startTime = System.currentTimeMillis()
-            toolCallLogger.onToolStarted(action, "IPC")
+            toolCallLogger.onToolStarted(action, "IPC", target = targetText, risk = risk)
             val result = runBlocking {
                 handler.handle(command)
             }
             val duration = System.currentTimeMillis() - startTime
+
+            val resolvedBy = if (isScreenAction) {
+                ((result.data as? JsonObject)?.get("resolved_by") as? JsonPrimitive)?.contentOrNull
+            } else null
 
             toolCallLogger.log(
                 action = action,
                 connectionType = "IPC",
                 success = result.success,
                 durationMs = duration,
-                errorMessage = result.error
+                errorMessage = result.error,
+                target = targetText,
+                resolvedBy = resolvedBy,
+                risk = risk,
+                approval = approval
             )
 
             val resultJson = Json.encodeToString(
@@ -201,6 +258,8 @@ class IpcMode(
         currentToken = ipcConfig.token
         authenticatedUids.clear()
         callbacks.clear()
+        // P7: a fresh connect resumes screen control (clears any prior kill).
+        killed = false
         _statusFlow.value =
             ModeStatus(state = ModeState.RUNNING, message = "IPC Active — Ready for aster-one")
         Log.i(TAG, "IPC mode started")
@@ -235,6 +294,21 @@ class IpcMode(
                 Log.w(TAG, "Failed to send event to callback", e)
             }
         }
+    }
+
+    /**
+     * Kill switch (P7): broadcast a `screen_stop` so aster-one aborts the
+     * in-flight loop, then sever every authenticated session so the NEXT
+     * executeCommand is refused (both the SecurityException from the cleared
+     * auth AND the [killed] fast-reject). Two independent stops = defense in
+     * depth — the active run is aborted within one action.
+     */
+    fun killActiveControl() {
+        killed = true
+        broadcastEvent("screen_stop", "{}")
+        authenticatedUids.clear()
+        Log.w(TAG, "Kill switch engaged — sessions severed, screen_stop broadcast")
+        updateClientCount()
     }
 
     private fun requireAuthenticated(uid: Int) {

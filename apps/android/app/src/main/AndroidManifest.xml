@@ -160,6 +160,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- Screen-control kill switch (Screen Control /goal P7) -->
+        <receiver
+            android:name=".receiver.KillSwitchReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.aster.action.SCREEN_STOP" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

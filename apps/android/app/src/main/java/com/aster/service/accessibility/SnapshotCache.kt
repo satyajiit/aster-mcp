@@ -21,6 +21,14 @@ class SnapshotCache {
     private val seq = AtomicLong(0L)
     private val lock = Any()
 
+    /**
+     * Id of the most-recently-created snapshot, or null before the first [newSnapshot].
+     * Lets ref-actions that omit `snapshot_id` resolve against the latest observation
+     * (the kernel passes `snapshot_id` optionally; the companion stays robust when it is
+     * absent). Guarded by [lock].
+     */
+    private var latestSnapshotId: String? = null
+
     // LinkedHashMap with removeEldestEntry → simple LRU by insertion order.
     private val snapshots = object : LinkedHashMap<String, MutableMap<String, NodeDescriptor>>(
         /* initialCapacity = */ MAX_SNAPSHOTS + 1,
@@ -37,8 +45,23 @@ class SnapshotCache {
         val id = "s${seq.incrementAndGet()}-${System.currentTimeMillis()}"
         synchronized(lock) {
             snapshots[id] = HashMap()
+            latestSnapshotId = id
         }
         return id
+    }
+
+    /**
+     * Id of the most-recently-created snapshot that is still resident, or null if there is no
+     * snapshot at all. Used as the fallback when a ref-action omits `snapshot_id` — the action
+     * resolves against the latest observation. The newest snapshot is never the eldest evicted,
+     * so this normally returns a live id; the membership check keeps it honest if it were ever
+     * cleared.
+     */
+    fun latestId(): String? {
+        synchronized(lock) {
+            val id = latestSnapshotId ?: return null
+            return if (snapshots.containsKey(id)) id else null
+        }
     }
 
     /** Record a ref → descriptor under [snapshotId] (no-op if snapshot was evicted). */

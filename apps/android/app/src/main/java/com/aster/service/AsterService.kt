@@ -138,6 +138,9 @@ class AsterService : Service() {
     @Inject
     lateinit var toolExecutionOverlay: ToolExecutionOverlay
 
+    @Inject
+    lateinit var killSwitchController: com.aster.service.safety.KillSwitchController
+
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
@@ -162,6 +165,12 @@ class AsterService : Service() {
         startForegroundWithType(createNotification("Aster", "Starting..."))
         setupEventForwarding()
         toolExecutionOverlay.attach(this, serviceScope)
+        // Screen Control /goal P7 — own the kill-switch lifecycle. The extra
+        // teardown clears the active activity overlay on STOP (without killing
+        // the overlay's event collector, so a later tool still surfaces).
+        killSwitchController.attach(this) {
+            toolExecutionOverlay.clearActive()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -264,6 +273,7 @@ class AsterService : Service() {
         smsBroadcastReceiver = null
 
         toolExecutionOverlay.detach()
+        killSwitchController.detach()
         serviceScope.cancel()
         releaseWifiLock()
         releaseWakeLock()

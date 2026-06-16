@@ -7,13 +7,20 @@ import com.aster.service.CommandHandler
 import com.aster.service.CommandResult
 import com.aster.service.Mark
 import com.aster.service.ScreenActionResult
+import com.aster.service.safety.PackagePolicyGuard
 import kotlinx.serialization.json.*
 
 /**
  * Handler for accessibility-based commands.
  * Handles screen hierarchy, gestures, global actions, text input, and screenshots.
+ *
+ * Guarded autonomy (Screen Control /goal P7): every control action is gated by
+ * [packagePolicyGuard] at the top of [handle] (fail-closed) — defense in depth
+ * alongside the kernel-side denylist.
  */
-class AccessibilityHandler : CommandHandler {
+class AccessibilityHandler(
+    private val packagePolicyGuard: PackagePolicyGuard
+) : CommandHandler {
 
     override fun supportedActions() = listOf(
         "observe",
@@ -41,6 +48,12 @@ class AccessibilityHandler : CommandHandler {
     override suspend fun handle(command: Command): CommandResult {
         val service = AsterAccessibilityService.getInstance()
             ?: return CommandResult.failure("Accessibility service not enabled. Please enable it in Settings > Accessibility > Aster")
+
+        // Guarded autonomy (P7): refuse denylisted foreground packages
+        // (fail-closed). Defense in depth — the kernel also gates.
+        packagePolicyGuard.checkAllowed(command.action)?.let { refusal ->
+            return CommandResult.failure(refusal)
+        }
 
         return when (command.action) {
             "observe" -> observe(service, command)
@@ -85,7 +98,7 @@ class AccessibilityHandler : CommandHandler {
         return CommandResult.success(filtered)
     }
 
-    private fun observe(
+    private suspend fun observe(
         service: AsterAccessibilityService,
         command: Command
     ): CommandResult {
@@ -93,8 +106,11 @@ class AccessibilityHandler : CommandHandler {
         val searchText = command.params?.get("searchText")?.jsonPrimitive?.contentOrNull
         val maxElements = command.params?.get("maxElements")?.jsonPrimitive?.intOrNull
             ?: com.aster.service.accessibility.ElementFilter.MAX_ELEMENTS_DEFAULT
+        // P4 OCR gate (SPEC §3.4): omitted = auto (OCR only when the a11y tree is sparse);
+        // true = force OCR; false = a11y only.
+        val ocr = command.params?.get("ocr")?.jsonPrimitive?.booleanOrNull
 
-        val observation = service.observe(mode, searchText, maxElements)
+        val observation = service.observe(mode, searchText, maxElements, ocr)
         return CommandResult.success(observation)
     }
 
@@ -765,6 +781,15 @@ class AccessibilityHandler : CommandHandler {
             ?: return CommandResult.failure("Missing 'ref' parameter")
         val action = command.params?.get("action")?.jsonPrimitive?.contentOrNull
             ?: return CommandResult.failure("Missing 'action' parameter")
+        // `set_text` is in the closed actions[] vocabulary (SPEC §7.2) and `observe` emits it,
+        // but `perform` cannot carry the required text argument. Reject honestly here — the ref
+        // is fine; the action just isn't performable via perform. NOT a stale_ref (which would
+        // misleadingly tell the agent to re-observe), NOT a silent null.
+        if (action.equals("set_text", ignoreCase = true)) {
+            return CommandResult.failure(
+                "'set_text' is not performable via perform — use the set_text action, which carries the text argument"
+            )
+        }
         // P3 verify-after-act: snapshot revision + foreground BEFORE acting (SPEC §3.4).
         val preRevision = service.screenRevision()
         val preForeground = service.foregroundPackage()
@@ -840,19 +865,24 @@ class AccessibilityHandler : CommandHandler {
         return CommandResult.success(buildJsonObject {
             put("matched", matched)
             put("gone", gone)
-            put("foreground_after", service.foregroundPackage() ?: JsonNull.toString())
+            // Real JSON null when there is no foreground package (the kotlinx put(String, String?)
+            // overload writes JsonNull), consistent with settleAndVerify — NOT the literal "null"
+            // string JsonNull.toString() used to emit.
+            put("foreground_after", service.foregroundPackage())
         })
     }
 
     /**
      * Returns the current observe-shaped element array for wait_for matching.
      *
-     * Backed by the P1 `observe()` builder (SPEC §3.1) so wait_for matches against the same
-     * indexed element model the rest of the loop uses. ScreenWaitMatcher reads only
-     * text/viewId/role, all of which observe() emits per element.
+     * Backed by the synchronous a11y-only `observeA11y()` builder (SPEC §3.1) so wait_for matches
+     * against the same indexed element model the rest of the loop uses, WITHOUT pulling P4's
+     * OCR/screenshot coroutine into the tight event-nudged wait loop. ScreenWaitMatcher reads only
+     * text/viewId/role — all a11y-element fields; OCR `o<idx>` pseudo-elements carry no viewId/role
+     * and only a "text" role, so omitting them does not change wait_for semantics.
      */
     private fun observeElements(service: AsterAccessibilityService): JsonArray {
-        val observation = service.observe(
+        val observation = service.observeA11y(
             mode = "actionable",
             searchText = null,
             maxElements = com.aster.service.accessibility.ElementFilter.MAX_ELEMENTS_DEFAULT,

@@ -324,14 +324,27 @@ class AsterAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Build the SPEC §3.1 `observe` payload: a compact, indexed, LLM-shaped view
-     * of the current screen with stable e<N> refs backed by the snapshot cache.
-     *
-     * @param mode "actionable" (default) | "text" | "full"
-     * @param searchText narrows elements to those whose text/desc contains it
-     * @param maxElements token-budget cap (truncated:true when exceeded)
+     * Result of the synchronous a11y-only observation pass (the P1–P3 walk). Carries the
+     * assembled a11y [ObserveResult] plus the sparsity signals P4's OCR merge consumes
+     * (SPEC §3.4). Kept synchronous so the non-suspend `wait_for` matcher path can reuse it
+     * without dragging the OCR/screenshot coroutine into the wait loop.
      */
-    fun observe(mode: String, searchText: String?, maxElements: Int): JsonElement {
+    private class A11yObservation(
+        val result: ObserveResult,
+        val actionableCount: Int,
+        val hasNonTrivialContent: Boolean,
+    )
+
+    /**
+     * Build the a11y-only observation (SPEC §3.1, P1–P3): the multi-window walk, snapshot cache
+     * population, screen context, and the source="a11y" [ObserveResult]. Synchronous — no OCR,
+     * no screenshot. Returns null when there is no active window.
+     */
+    private fun buildA11yObservation(
+        mode: String,
+        searchText: String?,
+        maxElements: Int,
+    ): A11yObservation? {
         // ONE accumulating observer across all windows — repeated walk() calls keep the
         // e<N> ref counter and the maxElements budget continuous (SPEC §7.1: a single e<N>
         // namespace), so dialog/IME/overlay elements get unique refs in reading order.
@@ -361,8 +374,7 @@ class AsterAccessibilityService : AccessibilityService() {
             }
         }
 
-        val walk = lastWalk
-            ?: return buildJsonObject { put("error", "No active window") }
+        val walk = lastWalk ?: return null
 
         // Allocate a snapshot and populate the ref → descriptor cache.
         val snapshotId = snapshotCache.newSnapshot()
@@ -375,11 +387,91 @@ class AsterAccessibilityService : AccessibilityService() {
             screen = screen,
             elements = walk.elements,
             scrollables = walk.scrollables,
-            source = "a11y",      // P3: a11y-only multi-window; P4 adds ocr/merged
+            source = "a11y",
             snapshotId = snapshotId,
             truncated = walk.truncated,
         )
-        return result.toJson()
+
+        // SPEC §3.4 sparsity signals for the OCR merge: how many actionable elements the a11y
+        // tree yielded, and whether the screen has non-trivial readable content (so a genuinely
+        // blank screen is never treated as "sparse → OCR").
+        val actionableCount = walk.elements.size
+        val hasNonTrivialContent = walk.elements.any {
+            it.text.isNotEmpty() || it.desc.isNotEmpty()
+        }
+        return A11yObservation(result, actionableCount, hasNonTrivialContent)
+    }
+
+    /**
+     * Synchronous a11y-only `observe` payload (SPEC §3.1). Used by the event-nudged `wait_for`
+     * matcher, which only matches against the a11y element model (text/viewId/role) and must not
+     * pull OCR/screenshot work into its tight loop. The OCR-aware variant is [observe].
+     */
+    fun observeA11y(mode: String, searchText: String?, maxElements: Int): JsonElement {
+        val a11y = buildA11yObservation(mode, searchText, maxElements)
+            ?: return buildJsonObject { put("error", "No active window") }
+        return a11y.result.toJson()
+    }
+
+    /**
+     * Build the SPEC §3.1 `observe` payload: a compact, indexed, LLM-shaped view of the current
+     * screen with stable e<N> refs backed by the snapshot cache, with P4 OCR fallback merged in
+     * when the a11y tree is sparse (SPEC §3.4).
+     *
+     * @param mode "actionable" (default) | "text" | "full"
+     * @param searchText narrows elements to those whose text/desc contains it
+     * @param maxElements token-budget cap (truncated:true when exceeded)
+     * @param ocr tri-state OCR gate: null = auto (run OCR only when the a11y tree is sparse),
+     *   true = force OCR, false = never OCR (a11y only). When OCR runs, recognized blocks become
+     *   `o<idx>` pseudo-elements (a distinct namespace, SPEC §7.1) appended AFTER the a11y `e<N>`
+     *   elements; `source` becomes "ocr" (a11y empty) or "merged" (a11y sparse) per
+     *   [ScreenObserveSupport.mergeOcr].
+     */
+    suspend fun observe(
+        mode: String,
+        searchText: String?,
+        maxElements: Int,
+        ocr: Boolean? = null,
+    ): JsonElement {
+        val a11y = buildA11yObservation(mode, searchText, maxElements)
+            ?: return buildJsonObject { put("error", "No active window") }
+
+        val a11ySparse = ScreenObserveSupport.isSparse(
+            actionableCount = a11y.actionableCount,
+            hasNonTrivialContent = a11y.hasNonTrivialContent,
+        )
+
+        // Auto (null) → OCR only when the a11y tree is sparse; explicit true/false overrides.
+        val wantOcr = ocr ?: a11ySparse
+        if (!wantOcr) {
+            return a11y.result.toJson()
+        }
+
+        // runOcr() captures + recognizes a fresh screenshot and maps blocks back to REAL screen
+        // pixels (1/scale). ocrBlocksToElements builds o<idx> pseudo-elements at scale=1.0 (the
+        // blocks are already real-px). Fail-closed: runOcr() returns [] on any failure → merge
+        // keeps a11y only.
+        val ocrElements = ScreenObserveSupport.ocrBlocksToElements(runOcr(), scale = 1.0f)
+
+        // a11y elements as JSON for the merge (OCR pseudo-elements are JsonObjects, so merge at
+        // the JSON layer). The a11y e<N> refs stay backed by the snapshot cache; OCR o<idx> refs
+        // have no descriptor and re-resolve only via center_tap of their cached bounds (SPEC §7.1).
+        val a11yElementsJson = a11y.result.elements.map { it.toJson() }
+        val merged = ScreenObserveSupport.mergeOcr(a11yElementsJson, ocrElements, a11ySparse)
+
+        // Re-serialize the a11y result, replacing `elements` (a11y e<N> first, OCR o<idx>
+        // appended) and `source` (a11y → ocr → merged). Everything else (screen, scrollables,
+        // snapshot_id, truncated) is unchanged from the a11y pass.
+        val base = a11y.result.toJson()
+        return buildJsonObject {
+            base.forEach { (k, v) ->
+                when (k) {
+                    "elements" -> put("elements", ScreenObserveSupport.elementsToJsonArray(merged))
+                    "source" -> put("source", merged.source)
+                    else -> put(k, v)
+                }
+            }
+        }
     }
 
     /**
@@ -1080,33 +1172,6 @@ class AsterAccessibilityService : AccessibilityService() {
         return dir
     }
 
-    /**
-     * Scroll in a direction on the screen.
-     */
-    fun scroll(direction: String): Boolean {
-        val rootNode = rootInActiveWindow ?: return false
-
-        try {
-            val scrollableNode = findScrollableNode(rootNode)
-            if (scrollableNode != null) {
-                try {
-                    val action = when (direction.uppercase()) {
-                        "UP", "BACKWARD" -> AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-                        "DOWN", "FORWARD" -> AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
-                        else -> return false
-                    }
-                    return scrollableNode.performAction(action)
-                } finally {
-                    scrollableNode.recycle()
-                }
-            }
-        } finally {
-            rootNode.recycle()
-        }
-
-        return false
-    }
-
     private fun findScrollableNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         if (node.isScrollable) {
             return AccessibilityNodeInfo.obtain(node)
@@ -1177,13 +1242,23 @@ class AsterAccessibilityService : AccessibilityService() {
      * The returned node (1–3) is OWNED by the caller (recycle after acting).
      *
      * P1 seam: the cached descriptor comes from the service-held [snapshotCache]
-     * (com.aster.service.accessibility.SnapshotCache.get(snapshotId, ref)). A null/evicted
-     * snapshot or unknown ref → null → stale_ref (fail closed).
+     * (com.aster.service.accessibility.SnapshotCache.get(snapshotId, ref)).
+     *
+     * Latest-snapshot fallback: the kernel passes `snapshot_id` only optionally. When it is
+     * null or empty, resolve against the most-recently-created snapshot
+     * ([SnapshotCache.latestId]) so a ref-action that omits the id can still act. Only when
+     * there is no snapshot at all (latestId == null) — or the ref is unknown in the chosen
+     * snapshot — do we return null → stale_ref (fail closed). The descriptorMatches
+     * verify-before-act gate below is untouched, so a genuinely stale/changed node still fails
+     * closed.
      */
     fun resolveRef(ref: String, snapshotId: String?): ResolvedRef? {
         // P1 seam — re-read the cached POJO descriptor from the snapshot cache.
-        if (snapshotId == null) return null
-        val descriptor = snapshotCache.get(snapshotId, ref) ?: return null
+        // Fall back to the latest snapshot when no id was supplied; a missing snapshot
+        // entirely (no observation yet) still yields null → stale_ref.
+        val requested = snapshotId?.takeIf { it.isNotEmpty() }
+        val effectiveSnapshotId = requested ?: snapshotCache.latestId() ?: return null
+        val descriptor = snapshotCache.get(effectiveSnapshotId, ref) ?: return null
         val cachedBounds = Rect(
             descriptor.bounds.x,
             descriptor.bounds.y,

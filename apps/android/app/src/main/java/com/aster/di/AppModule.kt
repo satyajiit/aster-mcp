@@ -70,7 +70,11 @@ object AppModule {
             context,
             AsterDatabase::class.java,
             "aster_db"
-        ).build()
+        )
+            // Screen Control /goal P7 — non-destructive migration adding the
+            // four audit columns. Preserve the audit log (the security record).
+            .addMigrations(AsterDatabase.MIGRATION_1_2)
+            .build()
     }
 
     @Provides

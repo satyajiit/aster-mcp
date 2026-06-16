@@ -24,6 +24,7 @@ import com.aster.service.handlers.VolumeHandler
 import com.aster.service.mode.IpcMode
 import com.aster.service.mode.McpMode
 import com.aster.service.mode.RemoteWsMode
+import com.aster.service.safety.PackagePolicyGuard
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -44,7 +45,8 @@ object ModeModule {
     @Singleton
     @CommandHandlerMap
     fun provideCommandHandlers(
-        @ApplicationContext context: Context
+        @ApplicationContext context: Context,
+        packagePolicyGuard: PackagePolicyGuard
     ): Map<String, @JvmSuppressWildcards CommandHandler> {
         val handlers = mutableMapOf<String, CommandHandler>()
 
@@ -57,7 +59,7 @@ object ModeModule {
             MediaHandler(context),
             ShellHandler(),
             IntentHandler(context),
-            AccessibilityHandler(),
+            AccessibilityHandler(packagePolicyGuard),
             NotificationHandler(),
             SmsHandler(context),
             OverlayHandler(context),
