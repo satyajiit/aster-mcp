@@ -30,6 +30,13 @@ export const ListPackagesSchema = z.object({
   includeSystem: z.boolean().optional().default(false).describe('Include system packages'),
 });
 
+export const ListInstalledAppsSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  includeSystem: z.boolean().optional().default(false).describe('Include system packages'),
+  cursor: z.number().optional().describe('Opaque integer offset for the next page (from a prior next_cursor)'),
+  limit: z.number().optional().default(100).describe('Max apps per page (1-500)'),
+});
+
 export const ListFilesSchema = z.object({
   deviceId: z.string().describe('The unique identifier of the device'),
   path: z.string().describe('Directory path to list'),
@@ -245,6 +252,17 @@ export const SearchContactsSchema = z.object({
   limit: z.number().optional().default(20).describe('Maximum number of results (default: 20)'),
 });
 
+export const ListContactsFullSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  cursor: z.number().optional().describe('Resume from this contact _ID (exclusive); omit to start at the beginning'),
+  limit: z.number().optional().default(200).describe('Maximum number of contacts to return (default: 200, max: 500)'),
+});
+
+export const DeleteContactsSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  ids: z.array(z.string()).describe('Contact ids to delete (each is a Contacts._ID)'),
+});
+
 export const GetAlarmsSchema = z.object({
   deviceId: z.string().describe('The unique identifier of the device'),
 });
@@ -371,6 +389,20 @@ export const TOOL_DEFINITIONS = [
       properties: {
         deviceId: { type: 'string', description: 'The unique identifier of the device' },
         includeSystem: { type: 'boolean', description: 'Include system packages', default: false },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_list_installed_apps',
+    description: 'List installed apps with full metadata for on-device analysis: package, label, version, install/update time, system flag, on-disk sizes, declared permissions, and last-used time (when Usage access is granted). Paged via cursor.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        includeSystem: { type: 'boolean', description: 'Include system packages', default: false },
+        cursor: { type: 'number', description: 'Opaque integer offset for the next page' },
+        limit: { type: 'number', description: 'Max apps per page (1-500)', default: 100 },
       },
       required: ['deviceId'],
     },
@@ -837,6 +869,31 @@ export const TOOL_DEFINITIONS = [
         limit: { type: 'number', description: 'Maximum number of results (default: 20)', default: 20 },
       },
       required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_list_contacts_full',
+    description: 'Page through the full device address book: each contact with all phone numbers, emails, and account type. Cursor-based pagination for indexing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        cursor: { type: 'number', description: 'Resume from this contact _ID (exclusive); omit to start at the beginning' },
+        limit: { type: 'number', description: 'Maximum number of contacts to return (default: 200, max: 500)', default: 200 },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_delete_contacts',
+    description: 'Delete one or more contacts from the device address book by id. Requires WRITE_CONTACTS. Returns the count deleted and a per-id failure list.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        ids: { type: 'array', items: { type: 'string' }, description: 'Contact ids to delete' },
+      },
+      required: ['deviceId', 'ids'],
     },
   },
   {

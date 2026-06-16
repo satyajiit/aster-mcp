@@ -11,6 +11,7 @@ import com.aster.service.handlers.ClipboardHandler
 import com.aster.service.handlers.ContactHandler
 import com.aster.service.handlers.DeviceInfoHandler
 import com.aster.service.handlers.FileSystemHandler
+import com.aster.service.handlers.InstalledAppsHandler
 import com.aster.service.handlers.IntentHandler
 import com.aster.service.handlers.MediaHandler
 import com.aster.service.handlers.NotificationHandler
@@ -51,6 +52,7 @@ object ModeModule {
             DeviceInfoHandler(context),
             FileSystemHandler(context),
             PackageHandler(context),
+            InstalledAppsHandler(context),
             ClipboardHandler(context),
             MediaHandler(context),
             ShellHandler(),

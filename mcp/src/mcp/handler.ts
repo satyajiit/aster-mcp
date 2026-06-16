@@ -10,6 +10,7 @@ import {
   AnalyzeStorageSchema,
   ClickByIdSchema,
   ClickByTextSchema,
+  DeleteContactsSchema,
   DeleteFileSchema,
   DeleteAlarmSchema,
   DismissAlarmSchema,
@@ -28,7 +29,9 @@ import {
   InputGestureSchema,
   InputTextSchema,
   LaunchIntentSchema,
+  ListContactsFullSchema,
   ListFilesSchema,
+  ListInstalledAppsSchema,
   ListPackagesSchema,
   MakeCallSchema,
   MakeCallWithVoiceSchema,
@@ -117,6 +120,9 @@ export async function handleToolCall(
 
       case 'aster_list_packages':
         return handleListPackages(args);
+
+      case 'aster_list_installed_apps':
+        return handleListInstalledApps(args);
 
       case 'aster_list_files':
         return handleListFiles(args);
@@ -213,6 +219,12 @@ export async function handleToolCall(
 
       case 'aster_search_contacts':
         return handleSearchContacts(args);
+
+      case 'aster_list_contacts_full':
+        return handleListContactsFull(args);
+
+      case 'aster_delete_contacts':
+        return handleDeleteContacts(args);
 
       case 'aster_get_alarms':
         return handleGetAlarms(args);
@@ -311,6 +323,16 @@ async function handleExecuteShell(args: Record<string, unknown>): Promise<ToolRe
 async function handleListPackages(args: Record<string, unknown>): Promise<ToolResult> {
   const { deviceId, includeSystem } = ListPackagesSchema.parse(args);
   const response = await sendCommand(deviceId, 'list_packages', { includeSystem });
+  return jsonResult(response.data);
+}
+
+async function handleListInstalledApps(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, includeSystem, cursor, limit } = ListInstalledAppsSchema.parse(args);
+  const response = await sendCommand(deviceId, 'list_installed_apps', {
+    include_system: includeSystem,
+    cursor,
+    limit,
+  });
   return jsonResult(response.data);
 }
 
@@ -563,6 +585,18 @@ async function handleSetVolume(args: Record<string, unknown>): Promise<ToolResul
 async function handleSearchContacts(args: Record<string, unknown>): Promise<ToolResult> {
   const { deviceId, name, number, limit } = SearchContactsSchema.parse(args);
   const response = await sendCommand(deviceId, 'search_contacts', { name, number, limit });
+  return jsonResult(response.data);
+}
+
+async function handleListContactsFull(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, cursor, limit } = ListContactsFullSchema.parse(args);
+  const response = await sendCommand(deviceId, 'list_contacts_full', { cursor, limit });
+  return jsonResult(response.data);
+}
+
+async function handleDeleteContacts(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, ids } = DeleteContactsSchema.parse(args);
+  const response = await sendCommand(deviceId, 'delete_contacts', { ids });
   return jsonResult(response.data);
 }
 
