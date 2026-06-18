@@ -28,6 +28,7 @@ class RecordBuffer {
     private var active = false
     private var dropped = 0
     private var startedAtMs = 0L
+    private var finishRequested = false
 
     /** Begin a session: clear any prior capture and arm [offer]. */
     fun start() {
@@ -35,9 +36,24 @@ class RecordBuffer {
             steps.clear()
             dropped = 0
             active = true
+            finishRequested = false
             startedAtMs = System.currentTimeMillis()
         }
     }
+
+    /**
+     * Signal that the owner asked to finish (tapped Finish on the on-device
+     * recording overlay, where the RN screen isn't visible). The recorder keeps
+     * capturing until the kernel-driven [stop] actually drains it; the RN screen
+     * polls [isFinishRequested] via record-status and then calls record-stop, so
+     * the overlay's Finish and the in-app Finish converge on one stop path.
+     */
+    fun requestFinish() {
+        synchronized(lock) { if (active) finishRequested = true }
+    }
+
+    /** Whether Finish was requested from the on-device overlay this session. */
+    fun isFinishRequested(): Boolean = synchronized(lock) { finishRequested }
 
     /**
      * End the session, disarm [offer], and return the captured steps (snapshot).

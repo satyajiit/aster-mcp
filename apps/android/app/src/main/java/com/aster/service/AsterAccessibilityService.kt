@@ -29,6 +29,7 @@ import com.aster.service.accessibility.ScreenObserver
 import com.aster.service.accessibility.SnapshotCache
 import com.aster.service.accessibility.StepInferrer
 import com.aster.service.accessibility.WindowInfo
+import com.aster.service.overlay.RecordingOverlay
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -112,6 +113,21 @@ class AsterAccessibilityService : AccessibilityService() {
     /** Monotonic ref counter for synthetic `rec<N>` refs on captured elements. */
     private var recordRefCounter = 0L
 
+    /**
+     * On-device recording indicator (REC dot + live step count + Finish), shown
+     * while [recordBuffer] is armed. The owner is inside the target app during a
+     * manual recording, so this floating strip is the only place to show progress
+     * and a reachable Finish. Finish marks [RecordBuffer.requestFinish]; the RN
+     * record screen's status poll turns that into the real record-stop.
+     */
+    private val recordingOverlay = RecordingOverlay()
+
+    /** Scroll-event coalescing: a fling fires many TYPE_VIEW_SCROLLED; collapse
+     *  consecutive same-direction scrolls within this window into one step. */
+    private var lastScrollMs = 0L
+    private var lastScrollDir: String? = null
+    private val scrollCoalesceMs = 600L
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         // Guard against multiple onServiceConnected calls
@@ -140,7 +156,8 @@ class AsterAccessibilityService : AccessibilityService() {
         if (recordBuffer.isActive() &&
             (type == AccessibilityEvent.TYPE_VIEW_CLICKED ||
                 type == AccessibilityEvent.TYPE_VIEW_LONG_CLICKED ||
-                type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)
+                type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED ||
+                type == AccessibilityEvent.TYPE_VIEW_SCROLLED)
         ) {
             captureRecordEvent(event, type)
         }
@@ -160,6 +177,17 @@ class AsterAccessibilityService : AccessibilityService() {
         try {
             // Only lift visible nodes — an invisible node is not durably re-resolvable.
             if (!source.isVisibleToUser) return
+
+            // Scroll: resolve a direction and coalesce a fling's burst of
+            // TYPE_VIEW_SCROLLED into a single step.
+            var scrollDir: String? = null
+            if (type == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+                scrollDir = scrollDirectionOf(event) ?: return
+                val now = System.currentTimeMillis()
+                if (now - lastScrollMs < scrollCoalesceMs && scrollDir == lastScrollDir) return
+                lastScrollMs = now
+                lastScrollDir = scrollDir
+            }
 
             val text = source.text?.toString() ?: ""
             val desc = source.contentDescription?.toString() ?: ""
@@ -185,12 +213,12 @@ class AsterAccessibilityService : AccessibilityService() {
                 null
             }
 
-            val shape = StepInferrer.infer(type, facts, changedText) ?: return
+            val shape = StepInferrer.infer(type, facts, changedText, scrollDir) ?: return
 
             val element = liftElement(source, role, text, desc, viewId)
             val foreground = source.packageName?.toString() ?: foregroundPackage()
 
-            recordBuffer.offer(
+            val buffered = recordBuffer.offer(
                 RecordedStep(
                     kind = shape.kind,
                     label = shape.label,
@@ -199,9 +227,35 @@ class AsterAccessibilityService : AccessibilityService() {
                     foregroundPackage = foreground,
                 ),
             )
+            // Reflect the live count on the on-device recording strip.
+            if (buffered) recordingOverlay.setCount(recordBuffer.size())
         } finally {
             source.recycle()
         }
+    }
+
+    /**
+     * Resolve a scroll direction from a TYPE_VIEW_SCROLLED event. Prefers the
+     * scroll deltas (API 28+); falls back to list index movement (Recycler /
+     * ListView) where deltas are absent. Returns null when no direction can be
+     * told (the event is then ignored rather than recorded as a no-op scroll).
+     */
+    private fun scrollDirectionOf(event: AccessibilityEvent): String? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val dx = event.scrollDeltaX
+            val dy = event.scrollDeltaY
+            if (dx != 0 || dy != 0) {
+                return if (kotlin.math.abs(dy) >= kotlin.math.abs(dx)) {
+                    if (dy > 0) "down" else "up"
+                } else {
+                    if (dx > 0) "right" else "left"
+                }
+            }
+        }
+        val from = event.fromIndex
+        val to = event.toIndex
+        if (from >= 0 && to >= 0 && to != from) return if (to > from) "down" else "up"
+        return null
     }
 
     /**
@@ -251,6 +305,11 @@ class AsterAccessibilityService : AccessibilityService() {
      */
     fun recordStart(): JsonObject {
         recordBuffer.start()
+        lastScrollMs = 0L
+        lastScrollDir = null
+        // Show the on-device REC strip; Finish marks the buffer finish-requested
+        // (the RN screen's status poll then drives the real record-stop).
+        recordingOverlay.show(this) { recordBuffer.requestFinish() }
         return recordStatus()
     }
 
@@ -261,6 +320,7 @@ class AsterAccessibilityService : AccessibilityService() {
      */
     fun recordStop(): JsonObject {
         val steps = recordBuffer.stop()
+        recordingOverlay.hide()
         return buildJsonObject {
             put("recording", false)
             put("step_count", steps.size)
@@ -269,12 +329,14 @@ class AsterAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** Current recorder state (armed?, buffered count, dropped, started_at). */
+    /** Current recorder state (armed?, buffered count, dropped, started_at,
+     *  finish_requested — set when the owner taps Finish on the on-device strip). */
     fun recordStatus(): JsonObject = buildJsonObject {
         put("recording", recordBuffer.isActive())
         put("step_count", recordBuffer.size())
         put("dropped", recordBuffer.droppedCount())
         put("started_at_ms", recordBuffer.startedAt())
+        put("finish_requested", recordBuffer.isFinishRequested())
     }
 
     /**

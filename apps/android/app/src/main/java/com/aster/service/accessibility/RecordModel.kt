@@ -38,6 +38,10 @@ object RecordStepKind {
     const val TAP = "tap"
     const val SET_TEXT = "set_text"
     const val SET_TOGGLE = "set_toggle"
+
+    /** A scroll on a scrollable container — `params { "direction": up|down|left|right }`.
+     *  Maps to `StepKind::Scroll` in the kernel (the companion `scroll` verb). */
+    const val SCROLL = "scroll"
 }
 
 /**
@@ -101,6 +105,7 @@ data class RecordNodeFacts(
  *  - TYPE_VIEW_CLICKED on a checkable/toggle  → `set_toggle` params { on }
  *  - TYPE_VIEW_CLICKED otherwise              → `tap`
  *  - TYPE_VIEW_LONG_CLICKED                   → `tap`        params { long:true }
+ *  - TYPE_VIEW_SCROLLED (direction resolved)  → `scroll`     params { direction }
  *
  * A click on a non-actionable, text-less node (e.g. a layout container that
  * happens to fire CLICKED) is dropped — there is nothing durable to replay.
@@ -110,7 +115,25 @@ object StepInferrer {
     /** Inferred verb without the lifted [ObservedElement] (the service attaches that). */
     data class StepShape(val kind: String, val params: JsonObject, val label: String)
 
-    fun infer(eventType: Int, facts: RecordNodeFacts, changedText: String?): StepShape? = when (eventType) {
+    fun infer(
+        eventType: Int,
+        facts: RecordNodeFacts,
+        changedText: String?,
+        scrollDirection: String? = null,
+    ): StepShape? = when (eventType) {
+        AccessibilityEvent.TYPE_VIEW_SCROLLED -> if (scrollDirection != null) {
+            // The source node is the scrolled container; the kernel `scroll` step
+            // resolves it by selector and scrolls one page in this direction. The
+            // service throttles consecutive scroll events into one step.
+            StepShape(
+                kind = RecordStepKind.SCROLL,
+                params = buildJsonObject { put("direction", scrollDirection) },
+                label = "Scroll $scrollDirection${inSuffix(facts)}",
+            )
+        } else {
+            null
+        }
+
         AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
             if (!facts.editable) {
                 null
@@ -179,6 +202,12 @@ object StepInferrer {
         facts.desc.isNotEmpty() -> "\"${ellipsize(facts.desc)}\""
         facts.viewId.isNotEmpty() -> facts.viewId.substringAfterLast('/')
         else -> facts.role
+    }
+
+    /** " in <container>" suffix for a scroll label when the container has a name. */
+    private fun inSuffix(facts: RecordNodeFacts): String = when {
+        facts.viewId.isNotEmpty() -> " in ${facts.viewId.substringAfterLast('/')}"
+        else -> ""
     }
 
     /** " into <field>" suffix for a set_text label when the field has a name. */
