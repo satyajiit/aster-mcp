@@ -297,7 +297,84 @@ export const RecordVideoSchema = z.object({
   maxDuration: z.number().optional().default(8).describe('Maximum recording duration in seconds, 1-8 (default: 8)'),
 });
 
-// Tool definitions for MCP
+// ─── NEW TOOLS ────────────────────────────────────────────────────────────────
+
+export const GetWifiInfoSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+});
+
+export const GetBluetoothStatusSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+});
+
+export const ToggleWifiSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  enable: z.boolean().describe('Enable or disable WiFi'),
+});
+
+export const ToggleBluetoothSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  enable: z.boolean().describe('Enable or disable Bluetooth'),
+});
+
+export const GetBrightnessSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+});
+
+export const SetBrightnessSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  level: z.number().min(0).max(255).describe('Brightness level (0-255)'),
+  automatic: z.boolean().optional().describe('Enable (true) or disable (false) automatic brightness'),
+});
+
+export const OpenUrlSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  url: z.string().describe('URL to open in the default browser'),
+});
+
+export const GetCalendarEventsSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  dateFrom: z.string().optional().describe('Start date in ISO format (YYYY-MM-DD). Defaults to today.'),
+  dateTo: z.string().optional().describe('End date in ISO format (YYYY-MM-DD). Defaults to 30 days from dateFrom.'),
+  limit: z.number().optional().default(50).describe('Maximum number of events to return'),
+});
+
+export const AddCalendarEventSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  title: z.string().describe('Event title'),
+  startTime: z.string().describe('Start time in ISO format (YYYY-MM-DDTHH:MM:SS)'),
+  endTime: z.string().optional().describe('End time in ISO format. Defaults to startTime + 1 hour.'),
+  description: z.string().optional().describe('Event description'),
+  location: z.string().optional().describe('Event location'),
+  allDay: z.boolean().optional().default(false).describe('Whether the event is all-day'),
+});
+
+export const UninstallPackageSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  packageName: z.string().describe('Package name to uninstall'),
+});
+
+export const DownloadFileSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  url: z.string().describe('URL to download from'),
+  destinationPath: z.string().optional().describe('Destination path on device. Defaults to /sdcard/Download/<filename>.'),
+});
+
+export const IsScreenOnSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+});
+
+export const WakeScreenSchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+  durationSec: z.number().optional().default(5).describe('How long to keep the screen on (seconds, 1-60)'),
+});
+
+export const GetStorageSummarySchema = z.object({
+  deviceId: z.string().describe('The unique identifier of the device'),
+});
+
+// ─── TOOL DEFINITIONS ─────────────────────────────────────────────────────────
+
 export const TOOL_DEFINITIONS = [
   {
     name: 'aster_list_devices',
@@ -968,6 +1045,181 @@ export const TOOL_DEFINITIONS = [
         deviceId: { type: 'string', description: 'The unique identifier of the device' },
         camera: { type: 'string', enum: ['front', 'back'], description: 'Camera to use (default: back)', default: 'back' },
         maxDuration: { type: 'number', description: 'Max recording duration 1-8 seconds (default: 8)', default: 8 },
+      },
+      required: ['deviceId'],
+    },
+  },
+
+  // ─── NEW TOOL DEFINITIONS ──────────────────────────────────────────────────
+
+  {
+    name: 'aster_get_wifi_info',
+    description: 'Get WiFi connection details: SSID, BSSID, IP address, signal strength (RSSI), link speed, and frequency band. Returns null fields if WiFi is disconnected.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_get_bluetooth_status',
+    description: 'Get Bluetooth adapter state (ON/OFF/TURNING_ON/TURNING_OFF), paired device count, and list of paired device names/addresses.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_toggle_wifi',
+    description: 'Enable or disable WiFi on the device. Requires the companion app to hold the CHANGE_WIFI_STATE permission (granted via ADB or root on Android 10+).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        enable: { type: 'boolean', description: 'Enable or disable WiFi' },
+      },
+      required: ['deviceId', 'enable'],
+    },
+  },
+  {
+    name: 'aster_toggle_bluetooth',
+    description: 'Enable or disable Bluetooth on the device. Requires BLUETOOTH_ADMIN permission.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        enable: { type: 'boolean', description: 'Enable or disable Bluetooth' },
+      },
+      required: ['deviceId', 'enable'],
+    },
+  },
+  {
+    name: 'aster_get_brightness',
+    description: 'Get the current screen brightness level (0-255) and whether automatic brightness is enabled.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_set_brightness',
+    description: 'Set the screen brightness level (0-255) and optionally toggle automatic brightness mode. Requires WRITE_SETTINGS permission (granted via ADB or the Settings app).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        level: { type: 'number', description: 'Brightness level 0-255' },
+        automatic: { type: 'boolean', description: 'Enable (true) or disable (false) automatic brightness' },
+      },
+      required: ['deviceId', 'level'],
+    },
+  },
+  {
+    name: 'aster_open_url',
+    description: 'Open a URL in the default web browser on the device. Useful for showing web pages, starting downloads, or deep-linking into apps.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        url: { type: 'string', description: 'URL to open (https://, http://, intent://, market://, etc.)' },
+      },
+      required: ['deviceId', 'url'],
+    },
+  },
+  {
+    name: 'aster_get_calendar_events',
+    description: 'Fetch calendar events from the device within a date range. Returns title, start/end time, location, description, and whether all-day. Requires READ_CALENDAR permission.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        dateFrom: { type: 'string', description: 'Start date ISO format (YYYY-MM-DD). Defaults to today.' },
+        dateTo: { type: 'string', description: 'End date ISO format (YYYY-MM-DD). Defaults to 30 days from dateFrom.' },
+        limit: { type: 'number', description: 'Maximum events to return', default: 50 },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_add_calendar_event',
+    description: 'Add a new event to the device calendar. Requires WRITE_CALENDAR permission. Uses the default calendar.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        title: { type: 'string', description: 'Event title' },
+        startTime: { type: 'string', description: 'Start time ISO format (YYYY-MM-DDTHH:MM:SS)' },
+        endTime: { type: 'string', description: 'End time ISO format; defaults to startTime + 1 hour' },
+        description: { type: 'string', description: 'Event description' },
+        location: { type: 'string', description: 'Event location' },
+        allDay: { type: 'boolean', description: 'All-day event', default: false },
+      },
+      required: ['deviceId', 'title', 'startTime'],
+    },
+  },
+  {
+    name: 'aster_uninstall_package',
+    description: 'Uninstall an app by its package name. Opens the system uninstall dialog; the user may need to confirm. Cannot uninstall system apps.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        packageName: { type: 'string', description: 'Package name to uninstall (e.g., "com.example.app")' },
+      },
+      required: ['deviceId', 'packageName'],
+    },
+  },
+  {
+    name: 'aster_download_file',
+    description: 'Download a file from a URL to the device. Saves to /sdcard/Download/ by default. Reports progress and final path. Requires INTERNET permission.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        url: { type: 'string', description: 'URL to download from' },
+        destinationPath: { type: 'string', description: 'Destination path; defaults to /sdcard/Download/<filename>' },
+      },
+      required: ['deviceId', 'url'],
+    },
+  },
+  {
+    name: 'aster_is_screen_on',
+    description: 'Check whether the device screen is currently on (awake) or off. Returns a boolean and the current display state.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_wake_screen',
+    description: 'Wake the device screen (turn it on) and keep it awake for a specified duration. Uses a wake lock that is automatically released. Useful before performing UI automation on a sleeping device.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
+        durationSec: { type: 'number', description: 'Keep screen on for this many seconds (1-60)', default: 5 },
+      },
+      required: ['deviceId'],
+    },
+  },
+  {
+    name: 'aster_get_storage_summary',
+    description: 'Get a quick storage overview: total space, used space, free space (in bytes and human-readable), and usage percentage. Much faster than analyze_storage for a quick check.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deviceId: { type: 'string', description: 'The unique identifier of the device' },
       },
       required: ['deviceId'],
     },
