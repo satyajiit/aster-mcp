@@ -42,7 +42,11 @@ class AccessibilityHandler(
         "press_key",
         // -- P3: synchronization (SPEC §3.3) --
         "wait_for_idle",
-        "wait_for"
+        "wait_for",
+        // -- Companion live recorder (user-demonstrated automation steps) --
+        "automation_record_start",
+        "automation_record_stop",
+        "automation_record_status"
     )
 
     override suspend fun handle(command: Command): CommandResult {
@@ -74,6 +78,9 @@ class AccessibilityHandler(
             "press_key" -> pressKey(service, command)
             "wait_for_idle" -> waitForIdle(service, command)
             "wait_for" -> waitFor(service, command)
+            "automation_record_start" -> recordStart(service)
+            "automation_record_stop" -> recordStop(service)
+            "automation_record_status" -> recordStatus(service)
             else -> CommandResult.failure("Unknown action: ${command.action}")
         }
     }
@@ -892,6 +899,30 @@ class AccessibilityHandler(
         val obj = observation as? JsonObject ?: return JsonArray(emptyList())
         return obj["elements"]?.jsonArray ?: JsonArray(emptyList())
     }
+
+    // ------------------------------------------------------------------
+    // Companion live recorder (user-demonstrated automation steps)
+    // ------------------------------------------------------------------
+    //
+    // Arms/disarms RECORD MODE on the accessibility service. While armed, the
+    // user's own taps / typing / toggles are captured into the SAME SPEC §3.1
+    // element model the `observe` path emits, then inferred into steps. The
+    // captured steps[] returned by `automation_record_stop` are byte-compatible
+    // with the kernel's `automation_record_step` tool (each step's `element` →
+    // `cortex_automations::Selector::from_observed_value`). Complementary to the
+    // AI-demonstrate path. These are NOT screen control actions — they read no
+    // foreground app and dispatch no gesture — so they are intentionally NOT
+    // gated by packagePolicyGuard (the guard in handle() only inspects the
+    // action name; recorder verbs are absent from any denylist by design).
+
+    private fun recordStart(service: AsterAccessibilityService): CommandResult =
+        CommandResult.success(service.recordStart())
+
+    private fun recordStop(service: AsterAccessibilityService): CommandResult =
+        CommandResult.success(service.recordStop())
+
+    private fun recordStatus(service: AsterAccessibilityService): CommandResult =
+        CommandResult.success(service.recordStatus())
 
     // ------------------------------------------------------------------
     // P3 — auto-settle + verify-after-act (SPEC §3.3 / §3.4)

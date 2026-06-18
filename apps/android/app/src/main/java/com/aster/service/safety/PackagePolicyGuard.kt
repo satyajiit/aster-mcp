@@ -29,7 +29,12 @@ class PackagePolicyGuard @Inject constructor() {
         /** Actions that only READ the screen — allowed without a package. */
         private val READ_ONLY_ACTIONS = setOf(
             "observe", "get_screen_hierarchy", "take_screenshot",
-            "find_element", "wait_for_idle", "wait_for"
+            "find_element", "wait_for_idle", "wait_for",
+            // Companion live recorder: these arm/disarm/read the recorder buffer and
+            // dispatch NO gesture — they only passively capture the user's own actions.
+            // Gating them behind the denylist would drop a recording stopped while a
+            // banking app is foreground; the recorder is non-acting, so allow it.
+            "automation_record_start", "automation_record_stop", "automation_record_status"
         )
 
         /** Bundled default-deny banking/payments package fragments. */

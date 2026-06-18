@@ -14,12 +14,20 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
+import com.aster.service.accessibility.ActionMapper
+import com.aster.service.accessibility.Bounds
+import com.aster.service.accessibility.ElementState
 import com.aster.service.accessibility.NodeDescriptor
 import com.aster.service.accessibility.ObserveResult
+import com.aster.service.accessibility.ObservedElement
+import com.aster.service.accessibility.RecordBuffer
+import com.aster.service.accessibility.RecordNodeFacts
+import com.aster.service.accessibility.RecordedStep
 import com.aster.service.accessibility.RoleMapper
 import com.aster.service.accessibility.ScreenContext
 import com.aster.service.accessibility.ScreenObserver
 import com.aster.service.accessibility.SnapshotCache
+import com.aster.service.accessibility.StepInferrer
 import com.aster.service.accessibility.WindowInfo
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
@@ -91,6 +99,19 @@ class AsterAccessibilityService : AccessibilityService() {
      */
     val snapshotCache = SnapshotCache()
 
+    /**
+     * Companion live-recorder buffer (the "Appium recorder" experience). OFF by
+     * default — armed only between `automation_record_start` and `_record_stop`.
+     * Captures the USER's own taps/typing into the SAME §3.1 element model the
+     * `observe` path emits, so each captured step is loadable by the kernel's
+     * `automation_record_step` (its `element` → `Selector::from_observed_value`).
+     * Complementary to the AI-demonstrate recording path. See [RecordBuffer].
+     */
+    val recordBuffer = RecordBuffer()
+
+    /** Monotonic ref counter for synthetic `rec<N>` refs on captured elements. */
+    private var recordRefCounter = 0L
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         // Guard against multiple onServiceConnected calls
@@ -112,6 +133,148 @@ class AsterAccessibilityService : AccessibilityService() {
         ) {
             screenSyncTracker.recordChange(System.currentTimeMillis())
         }
+
+        // RECORD MODE (companion live recorder). Cheap guard first: do NO tree work
+        // unless a recording session is armed (off by default), keeping the hot path
+        // allocation-free outside an explicit start/stop window.
+        if (recordBuffer.isActive() &&
+            (type == AccessibilityEvent.TYPE_VIEW_CLICKED ||
+                type == AccessibilityEvent.TYPE_VIEW_LONG_CLICKED ||
+                type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)
+        ) {
+            captureRecordEvent(event, type)
+        }
+    }
+
+    /**
+     * RECORD MODE capture (SPEC §3.1 element shape). Lifts the event's source node
+     * into an [ObservedElement] — identical fields to the `observe` path — infers a
+     * step verb via [StepInferrer], and buffers it. The framework owns [event]
+     * (never recycled here); the source node IS owned by us and recycled in finally.
+     *
+     * Runs on the main thread (the a11y event thread). It does a single node lift
+     * (no full-tree walk) so it is bounded per event.
+     */
+    private fun captureRecordEvent(event: AccessibilityEvent, type: Int) {
+        val source = event.source ?: return
+        try {
+            // Only lift visible nodes — an invisible node is not durably re-resolvable.
+            if (!source.isVisibleToUser) return
+
+            val text = source.text?.toString() ?: ""
+            val desc = source.contentDescription?.toString() ?: ""
+            val viewId = source.viewIdResourceName ?: ""
+            val role = roleOf(source)
+
+            val facts = RecordNodeFacts(
+                editable = source.isEditable,
+                checkable = source.isCheckable,
+                checked = source.isChecked,
+                longClickable = source.isLongClickable,
+                text = text,
+                desc = desc,
+                viewId = viewId,
+                role = role,
+            )
+
+            // For a text change the post-change text is the source node's current text;
+            // event.text carries the same after the edit landed.
+            val changedText = if (type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
+                source.text?.toString() ?: event.text?.joinToString("")
+            } else {
+                null
+            }
+
+            val shape = StepInferrer.infer(type, facts, changedText) ?: return
+
+            val element = liftElement(source, role, text, desc, viewId)
+            val foreground = source.packageName?.toString() ?: foregroundPackage()
+
+            recordBuffer.offer(
+                RecordedStep(
+                    kind = shape.kind,
+                    label = shape.label,
+                    element = element,
+                    params = shape.params,
+                    foregroundPackage = foreground,
+                ),
+            )
+        } finally {
+            source.recycle()
+        }
+    }
+
+    /**
+     * Lift a live node into the SPEC §3.1 [ObservedElement] (the `observe` element
+     * shape). The `ref` is a synthetic `rec<N>` — recorded steps drop ref/snapshot_id
+     * at the kernel anyway (the durable [Selector] is built from
+     * viewId/text/desc/role/window/bounds), but the field is populated to keep the
+     * element shape valid and unique. `window` comes from the live node's windowId.
+     */
+    private fun liftElement(
+        node: AccessibilityNodeInfo,
+        role: String,
+        text: String,
+        desc: String,
+        viewId: String,
+    ): ObservedElement {
+        val r = Rect()
+        node.getBoundsInScreen(r)
+        val bounds = Bounds.fromLTRB(r.left, r.top, r.right, r.bottom)
+        val actions = node.actionList.mapNotNull { ActionMapper.normalize(it.id) }.distinct()
+        return ObservedElement(
+            ref = "rec${recordRefCounter++}",
+            role = role,
+            text = text,
+            desc = desc,
+            viewId = viewId,
+            window = node.windowId,
+            bounds = bounds,
+            state = ElementState(
+                clickable = node.isClickable,
+                editable = node.isEditable,
+                checkable = node.isCheckable,
+                checked = node.isChecked,
+                scrollable = node.isScrollable,
+                selected = node.isSelected,
+                focused = node.isFocused,
+                enabled = node.isEnabled,
+                password = node.isPassword,
+            ),
+            actions = actions,
+        )
+    }
+
+    /**
+     * Arm the live recorder (clears any prior capture). Idempotent. Returns the
+     * companion-side status object so the caller can confirm the armed state.
+     */
+    fun recordStart(): JsonObject {
+        recordBuffer.start()
+        return recordStatus()
+    }
+
+    /**
+     * Disarm the recorder and return the captured steps as a wire array. Each entry
+     * is a [RecordedStep] — its `element` is loadable by the kernel's
+     * `automation_record_step` (`Selector::from_observed_value`).
+     */
+    fun recordStop(): JsonObject {
+        val steps = recordBuffer.stop()
+        return buildJsonObject {
+            put("recording", false)
+            put("step_count", steps.size)
+            put("dropped", recordBuffer.droppedCount())
+            put("steps", JsonArray(steps.map { it.toJson() }))
+        }
+    }
+
+    /** Current recorder state (armed?, buffered count, dropped, started_at). */
+    fun recordStatus(): JsonObject = buildJsonObject {
+        put("recording", recordBuffer.isActive())
+        put("step_count", recordBuffer.size())
+        put("dropped", recordBuffer.droppedCount())
+        put("started_at_ms", recordBuffer.startedAt())
     }
 
     /**

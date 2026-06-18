@@ -1,8 +1,11 @@
 package com.aster.service.overlay
 
+import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -11,6 +14,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
@@ -25,6 +29,20 @@ import kotlinx.coroutines.flow.onEach
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * "AI is controlling your screen" overlay for on-device screen-control runs.
+ *
+ * While a screen-control tool is active this paints a full-screen teal BORDER
+ * around the display plus a BOTTOM footer strip carrying the live step text,
+ * the "Aster" / "powered by OpenAlly" branding and the single STOP affordance.
+ *
+ * Two separate windows are used so taps pass THROUGH the border to the target
+ * app (the AI must keep driving it): the border is [FLAG_NOT_TOUCHABLE] and
+ * the footer is touchable only so its STOP button works. Both windows are
+ * added/updated/removed on the main thread, gated by [Settings.canDrawOverlays];
+ * when draw-overlays is not granted the persistent STOP notification owned by
+ * [KillSwitchController] is the fallback (kept intact).
+ */
 @Singleton
 class ToolExecutionOverlay @Inject constructor(
     private val toolCallLogger: ToolCallLogger,
@@ -32,14 +50,27 @@ class ToolExecutionOverlay @Inject constructor(
 ) {
     companion object {
         private const val TAG = "ToolExecOverlay"
-        private const val DISMISS_DELAY_MS = 1500L
 
         // Colors
-        private const val BG_COLOR = 0xE6_10_10_1E.toInt()     // dark semi-transparent
+        private const val ACCENT = 0xFF_2D_D4_BF.toInt()        // Aster teal
+        private const val FOOTER_BG = 0xCC_0B_0F_14.toInt()     // dark semi-transparent
         private const val TEXT_COLOR = 0xFF_EC_F0_F6.toInt()    // light text
-        private const val DOT_TEAL = 0xFF_2D_D4_BF.toInt()     // running
-        private const val DOT_GREEN = 0xFF_22_C5_5E.toInt()    // success
-        private const val DOT_RED = 0xFF_EF_44_44.toInt()      // error
+        private const val SUBTLE_TEXT = 0x99_FF_FF_FF.toInt()   // 60% white
+        private const val STOP_RED = 0xFF_EF_44_44.toInt()      // STOP button
+
+        // Border stroke pulse bounds (alpha applied to ACCENT).
+        private const val PULSE_MIN_ALPHA = 0x66
+        private const val PULSE_MAX_ALPHA = 0xFF
+        private const val PULSE_DURATION_MS = 1100L
+
+        /**
+         * Auto-dismiss the overlay after this much device inactivity. There is no
+         * companion-side "run finished" signal (the companion only sees discrete
+         * `device.execute` actions), so the overlay is torn down once no tool
+         * event has fired for this long. Kept generous so the model's "think" gap
+         * between batches doesn't flicker the border off mid-run.
+         */
+        private const val IDLE_DISMISS_MS = 15_000L
 
         /** Screen-control actions that drive the kill-switch + STOP affordance. */
         private val SCREEN_CONTROL_ACTIONS = setOf(
@@ -50,16 +81,23 @@ class ToolExecutionOverlay @Inject constructor(
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val dismissRunnable = Runnable { removeOverlay() }
     private var windowManager: WindowManager? = null
-    private var pillView: LinearLayout? = null
-    private var dotView: View? = null
-    private var labelView: TextView? = null
-    private var stopView: TextView? = null
     private var context: Context? = null
     private var collectJob: Job? = null
-    private var dismissRunnable: Runnable? = null
-    private var isAttachedToWindow = false
-    private var stopAttached = false
+
+    // Border window (full-screen, NOT_TOUCHABLE so taps pass through).
+    private var borderView: FrameLayout? = null
+    private var borderDrawable: GradientDrawable? = null
+    private var borderAttached = false
+    private var pulseAnimator: ValueAnimator? = null
+
+    // Footer window (touchable — hosts the live step text + STOP). [footerView]
+    // is a transparent full-width wrapper; the rounded bar lives inside it so we
+    // can inset it from the screen edges.
+    private var footerView: FrameLayout? = null
+    private var stepView: TextView? = null
+    private var footerAttached = false
 
     fun attach(context: Context, scope: CoroutineScope) {
         this.context = context
@@ -75,240 +113,342 @@ class ToolExecutionOverlay @Inject constructor(
     fun detach() {
         collectJob?.cancel()
         collectJob = null
-        mainHandler.post { removePill() }
+        mainHandler.post { removeOverlay() }
         windowManager = null
         context = null
         Log.d(TAG, "Detached")
     }
 
     /**
-     * Screen Control /goal P7 — immediately tear down the active pill + STOP
+     * Screen Control /goal P7 — immediately tear down the active border + footer
      * overlay WITHOUT cancelling the event collector (unlike [detach]). Invoked
      * by the kill switch on STOP so the activity overlay clears right away; the
-     * collector keeps running so a later tool still surfaces normally.
+     * collector keeps running so a later run still surfaces normally.
      */
     fun clearActive() {
-        mainHandler.post { removePill() }
+        mainHandler.post { removeOverlay() }
     }
 
     private fun handleEvent(event: ToolEvent) {
+        // Any device activity keeps the overlay alive; the run is treated as
+        // finished only after IDLE_DISMISS_MS of silence (no "run ended" signal
+        // exists companion-side). Observe/wait events aren't screen-control but
+        // still count as "the run is active", so they reset the timer too.
+        rearmDismissIfShown()
         when (event) {
             is ToolEvent.Started -> {
-                cancelPendingDismiss()
-                val label = event.target?.let { "${friendly(event.toolName)} '$it'" }
-                    ?: friendly(event.toolName)
-                val screenControl = isScreenControl(event.toolName)
-                showOrUpdate(label, DOT_TEAL, showStop = screenControl)
-                if (screenControl) {
-                    // Persistent STOP notification — the reliable fallback when
-                    // draw-overlays is not granted (P7).
-                    killSwitchController.showControlActive(event.target)
-                }
+                if (!isScreenControl(event.toolName)) return
+                show(friendly(event.toolName, event.target))
+                // Persistent STOP notification — the reliable fallback when
+                // draw-overlays is not granted (P7).
+                killSwitchController.showControlActive(event.target)
             }
             is ToolEvent.Completed -> {
-                val dotColor = if (event.success) DOT_GREEN else DOT_RED
-                val label = event.target?.let { "${friendly(event.toolName)} '$it'" }
-                    ?: friendly(event.toolName)
-                showOrUpdate(label, dotColor, showStop = false)
-                scheduleDismiss()
+                // Keep the overlay up between steps; it's torn down on STOP
+                // (clearActive), detach, or the idle timeout. While it's up, sync
+                // the footer text to whatever just ran (incl. observe/wait).
+                if (footerAttached) {
+                    stepView?.text = friendly(event.toolName, event.target)
+                }
             }
         }
+    }
+
+    /** Reset the idle auto-dismiss timer when the overlay is currently shown. */
+    private fun rearmDismissIfShown() {
+        if (!borderAttached && !footerAttached) return
+        mainHandler.removeCallbacks(dismissRunnable)
+        mainHandler.postDelayed(dismissRunnable, IDLE_DISMISS_MS)
     }
 
     private fun isScreenControl(action: String) = action in SCREEN_CONTROL_ACTIONS
 
-    private fun friendly(action: String) = when (action) {
-        "tap" -> "Tapping"
-        "set_text", "input_text" -> "Typing"
-        "long_press" -> "Long-pressing"
-        "set_toggle" -> "Toggling"
-        "scroll" -> "Scrolling"
-        "perform" -> "Acting on"
-        "global_action" -> "System action"
-        "press_key" -> "Pressing"
-        "launch_intent" -> "Opening"
-        else -> action
+    /** Map a raw toolName (+ optional target) to a human-friendly verbose step. */
+    private fun friendly(action: String, target: String?): String = when (action) {
+        "tap", "long_press", "click_by_text", "click_by_view_id", "perform" ->
+            "Tapping ${target ?: "element"}"
+        "set_text", "input_text" -> "Typing…"
+        "launch_intent" -> "Opening ${target ?: "app"}"
+        "observe", "screenshot", "wait_for", "wait_for_idle", "wait_for_text" ->
+            "Looking at the screen…"
+        "scroll" -> "Scrolling…"
+        "global_action" -> "Navigating…"
+        "set_toggle" -> "Toggling ${target ?: "setting"}"
+        "press_key", "input_gesture" -> "Navigating…"
+        else -> titleCase(action)
     }
 
-    private fun showOrUpdate(label: String, dotColor: Int, showStop: Boolean) {
+    private fun titleCase(action: String): String =
+        action.split('_').joinToString(" ") { part ->
+            part.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
+
+    private fun show(step: String) {
         val ctx = context ?: return
         if (!Settings.canDrawOverlays(ctx)) {
-            Log.w(TAG, "Overlay permission not granted, skipping")
+            // No overlay permission — the persistent STOP notification
+            // (KillSwitchController) is the reachable fallback.
+            Log.w(TAG, "Overlay permission not granted, relying on STOP notification")
             return
         }
 
-        if (pillView == null) {
-            createPill(ctx)
-        }
-
-        setDotColor(dotColor)
-        labelView?.text = label
-
-        if (!isAttachedToWindow) {
+        ensureBorder(ctx)
+        if (!borderAttached) {
             try {
-                windowManager?.addView(pillView, createLayoutParams(ctx))
-                isAttachedToWindow = true
+                windowManager?.addView(borderView, borderLayoutParams())
+                borderAttached = true
+                startPulse()
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to add overlay view", e)
+                Log.w(TAG, "Failed to add border overlay view", e)
             }
         }
 
-        // Touchable STOP button — its OWN overlay view (the pill stays
-        // FLAG_NOT_TOUCHABLE; only the STOP view receives taps). P7.
-        if (showStop) {
-            ensureStopView(ctx)
-            if (!stopAttached) {
-                try {
-                    windowManager?.addView(stopView, stopLayoutParams(ctx))
-                    stopAttached = true
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to add STOP overlay view", e)
-                }
+        ensureFooter(ctx)
+        stepView?.text = step
+        if (!footerAttached) {
+            try {
+                windowManager?.addView(footerView, footerLayoutParams())
+                footerAttached = true
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to add footer overlay view", e)
             }
-        } else {
-            removeStopView()
+        }
+
+        // Arm / re-arm the idle auto-dismiss now that the overlay is up.
+        mainHandler.removeCallbacks(dismissRunnable)
+        mainHandler.postDelayed(dismissRunnable, IDLE_DISMISS_MS)
+    }
+
+    // ---- Border ------------------------------------------------------------
+
+    private fun ensureBorder(ctx: Context) {
+        if (borderView != null) return
+        val density = ctx.resources.displayMetrics.density
+        val stroke = (3 * density).toInt()
+        val drawable = GradientDrawable().apply {
+            setColor(Color.TRANSPARENT)
+            cornerRadius = 24 * density
+            setStroke(stroke, ACCENT)
+        }
+        borderDrawable = drawable
+        borderView = FrameLayout(ctx).apply {
+            background = drawable
         }
     }
 
-    private fun ensureStopView(ctx: Context) {
-        if (stopView != null) return
-        val density = ctx.resources.displayMetrics.density
-        stopView = TextView(ctx).apply {
-            text = "STOP"
-            setTextColor(0xFFFFFFFF.toInt())
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            val h = (10 * density).toInt(); val v = (6 * density).toInt()
-            setPadding(h, v, h, v)
-            background = GradientDrawable().apply {
-                cornerRadius = 16 * density
-                setColor(DOT_RED)
-            }
-            setOnClickListener { killSwitchController.stop() }
-        }
-    }
-
-    private fun stopLayoutParams(ctx: Context): WindowManager.LayoutParams {
-        val density = ctx.resources.displayMetrics.density
+    private fun borderLayoutParams(): WindowManager.LayoutParams {
         return WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            // Touchable (NO FLAG_NOT_TOUCHABLE) so the STOP button receives taps.
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            overlayType(),
+            // NOT_TOUCHABLE so every tap passes through to the target app.
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.END
-            x = (12 * density).toInt()
-            y = (96 * density).toInt()
+            gravity = Gravity.TOP or Gravity.START
         }
     }
 
-    private fun removeStopView() {
-        if (stopAttached) {
-            try {
-                windowManager?.removeView(stopView)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to remove STOP overlay view", e)
+    /** Simple main-thread pulse on the border stroke alpha. */
+    private fun startPulse() {
+        if (pulseAnimator != null) return
+        pulseAnimator = ValueAnimator.ofInt(PULSE_MAX_ALPHA, PULSE_MIN_ALPHA).apply {
+            duration = PULSE_DURATION_MS
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            addUpdateListener { anim ->
+                val alpha = anim.animatedValue as Int
+                val color = (alpha shl 24) or (ACCENT and 0x00FFFFFF)
+                val density = context?.resources?.displayMetrics?.density ?: 3f
+                borderDrawable?.setStroke((3 * density).toInt(), color)
             }
-            stopAttached = false
+            start()
         }
     }
 
-    private fun createPill(ctx: Context) {
-        val density = ctx.resources.displayMetrics.density
+    private fun stopPulse() {
+        pulseAnimator?.cancel()
+        pulseAnimator = null
+    }
 
-        // Dot: 8dp circle
-        dotView = View(ctx).apply {
-            val size = (8 * density).toInt()
+    // ---- Footer ------------------------------------------------------------
+
+    private fun ensureFooter(ctx: Context) {
+        if (footerView != null) return
+        val density = ctx.resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+        val font = try {
+            ResourcesCompat.getFont(ctx, R.font.instrument_sans_medium)
+        } catch (_: Exception) { null }
+        val fontBold = try {
+            ResourcesCompat.getFont(ctx, R.font.instrument_sans_bold)
+        } catch (_: Exception) { null }
+
+        // Leading dot/glyph in ACCENT.
+        val dot = View(ctx).apply {
+            val size = dp(8)
             layoutParams = LinearLayout.LayoutParams(size, size).apply {
-                marginEnd = (6 * density).toInt()
+                marginEnd = dp(10)
                 gravity = Gravity.CENTER_VERTICAL
             }
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(DOT_TEAL)
+                setColor(ACCENT)
             }
         }
 
-        // Label
-        labelView = TextView(ctx).apply {
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+        // Live verbose step text (stretches).
+        stepView = TextView(ctx).apply {
+            text = "Aster is working…"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setTextColor(TEXT_COLOR)
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            includeFontPadding = false
+            font?.let { typeface = it }
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            ).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                marginEnd = dp(10)
+            }
+        }
+
+        // Trailing brand block: "Aster" over "powered by OpenAlly".
+        val nameView = TextView(ctx).apply {
+            text = "Aster"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             setTextColor(TEXT_COLOR)
             maxLines = 1
             includeFontPadding = false
-            try {
-                typeface = ResourcesCompat.getFont(ctx, R.font.instrument_sans_medium)
-            } catch (_: Exception) { /* fall back to default */ }
+            fontBold?.let { typeface = it }
+        }
+        val poweredView = TextView(ctx).apply {
+            text = "powered by OpenAlly"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 9f)
+            setTextColor(SUBTLE_TEXT)
+            maxLines = 1
+            includeFontPadding = false
+            font?.let { typeface = it }
+        }
+        val brandBlock = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.END
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                marginEnd = dp(12)
+            }
+            addView(nameView)
+            addView(poweredView)
+        }
+
+        // The single STOP affordance.
+        val stop = TextView(ctx).apply {
+            text = "STOP"
+            setTextColor(0xFF_FF_FF_FF.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            fontBold?.let { typeface = it }
+            val h = dp(16); val v = dp(8)
+            setPadding(h, v, h, v)
+            includeFontPadding = false
+            background = GradientDrawable().apply {
+                cornerRadius = 18 * density
+                setColor(STOP_RED)
+            }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.CENTER_VERTICAL
             }
+            setOnClickListener { killSwitchController.stop() }
         }
 
-        // Pill container
-        val hPad = (12 * density).toInt()
-        val vPad = (6 * density).toInt()
-        pillView = LinearLayout(ctx).apply {
+        // Rounded dark bar holding the content.
+        val hPad = dp(16); val vPad = dp(12)
+        val bar = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(hPad, vPad, hPad, vPad)
             background = GradientDrawable().apply {
-                cornerRadius = 16 * density
-                setColor(BG_COLOR)
+                cornerRadius = 22 * density
+                setColor(FOOTER_BG)
             }
-            addView(dotView)
-            addView(labelView)
+            addView(dot)
+            addView(stepView)
+            addView(brandBlock)
+            addView(stop)
+        }
+
+        // Transparent full-width wrapper (the window root) — insets the bar from
+        // the screen edges so it reads as a floating strip.
+        footerView = FrameLayout(ctx).apply {
+            val side = dp(12)
+            setPadding(side, 0, side, dp(24))
+            addView(
+                bar,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                )
+            )
         }
     }
 
-    private fun createLayoutParams(ctx: Context): WindowManager.LayoutParams {
-        val density = ctx.resources.displayMetrics.density
+    private fun footerLayoutParams(): WindowManager.LayoutParams {
         return WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            overlayType(),
+            // Touchable (NO FLAG_NOT_TOUCHABLE) so the STOP button receives taps.
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.END
-            x = (12 * density).toInt()
-            y = (48 * density).toInt()
+            gravity = Gravity.BOTTOM or Gravity.START or Gravity.END
         }
     }
 
-    private fun setDotColor(color: Int) {
-        (dotView?.background as? GradientDrawable)?.setColor(color)
-    }
+    private fun overlayType(): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
 
-    private fun scheduleDismiss() {
-        cancelPendingDismiss()
-        dismissRunnable = Runnable { removePill() }
-        mainHandler.postDelayed(dismissRunnable!!, DISMISS_DELAY_MS)
-    }
+    // ---- Teardown ----------------------------------------------------------
 
-    private fun cancelPendingDismiss() {
-        dismissRunnable?.let { mainHandler.removeCallbacks(it) }
-        dismissRunnable = null
-    }
-
-    private fun removePill() {
-        cancelPendingDismiss()
-        if (isAttachedToWindow) {
+    private fun removeOverlay() {
+        mainHandler.removeCallbacks(dismissRunnable)
+        stopPulse()
+        if (borderAttached) {
             try {
-                windowManager?.removeView(pillView)
+                windowManager?.removeView(borderView)
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to remove overlay view", e)
+                Log.w(TAG, "Failed to remove border overlay view", e)
             }
-            isAttachedToWindow = false
+            borderAttached = false
         }
-        removeStopView()
-        stopView = null
-        pillView = null
-        dotView = null
-        labelView = null
+        if (footerAttached) {
+            try {
+                windowManager?.removeView(footerView)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to remove footer overlay view", e)
+            }
+            footerAttached = false
+        }
+        borderView = null
+        borderDrawable = null
+        footerView = null
+        stepView = null
         // Control session ended — drop the persistent STOP notification (P7).
         killSwitchController.hide()
     }
