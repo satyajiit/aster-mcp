@@ -63,6 +63,10 @@ class ToolExecutionOverlay @Inject constructor(
         private const val PULSE_MAX_ALPHA = 0xFF
         private const val PULSE_DURATION_MS = 1100L
 
+        /** Border stroke width (dp). Deliberately bold so "the AI is driving" reads
+         *  at a glance over a busy app, not as a hairline the owner can miss. */
+        private const val STROKE_DP = 6
+
         /**
          * Auto-dismiss the overlay after this much device inactivity. There is no
          * companion-side "run finished" signal (the companion only sees discrete
@@ -224,7 +228,7 @@ class ToolExecutionOverlay @Inject constructor(
     private fun ensureBorder(ctx: Context) {
         if (borderView != null) return
         val density = ctx.resources.displayMetrics.density
-        val stroke = (3 * density).toInt()
+        val stroke = (STROKE_DP * density).toInt()
         val drawable = GradientDrawable().apply {
             setColor(Color.TRANSPARENT)
             cornerRadius = 24 * density
@@ -263,7 +267,7 @@ class ToolExecutionOverlay @Inject constructor(
                 val alpha = anim.animatedValue as Int
                 val color = (alpha shl 24) or (ACCENT and 0x00FFFFFF)
                 val density = context?.resources?.displayMetrics?.density ?: 3f
-                borderDrawable?.setStroke((3 * density).toInt(), color)
+                borderDrawable?.setStroke((STROKE_DP * density).toInt(), color)
             }
             start()
         }

@@ -22,6 +22,17 @@ class AccessibilityHandler(
     private val packagePolicyGuard: PackagePolicyGuard
 ) : CommandHandler {
 
+    companion object {
+        /**
+         * Post-act auto-settle bounds (SPEC §3.3). The timeout is a ceiling that
+         * only matters on never-idle screens; kept short so a busy app (autoplay
+         * feed, live map) doesn't make every action wait the full window. See
+         * [settleAndVerify].
+         */
+        private const val SETTLE_QUIET_MS = 350L
+        private const val SETTLE_TIMEOUT_MS = 1_500L
+    }
+
     override fun supportedActions() = listOf(
         "observe",
         "get_screen_hierarchy",
@@ -964,8 +975,14 @@ class AccessibilityHandler(
         val settle = shouldSettle(command)
         var settled = true
         if (settle) {
-            // Default quiet/timeout per SPEC §3.3 (quietMs=500, timeout=5000).
-            settled = service.waitForIdle(quietMs = 500L, timeoutMs = 5_000L)
+            // Post-act settle. The timeout is a CEILING that only bites on screens
+            // which never idle (feeds with autoplay video, live maps): there
+            // waitForIdle can't observe `quietMs` of quiet and burns the whole
+            // timeout on EVERY action — the dominant cause of an automation that
+            // "gets stuck". Keep it short: a tap's effect (navigation / a new
+            // element) lands well within ~1.5s, and `changed`/`foreground_after`
+            // below are read regardless of whether we reached true quiescence.
+            settled = service.waitForIdle(quietMs = SETTLE_QUIET_MS, timeoutMs = SETTLE_TIMEOUT_MS)
         }
         val postRevision = service.screenRevision()
         val foregroundAfter = service.foregroundPackage()
