@@ -133,7 +133,7 @@ class InstalledAppsHandler(
 
             CommandResult.success(buildJsonObject {
                 put("apps", apps)
-                put("next_cursor", if (hasMore) cursor + limit else JsonNull)
+                put("next_cursor", if (hasMore) JsonPrimitive(cursor + limit) else JsonNull)
                 put("has_more", hasMore)
                 put("count", pageInfos.size)
             })
