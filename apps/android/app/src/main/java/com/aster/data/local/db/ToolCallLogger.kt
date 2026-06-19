@@ -16,7 +16,10 @@ sealed interface ToolEvent {
         val connectionType: String,
         // Screen Control /goal P7 — overlay/audit context.
         val target: String? = null,
-        val risk: String? = null
+        val risk: String? = null,
+        // App Automations /goal I4 — the EA's display name for the overlay footer
+        // (null when the kernel didn't stamp one → overlay falls back to "Aster").
+        val aiName: String? = null
     ) : ToolEvent
     data class Completed(
         val toolName: String,
@@ -44,9 +47,10 @@ class ToolCallLogger @Inject constructor(
         action: String,
         connectionType: String,
         target: String? = null,
-        risk: String? = null
+        risk: String? = null,
+        aiName: String? = null
     ) {
-        _toolEvents.tryEmit(ToolEvent.Started(action, connectionType, target, risk))
+        _toolEvents.tryEmit(ToolEvent.Started(action, connectionType, target, risk, aiName))
     }
 
     fun log(

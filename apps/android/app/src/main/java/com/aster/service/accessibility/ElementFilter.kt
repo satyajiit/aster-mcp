@@ -33,8 +33,22 @@ object ObserveMode {
  */
 object ElementFilter {
 
-    /** Token-budget cap on emitted elements. Beyond this, ObserveResult.truncated = true. */
-    const val MAX_ELEMENTS_DEFAULT = 100
+    /**
+     * Token-budget cap on emitted elements from APPLICATION windows. Beyond this,
+     * ObserveResult.truncated = true. Raised 100 → 160 (App Automations /goal I3)
+     * so dense feeds (e.g. a scrolled LinkedIn/X timeline) still leave room for
+     * the rest of the screen to register.
+     */
+    const val MAX_ELEMENTS_DEFAULT = 160
+
+    /**
+     * Separate, reserved element budget for NON-application windows — system /
+     * navigation / decor / input-method / accessibility-overlay (App Automations
+     * /goal I3, SPEC §I3). Counted independently of [MAX_ELEMENTS_DEFAULT] so a
+     * huge application window can never consume the bottom-navigation window's
+     * slots; the model always sees its clickable tabs (the "Post" CTA).
+     */
+    const val SYSTEM_WINDOW_RESERVE = 25
 
     fun keep(node: NodeFacts, mode: String, searchText: String?): Boolean {
         val passesMode = when (mode) {

@@ -6,8 +6,9 @@ import android.view.accessibility.AccessibilityNodeInfo
 /**
  * Single-pass traversal engine for `observe`.
  *
- * Walks the active-window root ONCE (P1: rootInActiveWindow; P3 will merge
- * getWindows()), building in the same walk:
+ * Walks each window root ONCE (P3 multi-window merge — the caller drives one
+ * [walk] per window from getWindows()), building in the same accumulating
+ * observer:
  *   - elements: flat filtered List<ObservedElement> in reading order with e<N> refs
  *   - descriptors: parallel NodeDescriptor cache entries (childPath recorded inline)
  *   - scrollables: List<Scrollable>
@@ -16,6 +17,16 @@ import android.view.accessibility.AccessibilityNodeInfo
  * (truncated flag). Recycles every getChild() node in a finally, even on the
  * truncation break. Does NOT recycle the [root] — the caller owns that.
  *
+ * App Automations /goal I3 (SPEC §I3): the budget is SPLIT into two independent
+ * buckets so a huge application window can never starve the system/navigation/
+ * IME/decor windows (the bottom-nav "Post" tab must always survive):
+ *   - application windows share an [maxElements] budget;
+ *   - non-application windows (system / input_method / accessibility_overlay /
+ *     decor) share a separate [systemReserve] budget.
+ * The two buckets are counted independently, but every kept node still draws
+ * from the SINGLE `e<N>` [refCounter] — one ref namespace across all windows
+ * (SPEC §7.1), so reordering windows never produces colliding refs.
+ *
  * INVARIANT: never returns or caches a live AccessibilityNodeInfo. Primitives
  * are extracted into POJOs during the walk.
  */
@@ -23,9 +34,10 @@ class ScreenObserver(
     private val mode: String,
     private val searchText: String?,
     private val maxElements: Int,
+    private val systemReserve: Int = ElementFilter.SYSTEM_WINDOW_RESERVE,
 ) {
 
-    /** Output of one walk; the caller assembles the ObserveResult. */
+    /** Output of the accumulated walks; the caller assembles the ObserveResult. */
     data class Walk(
         val elements: List<ObservedElement>,
         val descriptors: List<NodeDescriptor>,
@@ -36,12 +48,22 @@ class ScreenObserver(
     private val elements = mutableListOf<ObservedElement>()
     private val descriptors = mutableListOf<NodeDescriptor>()
     private val scrollables = mutableListOf<Scrollable>()
+    /** SINGLE e<N> ref namespace shared across every window (SPEC §7.1). */
     private var refCounter = 0
+    /** Per-window-type budget (I3) — NOT a ref namespace; it only gates emits. */
+    private val budget = ObserveBudget(appCap = maxElements, systemCap = systemReserve)
     private var truncated = false
 
-    /** Walk [root] (a live node OWNED by the caller — not recycled here). */
-    fun walk(root: AccessibilityNodeInfo, windowId: Int): Walk {
-        visit(root, windowId, intArrayOf().toList())
+    /**
+     * Walk one window's [root] (a live node OWNED by the caller — not recycled
+     * here), accumulating into the shared element/descriptor/scrollable lists and
+     * the shared `e<N>` namespace. [isApplication] selects which budget bucket the
+     * window draws from (I3): application windows share [maxElements], everything
+     * else shares [systemReserve]. Re-invoke once per window; read the merged
+     * result from the LAST returned [Walk].
+     */
+    fun walk(root: AccessibilityNodeInfo, windowId: Int, isApplication: Boolean): Walk {
+        visit(root, windowId, intArrayOf().toList(), isApplication)
         return Walk(
             elements = elements.toList(),
             descriptors = descriptors.toList(),
@@ -50,28 +72,42 @@ class ScreenObserver(
         )
     }
 
-    private fun visit(node: AccessibilityNodeInfo, windowId: Int, path: List<Int>) {
-        if (truncated) return
+    private fun visit(
+        node: AccessibilityNodeInfo,
+        windowId: Int,
+        path: List<Int>,
+        isApplication: Boolean,
+    ) {
+        // Only THIS window's bucket being full stops THIS walk — a full app
+        // bucket must never block a later non-application window from filling its
+        // reserve (and vice-versa), so the gate is per-bucket, never a single
+        // global flag (I3).
+        if (budget.isFull(isApplication)) return
 
         // Skip invisible nodes entirely (they are not addressable).
         val visible = node.isVisibleToUser
         if (visible) {
-            emitIfKept(node, windowId, path)
+            emitIfKept(node, windowId, path, isApplication)
         }
 
         val childCount = node.childCount
         for (i in 0 until childCount) {
-            if (truncated) break
+            if (budget.isFull(isApplication)) break
             val child = node.getChild(i) ?: continue
             try {
-                visit(child, windowId, path + i)
+                visit(child, windowId, path + i, isApplication)
             } finally {
                 child.recycle()
             }
         }
     }
 
-    private fun emitIfKept(node: AccessibilityNodeInfo, windowId: Int, path: List<Int>) {
+    private fun emitIfKept(
+        node: AccessibilityNodeInfo,
+        windowId: Int,
+        path: List<Int>,
+        isApplication: Boolean,
+    ) {
         val text = node.text?.toString() ?: ""
         val desc = node.contentDescription?.toString() ?: ""
 
@@ -87,7 +123,9 @@ class ScreenObserver(
 
         if (!ElementFilter.keep(facts, mode, searchText)) return
 
-        if (elements.size >= maxElements) {
+        // I3: charge the kept node to its window's bucket; flip `truncated` and
+        // stop only when THAT bucket is full (the other bucket keeps its slots).
+        if (!budget.take(isApplication)) {
             truncated = true
             return
         }

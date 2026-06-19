@@ -1,5 +1,6 @@
 package com.aster.service.accessibility
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -67,5 +68,28 @@ class ElementFilterTest {
     @Test
     fun default_cap_is_positive() {
         assertTrue(ElementFilter.MAX_ELEMENTS_DEFAULT > 0)
+    }
+
+    @Test
+    fun default_cap_raised_for_dense_feeds() {
+        // App Automations /goal I3: app-window budget raised 100 → 160.
+        assertEquals(160, ElementFilter.MAX_ELEMENTS_DEFAULT)
+    }
+
+    @Test
+    fun system_window_reserve_is_positive() {
+        // App Automations /goal I3: non-application windows get a separate budget.
+        assertTrue(ElementFilter.SYSTEM_WINDOW_RESERVE > 0)
+        assertEquals(25, ElementFilter.SYSTEM_WINDOW_RESERVE)
+    }
+
+    @Test
+    fun actionable_keeps_icon_only_clickable_tab() {
+        // App Automations /goal I3: a labelless bottom-nav icon tab (empty
+        // text/desc but isClickable) MUST survive the actionable filter so the
+        // model can tap the "Post" CTA.
+        assertTrue(
+            ElementFilter.keep(facts(clickable = true, text = "", desc = ""), ObserveMode.ACTIONABLE, null),
+        )
     }
 }

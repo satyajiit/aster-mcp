@@ -517,7 +517,23 @@ class AsterAccessibilityService : AccessibilityService() {
             return descriptors
         }
 
-        for (window in windowList) {
+        // App Automations /goal I3 (SPEC §I3): walk NON-application windows first
+        // (system / navigation / decor / input_method / accessibility_overlay),
+        // then the focused application window, then the rest. Paired with the
+        // ScreenObserver's reserved system-window budget, this guarantees the
+        // bottom-navigation/system window is never starved by a huge focused app
+        // window — the model always sees its clickable tabs (the "Post" CTA).
+        // Reordering the SAME list keeps the per-window root/window recycle
+        // discipline intact (each entry is still recycled in the finally below).
+        val orderedWindows = windowList.sortedBy { window ->
+            when {
+                windowTypeName(window.type) != "application" -> 0  // system / nav / IME / overlay first
+                window.isFocused -> 1                              // then the focused app window
+                else -> 2                                          // then any other app windows
+            }
+        }
+
+        for (window in orderedWindows) {
             val root = window.root  // AccessibilityWindowInfo.getRoot()
             try {
                 val descriptor = WindowDescriptor(
@@ -571,8 +587,13 @@ class AsterAccessibilityService : AccessibilityService() {
         maxElements: Int,
     ): A11yObservation? {
         // ONE accumulating observer across all windows — repeated walk() calls keep the
-        // e<N> ref counter and the maxElements budget continuous (SPEC §7.1: a single e<N>
-        // namespace), so dialog/IME/overlay elements get unique refs in reading order.
+        // SINGLE e<N> ref counter continuous (SPEC §7.1: one e<N> namespace), so
+        // dialog/IME/overlay elements get unique refs in reading order. The element
+        // BUDGET, however, is split per-window-type inside the observer (App
+        // Automations /goal I3): application windows share `maxElements`, non-
+        // application (system/nav/IME/overlay) windows share a separate reserve, so a
+        // huge app window cannot starve the bottom-nav window. observeWindows walks the
+        // non-application windows FIRST (see its ordering) to reinforce this.
         val observer = ScreenObserver(
             mode = mode,
             searchText = searchText?.takeIf { it.isNotEmpty() },
@@ -589,7 +610,9 @@ class AsterAccessibilityService : AccessibilityService() {
         var focusedAppPackage: String? = null
         var anyAppPackage: String? = null
         val descriptors = observeWindows { root, windowId, descriptor ->
-            lastWalk = observer.walk(root, windowId)
+            // I3: the descriptor.type selects the observer's budget bucket — only the
+            // "application" type draws from maxElements; everything else draws the reserve.
+            lastWalk = observer.walk(root, windowId, isApplication = descriptor.type == "application")
             if (descriptor.type == "application") {
                 val pkg = root.packageName?.toString()
                 if (pkg != null) {

@@ -153,9 +153,17 @@ class IpcMode(
             val approval = if (isScreenAction) {
                 (params["approval"] as? JsonPrimitive)?.contentOrNull
             } else null
+            // App Automations /goal I4 (SPEC §I4/D6): the kernel stamps `ai_name`
+            // (the EA's display name) into device.execute params — same side-channel
+            // as `target_text`/`risk`. Read it honestly: absent → null (no
+            // fabrication). The overlay renders it (fallback "Aster"). Only
+            // meaningful for screen-control actions.
+            val aiName = if (isScreenAction) {
+                (params["ai_name"] as? JsonPrimitive)?.contentOrNull
+            } else null
 
             val startTime = System.currentTimeMillis()
-            toolCallLogger.onToolStarted(action, "IPC", target = targetText, risk = risk)
+            toolCallLogger.onToolStarted(action, "IPC", target = targetText, risk = risk, aiName = aiName)
             val result = runBlocking {
                 handler.handle(command)
             }

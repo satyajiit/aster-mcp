@@ -34,7 +34,8 @@ import javax.inject.Singleton
  *
  * While a screen-control tool is active this paints a full-screen teal BORDER
  * around the display plus a BOTTOM footer strip carrying the live step text,
- * the "Aster" / "powered by OpenAlly" branding and the single STOP affordance.
+ * the EA name (stamped by the kernel as `ai_name`; fallback "Aster") /
+ * "powered by OpenAlly" branding and the single STOP affordance.
  *
  * Two separate windows are used so taps pass THROUGH the border to the target
  * app (the AI must keep driving it): the border is [FLAG_NOT_TOUCHABLE] and
@@ -101,7 +102,16 @@ class ToolExecutionOverlay @Inject constructor(
     // can inset it from the screen edges.
     private var footerView: FrameLayout? = null
     private var stepView: TextView? = null
+    private var nameView: TextView? = null
     private var footerAttached = false
+
+    /**
+     * App Automations /goal I4 — the EA's display name stamped by the kernel into
+     * the latest `ToolEvent.Started` (`ai_name`). Rendered in the footer brand
+     * block and the live step text; "Aster" is the honest fallback ONLY when the
+     * kernel did not stamp a name (the legacy-path default, not a back-compat shim).
+     */
+    private var latestAiName: String? = null
 
     fun attach(context: Context, scope: CoroutineScope) {
         this.context = context
@@ -142,7 +152,13 @@ class ToolExecutionOverlay @Inject constructor(
         when (event) {
             is ToolEvent.Started -> {
                 if (!isScreenControl(event.toolName)) return
+                // I4: remember the EA name carried on this start so the footer
+                // brand block and live step text render it (fallback "Aster").
+                latestAiName = event.aiName
                 show(friendly(event.toolName, event.target))
+                // If the footer was already up, re-sync the brand name to the
+                // latest start (ensureFooter only runs on first build).
+                nameView?.text = displayName()
                 // Persistent STOP notification — the reliable fallback when
                 // draw-overlays is not granted (P7).
                 killSwitchController.showControlActive(event.target)
@@ -166,6 +182,9 @@ class ToolExecutionOverlay @Inject constructor(
     }
 
     private fun isScreenControl(action: String) = action in SCREEN_CONTROL_ACTIONS
+
+    /** I4: the EA name to show, or the honest legacy-path fallback when absent. */
+    private fun displayName(): String = latestAiName ?: "Aster"
 
     /** Map a raw toolName (+ optional target) to a human-friendly verbose step. */
     private fun friendly(action: String, target: String?): String = when (action) {
@@ -306,7 +325,7 @@ class ToolExecutionOverlay @Inject constructor(
 
         // Live verbose step text (stretches).
         stepView = TextView(ctx).apply {
-            text = "Aster is working…"
+            text = "${displayName()} is working…"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             setTextColor(TEXT_COLOR)
             maxLines = 2
@@ -323,15 +342,17 @@ class ToolExecutionOverlay @Inject constructor(
             }
         }
 
-        // Trailing brand block: "Aster" over "powered by OpenAlly".
-        val nameView = TextView(ctx).apply {
-            text = "Aster"
+        // Trailing brand block: the EA name (I4, fallback "Aster") over
+        // "powered by OpenAlly" (the powered-by line is unchanged).
+        val name = TextView(ctx).apply {
+            text = displayName()
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             setTextColor(TEXT_COLOR)
             maxLines = 1
             includeFontPadding = false
             fontBold?.let { typeface = it }
         }
+        nameView = name
         val poweredView = TextView(ctx).apply {
             text = "powered by OpenAlly"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 9f)
@@ -350,7 +371,7 @@ class ToolExecutionOverlay @Inject constructor(
                 gravity = Gravity.CENTER_VERTICAL
                 marginEnd = dp(12)
             }
-            addView(nameView)
+            addView(name)
             addView(poweredView)
         }
 
@@ -453,6 +474,10 @@ class ToolExecutionOverlay @Inject constructor(
         borderDrawable = null
         footerView = null
         stepView = null
+        nameView = null
+        // Drop the remembered EA name so a later run starts from the honest
+        // fallback until its first start re-stamps one (I4).
+        latestAiName = null
         // Control session ended — drop the persistent STOP notification (P7).
         killSwitchController.hide()
     }
