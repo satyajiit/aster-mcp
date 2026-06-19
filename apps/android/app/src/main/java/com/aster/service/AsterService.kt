@@ -141,6 +141,9 @@ class AsterService : Service() {
     @Inject
     lateinit var killSwitchController: com.aster.service.safety.KillSwitchController
 
+    @Inject
+    lateinit var interactiveOverlayController: com.aster.service.overlay.InteractiveOverlayController
+
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
@@ -170,6 +173,10 @@ class AsterService : Service() {
         // the overlay's event collector, so a later tool still surfaces).
         killSwitchController.attach(this) {
             toolExecutionOverlay.clearActive()
+            // App Automations /goal R-C — STOP also resolves any in-flight
+            // interactive prompt (cancel/reject) and tears its surface down, so
+            // the run aborts within one action.
+            interactiveOverlayController.cancelInFlight("stopped")
         }
     }
 

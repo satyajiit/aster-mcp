@@ -44,7 +44,13 @@ class IpcMode(
         private val SCREEN_CONTROL_ACTIONS = setOf(
             "tap", "set_text", "long_press", "set_toggle", "perform", "scroll",
             "input_gesture", "press_key", "global_action", "input_text",
-            "click_by_text", "click_by_view_id", "launch_intent"
+            "click_by_text", "click_by_view_id", "launch_intent",
+            // App Automations /goal R-C — interactive overlay dialogs. Listed so
+            // the kill-switch fast-reject covers them and the kernel's stamped
+            // `ai_name` is read into the audit log. They render the companion's
+            // own overlay (NOT the tool-execution border), so they are
+            // intentionally absent from ToolExecutionOverlay's own action set.
+            "screen_prompt", "screen_approve"
         )
     }
 

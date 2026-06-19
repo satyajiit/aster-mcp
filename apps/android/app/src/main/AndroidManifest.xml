@@ -117,6 +117,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Interactive Prompt Activity — no-draw-overlay fallback for the
+             App Automations interactive overlay (screen_prompt/screen_approve).
+             Launched in-process by InteractiveOverlayController. -->
+        <activity
+            android:name=".ui.InteractivePromptActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Aster.Transparent"
+            android:excludeFromRecents="true" />
+
         <!-- Accessibility Service -->
         <service
             android:name=".service.AsterAccessibilityService"

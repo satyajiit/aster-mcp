@@ -13,6 +13,7 @@ import com.aster.service.handlers.DeviceInfoHandler
 import com.aster.service.handlers.FileSystemHandler
 import com.aster.service.handlers.InstalledAppsHandler
 import com.aster.service.handlers.IntentHandler
+import com.aster.service.handlers.InteractiveOverlayHandler
 import com.aster.service.handlers.MediaHandler
 import com.aster.service.handlers.NotificationHandler
 import com.aster.service.handlers.OverlayHandler
@@ -24,6 +25,7 @@ import com.aster.service.handlers.VolumeHandler
 import com.aster.service.mode.IpcMode
 import com.aster.service.mode.McpMode
 import com.aster.service.mode.RemoteWsMode
+import com.aster.service.overlay.InteractiveOverlayController
 import com.aster.service.safety.PackagePolicyGuard
 import dagger.Module
 import dagger.Provides
@@ -46,7 +48,8 @@ object ModeModule {
     @CommandHandlerMap
     fun provideCommandHandlers(
         @ApplicationContext context: Context,
-        packagePolicyGuard: PackagePolicyGuard
+        packagePolicyGuard: PackagePolicyGuard,
+        interactiveOverlayController: InteractiveOverlayController
     ): Map<String, @JvmSuppressWildcards CommandHandler> {
         val handlers = mutableMapOf<String, CommandHandler>()
 
@@ -67,7 +70,8 @@ object ModeModule {
             VolumeHandler(context),
             ContactHandler(context),
             AlarmHandler(context),
-            CameraHandler(context)
+            CameraHandler(context),
+            InteractiveOverlayHandler(interactiveOverlayController)
         )
 
         allHandlers.forEach { handler ->
