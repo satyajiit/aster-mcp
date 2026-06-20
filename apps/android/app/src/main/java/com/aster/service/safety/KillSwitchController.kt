@@ -13,6 +13,7 @@ import com.aster.R
 import com.aster.receiver.KillSwitchReceiver
 import com.aster.service.mode.IpcMode
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 /**
@@ -32,7 +33,11 @@ import javax.inject.Singleton
  */
 @Singleton
 class KillSwitchController @Inject constructor(
-    private val ipcMode: IpcMode
+    // Provider (not direct) breaks a Hilt dependency cycle: IpcMode is built from
+    // the @CommandHandlerMap, which includes ToolExecutionOverlay, which needs this
+    // controller. IpcMode is @Singleton, so get() returns the same active instance;
+    // it is only resolved lazily inside stop().
+    private val ipcModeProvider: Provider<IpcMode>
 ) {
     companion object {
         private const val TAG = "KillSwitch"
@@ -80,7 +85,7 @@ class KillSwitchController @Inject constructor(
     /** Invoked by [KillSwitchReceiver] (STOP tap) or the overlay STOP button. */
     fun stop() {
         Log.w(TAG, "STOP requested — severing control")
-        ipcMode.killActiveControl()
+        ipcModeProvider.get().killActiveControl()
         onStopExtra?.invoke()
         hide()
     }
