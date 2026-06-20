@@ -7,6 +7,7 @@ import com.aster.service.CommandHandler
 import com.aster.service.handlers.AccessibilityHandler
 import com.aster.service.handlers.AlarmHandler
 import com.aster.service.handlers.CameraHandler
+import com.aster.service.handlers.CapabilityHandler
 import com.aster.service.handlers.ClipboardHandler
 import com.aster.service.handlers.ContactHandler
 import com.aster.service.handlers.DeviceInfoHandler
@@ -19,6 +20,7 @@ import com.aster.service.handlers.NotificationHandler
 import com.aster.service.handlers.OverlayHandler
 import com.aster.service.handlers.PackageHandler
 import com.aster.service.handlers.ShellHandler
+import com.aster.service.handlers.SignInWaitHandler
 import com.aster.service.handlers.SmsHandler
 import com.aster.service.handlers.StorageHandler
 import com.aster.service.handlers.VolumeHandler
@@ -26,6 +28,8 @@ import com.aster.service.mode.IpcMode
 import com.aster.service.mode.McpMode
 import com.aster.service.mode.RemoteWsMode
 import com.aster.service.overlay.InteractiveOverlayController
+import com.aster.service.overlay.SignInWaitOverlay
+import com.aster.service.overlay.ToolExecutionOverlay
 import com.aster.service.safety.PackagePolicyGuard
 import dagger.Module
 import dagger.Provides
@@ -49,7 +53,8 @@ object ModeModule {
     fun provideCommandHandlers(
         @ApplicationContext context: Context,
         packagePolicyGuard: PackagePolicyGuard,
-        interactiveOverlayController: InteractiveOverlayController
+        interactiveOverlayController: InteractiveOverlayController,
+        toolExecutionOverlay: ToolExecutionOverlay
     ): Map<String, @JvmSuppressWildcards CommandHandler> {
         val handlers = mutableMapOf<String, CommandHandler>()
 
@@ -71,7 +76,9 @@ object ModeModule {
             ContactHandler(context),
             AlarmHandler(context),
             CameraHandler(context),
-            InteractiveOverlayHandler(interactiveOverlayController)
+            InteractiveOverlayHandler(interactiveOverlayController),
+            SignInWaitHandler(SignInWaitOverlay(context), toolExecutionOverlay),
+            CapabilityHandler()
         )
 
         allHandlers.forEach { handler ->

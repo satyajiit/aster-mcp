@@ -1,6 +1,7 @@
 package com.aster.service.overlay
 
 import android.animation.ValueAnimator
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
@@ -12,6 +13,7 @@ import android.provider.Settings
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
@@ -34,7 +36,7 @@ import javax.inject.Singleton
  *
  * While a screen-control tool is active this paints a full-screen teal BORDER
  * around the display plus a BOTTOM footer strip carrying the live step text,
- * the EA name (stamped by the kernel as `ai_name`; fallback "Aster") /
+ * the EA name (stamped by the kernel as `ai_name`; fallback "your assistant") /
  * "powered by OpenAlly" branding and the single STOP affordance.
  *
  * Two separate windows are used so taps pass THROUGH the border to the target
@@ -104,12 +106,15 @@ class ToolExecutionOverlay @Inject constructor(
     private var stepView: TextView? = null
     private var nameView: TextView? = null
     private var footerAttached = false
+    // Live footer window params — kept so the drag handler can reposition the
+    // strip (the owner can lift it off a bottom action button).
+    private var footerParams: WindowManager.LayoutParams? = null
 
     /**
      * App Automations /goal I4 — the EA's display name stamped by the kernel into
      * the latest `ToolEvent.Started` (`ai_name`). Rendered in the footer brand
-     * block and the live step text; "Aster" is the honest fallback ONLY when the
-     * kernel did not stamp a name (the legacy-path default, not a back-compat shim).
+     * block and the live step text; "your assistant" is the honest fallback ONLY
+     * when the kernel did not stamp a name (the legacy-path default, not a back-compat shim).
      */
     private var latestAiName: String? = null
 
@@ -153,7 +158,7 @@ class ToolExecutionOverlay @Inject constructor(
             is ToolEvent.Started -> {
                 if (!isScreenControl(event.toolName)) return
                 // I4: remember the EA name carried on this start so the footer
-                // brand block and live step text render it (fallback "Aster").
+                // brand block and live step text render it (fallback "your assistant").
                 latestAiName = event.aiName
                 show(friendly(event.toolName, event.target))
                 // If the footer was already up, re-sync the brand name to the
@@ -184,7 +189,7 @@ class ToolExecutionOverlay @Inject constructor(
     private fun isScreenControl(action: String) = action in SCREEN_CONTROL_ACTIONS
 
     /** I4: the EA name to show, or the honest legacy-path fallback when absent. */
-    private fun displayName(): String = latestAiName ?: "Aster"
+    private fun displayName(): String = latestAiName ?: "your assistant"
 
     /** Map a raw toolName (+ optional target) to a human-friendly verbose step. */
     private fun friendly(action: String, target: String?): String = when (action) {
@@ -230,7 +235,9 @@ class ToolExecutionOverlay @Inject constructor(
         stepView?.text = step
         if (!footerAttached) {
             try {
-                windowManager?.addView(footerView, footerLayoutParams())
+                val lp = footerLayoutParams()
+                footerParams = lp
+                windowManager?.addView(footerView, lp)
                 footerAttached = true
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to add footer overlay view", e)
@@ -299,6 +306,10 @@ class ToolExecutionOverlay @Inject constructor(
 
     // ---- Footer ------------------------------------------------------------
 
+    // The drag listener handles only bar-BODY touches (STOP consumes its own
+    // taps); the bar is not itself a click target, so the accessibility
+    // performClick path doesn't apply here.
+    @SuppressLint("ClickableViewAccessibility")
     private fun ensureFooter(ctx: Context) {
         if (footerView != null) return
         val density = ctx.resources.displayMetrics.density
@@ -342,7 +353,7 @@ class ToolExecutionOverlay @Inject constructor(
             }
         }
 
-        // Trailing brand block: the EA name (I4, fallback "Aster") over
+        // Trailing brand block: the EA name (I4, fallback "your assistant") over
         // "powered by OpenAlly" (the powered-by line is unchanged).
         val name = TextView(ctx).apply {
             text = displayName()
@@ -413,6 +424,39 @@ class ToolExecutionOverlay @Inject constructor(
             addView(stop)
         }
 
+        // Make the strip draggable so the owner can lift it off a bottom action
+        // button (e.g. a pay/confirm CTA). The drag listener fires only for
+        // touches on the bar BODY — STOP (a clickable child) consumes its own
+        // taps — so dragging by the text/brand area never trips STOP. Gravity is
+        // BOTTOM, so a larger `y` lifts the strip UP the screen.
+        val screenH = ctx.resources.displayMetrics.heightPixels
+        val maxY = (screenH - dp(80)).coerceAtLeast(0)
+        var downRawY = 0f
+        var startY = 0
+        bar.setOnTouchListener { _, ev ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downRawY = ev.rawY
+                    startY = footerParams?.y ?: 0
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dy = (downRawY - ev.rawY).toInt()
+                    val params = footerParams
+                    if (params != null) {
+                        params.y = (startY + dy).coerceIn(0, maxY)
+                        try {
+                            windowManager?.updateViewLayout(footerView, params)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to reposition footer overlay", e)
+                        }
+                    }
+                    true
+                }
+                else -> true
+            }
+        }
+
         // Transparent full-width wrapper (the window root) — insets the bar from
         // the screen edges so it reads as a floating strip.
         footerView = FrameLayout(ctx).apply {
@@ -473,6 +517,7 @@ class ToolExecutionOverlay @Inject constructor(
         borderView = null
         borderDrawable = null
         footerView = null
+        footerParams = null
         stepView = null
         nameView = null
         // Drop the remembered EA name so a later run starts from the honest

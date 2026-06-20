@@ -30,6 +30,11 @@ class PackagePolicyGuard @Inject constructor() {
         private val READ_ONLY_ACTIONS = setOf(
             "observe", "get_screen_hierarchy", "take_screenshot",
             "find_element", "wait_for_idle", "wait_for",
+            // Screen-control preflight probe (CapabilityHandler): a pure status
+            // read of whether the service can drive the screen. Dispatches no
+            // gesture and must answer even when no app is readable, so it is
+            // always allowed by the guard.
+            "screen_capability",
             // Companion live recorder: these arm/disarm/read the recorder buffer and
             // dispatch NO gesture — they only passively capture the user's own actions.
             // Gating them behind the denylist would drop a recording stopped while a

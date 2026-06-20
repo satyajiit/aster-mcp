@@ -61,8 +61,15 @@ class InteractiveOverlayController @Inject constructor(
         private const val ACCENT = 0xFF_2D_D4_BF.toInt()      // Aster teal
         private const val TEXT_COLOR = 0xFF_EC_F0_F6.toInt()  // light text
         private const val SUBTLE_TEXT = 0xB3_FF_FF_FF.toInt() // 70% white
+        private const val FAINT_TEXT = 0x80_FF_FF_FF.toInt()  // 50% white (meta)
         private const val FIELD_BG = 0xFF_1E_25_2F.toInt()    // input surface
+        private const val OPTION_BG = 0xFF_18_1F_29.toInt()   // draft card surface
+        private const val CARD_BORDER = 0x1A_FF_FF_FF.toInt() // 10% white hairline
+        private const val DIVIDER = 0x14_FF_FF_FF.toInt()     // 8% white rule
         private const val REJECT_RED = 0xFF_EF_44_44.toInt()
+        private const val REJECT_BORDER = 0x33_EF_44_44.toInt() // 20% red outline
+        private const val ON_ACCENT = 0xFF_04_22_1F.toInt()   // deep teal-ink on teal
+        private const val CARD_MAX_WIDTH_DP = 460
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -253,6 +260,12 @@ class InteractiveOverlayController @Inject constructor(
     /** Build the scrim + centered card for [prompt] (classic views, main thread). */
     private fun buildScrim(prompt: InteractivePrompt): View {
         val card = buildCard(prompt)
+        // Cap the card width so it reads as a centered dialog on large/landscape
+        // screens instead of stretching edge-to-edge.
+        val cardW = minOf(
+            context.resources.displayMetrics.widthPixels - dp(32),
+            dp(CARD_MAX_WIDTH_DP),
+        )
         return FrameLayout(context).apply {
             setBackgroundColor(SCRIM)
             isFocusableInTouchMode = true
@@ -275,11 +288,11 @@ class InteractiveOverlayController @Inject constructor(
             addView(
                 card,
                 FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    cardW,
                     FrameLayout.LayoutParams.WRAP_CONTENT,
                 ).apply {
                     gravity = Gravity.CENTER
-                    val m = dp(20)
+                    val m = dp(16)
                     setMargins(m, m, m, m)
                 },
             )
@@ -291,16 +304,19 @@ class InteractiveOverlayController @Inject constructor(
         val card = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             isClickable = true // consume taps so they don't bubble to the scrim
-            val p = dp(20)
+            val p = dp(18)
             setPadding(p, p, p, p)
             background = GradientDrawable().apply {
-                cornerRadius = dp(20).toFloat()
+                cornerRadius = dp(24).toFloat()
                 setColor(CARD_BG)
+                setStroke(dp(1), CARD_BORDER)
             }
         }
-        // EA name header (I4).
-        card.addView(label(prompt.aiName, 13f, ACCENT, bold = true))
-        card.addView(spacer(dp(6)))
+        // Branded header: avatar + AI name + the action context line.
+        card.addView(brandHeader(prompt.aiName, headerSubtitle(prompt)))
+        card.addView(spacer(dp(14)))
+        card.addView(divider())
+        card.addView(spacer(dp(14)))
         when (prompt) {
             is InteractivePrompt.Chooser -> buildChooser(card, prompt)
             is InteractivePrompt.Approval -> buildApproval(card, prompt)
@@ -308,14 +324,23 @@ class InteractiveOverlayController @Inject constructor(
         return card
     }
 
+    /** The contextual line under the AI name — the EA-supplied prompt/title. */
+    private fun headerSubtitle(prompt: InteractivePrompt): String = when (prompt) {
+        is InteractivePrompt.Approval -> prompt.title
+        is InteractivePrompt.Chooser -> prompt.prompt
+    }
+
     private fun buildChooser(card: LinearLayout, prompt: InteractivePrompt.Chooser) {
-        card.addView(label(prompt.prompt, 16f, TEXT_COLOR, bold = true))
         val field: EditText? = prompt.textInput?.let { spec ->
-            card.addView(spacer(dp(12)))
-            spec.label?.let { card.addView(label(it, 12f, SUBTLE_TEXT, bold = false)) }
-            editField(spec.hint, spec.initial).also { card.addView(it) }
+            spec.label?.let {
+                card.addView(label(it, 12f, SUBTLE_TEXT, bold = false))
+                card.addView(spacer(dp(6)))
+            }
+            editField(spec.hint, spec.initial).also {
+                card.addView(it)
+                card.addView(spacer(dp(14)))
+            }
         }
-        card.addView(spacer(dp(16)))
         prompt.options.forEach { opt ->
             card.addView(
                 actionButton(opt.label, opt.hint, accent = opt.id == prompt.default) {
@@ -327,44 +352,17 @@ class InteractiveOverlayController @Inject constructor(
     }
 
     private fun buildApproval(card: LinearLayout, prompt: InteractivePrompt.Approval) {
-        card.addView(label(prompt.title, 16f, TEXT_COLOR, bold = true))
+        card.addView(label("Choose a draft to publish", 14f, TEXT_COLOR, bold = true))
         card.addView(spacer(dp(12)))
 
         val list = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        prompt.variants.forEach { variant ->
-            val container = LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                val p = dp(12)
-                setPadding(p, p, p, p)
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(14).toFloat()
-                    setColor(FIELD_BG)
-                }
-            }
-            val body: EditText? = if (prompt.editable) {
-                editField(hint = null, initial = variant.text).also { container.addView(it) }
-            } else {
-                container.addView(label(variant.text, 14f, TEXT_COLOR, bold = false))
-                null
-            }
-            container.addView(spacer(dp(8)))
-            container.addView(
-                actionButton("Use this", hint = null, accent = true) {
-                    deliver(
-                        InteractiveOverlayModel.approvalResult(
-                            decision = "approve",
-                            selectedId = variant.id,
-                            text = body?.text?.toString() ?: variant.text,
-                        ),
-                    )
-                },
-            )
-            list.addView(container)
+        prompt.variants.forEachIndexed { i, variant ->
+            list.addView(variantCard(i + 1, variant, prompt.editable))
             list.addView(spacer(dp(10)))
         }
         // Scroll the variant list, capped so a tall set of drafts never pushes
         // the card off-screen on small devices.
-        val maxListH = (context.resources.displayMetrics.heightPixels * 0.5).toInt()
+        val maxListH = (context.resources.displayMetrics.heightPixels * 0.52).toInt()
         card.addView(
             CappedScrollView(context, maxListH).apply { addView(list) },
             LinearLayout.LayoutParams(
@@ -372,12 +370,83 @@ class InteractiveOverlayController @Inject constructor(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ),
         )
-        card.addView(spacer(dp(4)))
-        card.addView(
-            actionButton("Reject", hint = null, accent = false, danger = true) {
-                deliver(prompt.cancelResult())
+        card.addView(spacer(dp(8)))
+        // Footer: a quiet edit hint on the left, the Reject affordance on the right.
+        val footer = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        footer.addView(
+            label(
+                if (prompt.editable) "Tap a draft to edit" else "Pick a draft",
+                12f,
+                FAINT_TEXT,
+                bold = false,
+            ).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             },
         )
+        footer.addView(rejectButton { deliver(prompt.cancelResult()) })
+        card.addView(footer)
+    }
+
+    /** One numbered draft card: eyebrow + (editable) body + char-count/Use-this row. */
+    private fun variantCard(n: Int, variant: InteractiveOverlayModel.DraftVariant, editable: Boolean): View {
+        val container = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(16).toFloat()
+                setColor(OPTION_BG)
+                setStroke(dp(1), CARD_BORDER)
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+        }
+        container.addView(label("OPTION $n", 11f, ACCENT, bold = true).apply { letterSpacing = 0.08f })
+        container.addView(spacer(dp(6)))
+        val body: EditText? = if (editable) {
+            editFieldMultiline(variant.text).also { container.addView(it) }
+        } else {
+            container.addView(
+                label(variant.text, 14f, TEXT_COLOR, bold = false).apply {
+                    setLineSpacing(dp(2).toFloat(), 1f)
+                },
+            )
+            null
+        }
+        container.addView(spacer(dp(10)))
+        // Meta row: live character count + the teal "Use this" pill.
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val count = label("${variant.text.length} chars", 11f, FAINT_TEXT, bold = false).apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        body?.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                count.text = "${s?.length ?: 0} chars"
+            }
+        })
+        row.addView(count)
+        row.addView(
+            usePill {
+                deliver(
+                    InteractiveOverlayModel.approvalResult(
+                        decision = "approve",
+                        selectedId = variant.id,
+                        text = body?.text?.toString() ?: variant.text,
+                    ),
+                )
+            },
+        )
+        container.addView(row)
+        return container
     }
 
     // ── view helpers ─────────────────────────────────────────────────────────
@@ -387,6 +456,55 @@ class InteractiveOverlayController @Inject constructor(
 
     private fun spacer(height: Int): View =
         View(context).apply { layoutParams = LinearLayout.LayoutParams(1, height) }
+
+    private fun hSpacer(width: Int): View =
+        View(context).apply { layoutParams = LinearLayout.LayoutParams(width, 1) }
+
+    private fun divider(): View =
+        View(context).apply {
+            setBackgroundColor(DIVIDER)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1))
+        }
+
+    /** Circular teal avatar carrying the AI's initial. */
+    private fun avatar(aiName: String): View {
+        val size = dp(40)
+        val initial = aiName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "A"
+        return TextView(context).apply {
+            text = initial
+            gravity = Gravity.CENTER
+            setTextColor(ON_ACCENT)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+            setTypeface(typeface, Typeface.BOLD)
+            includeFontPadding = false
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(ACCENT)
+            }
+            layoutParams = LinearLayout.LayoutParams(size, size)
+        }
+    }
+
+    /** Avatar + AI name (primary) + the contextual subtitle (secondary). */
+    private fun brandHeader(aiName: String, subtitle: String): View {
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        row.addView(avatar(aiName))
+        row.addView(hSpacer(dp(12)))
+        val col = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        col.addView(label(aiName, 16f, TEXT_COLOR, bold = true))
+        if (subtitle.isNotBlank()) {
+            col.addView(spacer(dp(2)))
+            col.addView(label(subtitle, 13f, SUBTLE_TEXT, bold = false))
+        }
+        row.addView(col)
+        return row
+    }
 
     private fun label(text: String, sizeSp: Float, color: Int, bold: Boolean): TextView =
         TextView(context).apply {
@@ -415,6 +533,65 @@ class InteractiveOverlayController @Inject constructor(
             )
         }
 
+    /** Borderless multi-line editor used inside a draft card (the card supplies
+     *  the surface, so this stays transparent and flush). */
+    private fun editFieldMultiline(initial: String): EditText =
+        EditText(context).apply {
+            setTextColor(TEXT_COLOR)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setText(initial)
+            setLineSpacing(dp(2).toFloat(), 1f)
+            setPadding(0, 0, 0, 0)
+            background = null
+            isSingleLine = false
+            maxLines = 8
+            setHorizontallyScrolling(false)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+        }
+
+    /** The teal "Use this ›" pill that approves a draft. */
+    private fun usePill(onClick: () -> Unit): View {
+        val pill = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            setPadding(dp(16), dp(9), dp(14), dp(9))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(20).toFloat()
+                setColor(ACCENT)
+            }
+            setOnClickListener { onClick() }
+        }
+        pill.addView(label("Use this", 13f, ON_ACCENT, bold = true))
+        pill.addView(hSpacer(dp(5)))
+        pill.addView(label("›", 15f, ON_ACCENT, bold = true))
+        return pill
+    }
+
+    /** A quiet, outlined Reject affordance for the approval footer. */
+    private fun rejectButton(onClick: () -> Unit): View =
+        LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat()
+                setColor(Color.TRANSPARENT)
+                setStroke(dp(1), REJECT_BORDER)
+            }
+            setOnClickListener { onClick() }
+            addView(label("Reject", 13f, REJECT_RED, bold = true))
+        }
+
     private fun actionButton(
         text: String,
         hint: String?,
@@ -427,14 +604,13 @@ class InteractiveOverlayController @Inject constructor(
             accent -> ACCENT
             else -> FIELD_BG
         }
-        // White on the red reject; black on the teal accent; light on the
-        // neutral surface.
+        // Deep-teal ink on the teal accent; white on the red; light on neutral.
         val fg = when {
             danger -> Color.WHITE
-            accent -> Color.BLACK
+            accent -> ON_ACCENT
             else -> TEXT_COLOR
         }
-        val hintColor = if (accent || danger) 0xCC_00_00_00.toInt() else SUBTLE_TEXT
+        val hintColor = if (accent) 0xB3_04_22_1F.toInt() else if (danger) 0xCC_FF_FF_FF.toInt() else SUBTLE_TEXT
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             isClickable = true
@@ -442,7 +618,7 @@ class InteractiveOverlayController @Inject constructor(
             gravity = Gravity.CENTER
             setPadding(dp(14), dp(12), dp(14), dp(12))
             background = GradientDrawable().apply {
-                cornerRadius = dp(12).toFloat()
+                cornerRadius = dp(14).toFloat()
                 setColor(fill)
             }
             layoutParams = LinearLayout.LayoutParams(

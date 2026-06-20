@@ -25,7 +25,7 @@ import kotlinx.serialization.json.put
 object InteractiveOverlayModel {
 
     /** Honest fallback when the kernel did not stamp an `ai_name` (I4). */
-    const val DEFAULT_AI_NAME = "Aster"
+    const val DEFAULT_AI_NAME = "your assistant"
 
     /** Default dismissal budget when the kernel omits `timeout_ms`. */
     const val DEFAULT_TIMEOUT_MS = 120_000L

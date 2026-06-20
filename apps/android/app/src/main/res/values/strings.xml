@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Aster</string>
-    <string name="accessibility_service_description">Aster uses accessibility to capture screen content, perform gestures, and control the device for remote management.</string>
+    <string name="app_name">Aster by OpenAlly</string>
+    <string name="accessibility_service_description">Aster by OpenAlly uses accessibility to capture screen content, perform gestures, and control the device for remote management.</string>
 
     <!-- Connection -->
     <string name="connect_title">Connect to Server</string>

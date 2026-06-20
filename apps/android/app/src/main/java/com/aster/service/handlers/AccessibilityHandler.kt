@@ -62,7 +62,7 @@ class AccessibilityHandler(
 
     override suspend fun handle(command: Command): CommandResult {
         val service = AsterAccessibilityService.getInstance()
-            ?: return CommandResult.failure("Accessibility service not enabled. Please enable it in Settings > Accessibility > Aster")
+            ?: return CommandResult.failure("Accessibility service not enabled. Please enable it in Settings > Accessibility > Aster by OpenAlly")
 
         // Guarded autonomy (P7): refuse denylisted foreground packages
         // (fail-closed). Defense in depth — the kernel also gates.

@@ -50,7 +50,12 @@ class IpcMode(
             // `ai_name` is read into the audit log. They render the companion's
             // own overlay (NOT the tool-execution border), so they are
             // intentionally absent from ToolExecutionOverlay's own action set.
-            "screen_prompt", "screen_approve"
+            "screen_prompt", "screen_approve",
+            // App Automations login/register wall + payment/explicit hand-off —
+            // non-blocking on-device "the run is waiting for you" banners. Same
+            // rationale as the dialogs above: kill-switch fast-reject + `ai_name`
+            // audit, own overlay (no border).
+            "screen_signin_wait", "screen_handoff"
         )
     }
 
@@ -162,8 +167,8 @@ class IpcMode(
             // App Automations /goal I4 (SPEC §I4/D6): the kernel stamps `ai_name`
             // (the EA's display name) into device.execute params — same side-channel
             // as `target_text`/`risk`. Read it honestly: absent → null (no
-            // fabrication). The overlay renders it (fallback "Aster"). Only
-            // meaningful for screen-control actions.
+            // fabrication). The overlay renders it (fallback "your assistant").
+            // Only meaningful for screen-control actions.
             val aiName = if (isScreenAction) {
                 (params["ai_name"] as? JsonPrimitive)?.contentOrNull
             } else null

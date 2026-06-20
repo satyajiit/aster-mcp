@@ -10,7 +10,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.aster.BuildConfig
-import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
@@ -736,27 +735,17 @@ class AsterAccessibilityService : AccessibilityService() {
         windowDescriptors: List<WindowDescriptor>,
         foregroundPackage: String,
     ): ScreenContext {
-        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-        val metrics = resources.displayMetrics
-
-        val realBounds = Rect()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val b = wm.currentWindowMetrics.bounds
-            realBounds.set(b.left, b.top, b.right, b.bottom)
-        } else {
-            @Suppress("DEPRECATION")
-            val dm = android.util.DisplayMetrics()
-            @Suppress("DEPRECATION")
-            wm.defaultDisplay.getRealMetrics(dm)
-            realBounds.set(0, 0, dm.widthPixels, dm.heightPixels)
-        }
-
-        val rotation: Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            display?.rotation ?: 0
-        } else {
-            @Suppress("DEPRECATION")
-            wm.defaultDisplay.rotation
-        }
+        // Read the display WITHOUT a visual context. An AccessibilityService is a
+        // non-visual context, so WindowManager.getCurrentWindowMetrics() /
+        // defaultDisplay and Context.getDisplay() throw "Tried to obtain display
+        // from a Context not associated with one" on Android 11+ (API 30+) — which
+        // aborted every `observe` here on modern devices. DisplayManager +
+        // Display.getRealMetrics() is the context-free path to the real
+        // (decor-inclusive) screen size, the coordinate space getBoundsInScreen
+        // reports in. See [realDisplayMetrics] / [displayRotation].
+        val metrics = realDisplayMetrics()
+        val realBounds = Rect(0, 0, metrics.widthPixels, metrics.heightPixels)
+        val rotation: Int = displayRotation()
 
         // ime_visible: an input-method window is present in the merge (SPEC §7.2).
         val imeVisible = windowDescriptors.any { it.type == "input_method" }
@@ -1462,19 +1451,44 @@ class AsterAccessibilityService : AccessibilityService() {
      * report in), NOT the app-usable area, so gesture coordinates and reported dims agree.
      */
     fun screenMetrics(): Triple<Int, Int, Float> {
-        val density = resources.displayMetrics.density
-        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val b = wm.currentWindowMetrics.bounds
-            Triple(b.width(), b.height(), density)
-        } else {
-            @Suppress("DEPRECATION")
-            val dm = android.util.DisplayMetrics()
-            @Suppress("DEPRECATION")
-            wm.defaultDisplay.getRealMetrics(dm)
-            Triple(dm.widthPixels, dm.heightPixels, density)
-        }
+        val m = realDisplayMetrics()
+        return Triple(m.widthPixels, m.heightPixels, m.density)
     }
+
+    /**
+     * Real display metrics read WITHOUT a visual context.
+     *
+     * An AccessibilityService's context is non-visual, so `WindowManager`'s
+     * `getCurrentWindowMetrics()` / `defaultDisplay` and `Context.getDisplay()`
+     * throw `IllegalArgumentException: Tried to obtain display from a Context not
+     * associated with one` on Android 11+ (API 30+). `DisplayManager.getDisplay()`
+     * returns the default `Display` regardless of context, and the
+     * deprecated-but-context-free `Display.getRealMetrics()` fills the true
+     * (decor-inclusive) screen size — the same coordinate space
+     * `observe`/`getBoundsInScreen` report in.
+     */
+    private fun realDisplayMetrics(): android.util.DisplayMetrics {
+        val metrics = android.util.DisplayMetrics()
+        val display = (getSystemService(DISPLAY_SERVICE) as android.hardware.display.DisplayManager)
+            .getDisplay(android.view.Display.DEFAULT_DISPLAY)
+        if (display != null) {
+            @Suppress("DEPRECATION")
+            display.getRealMetrics(metrics)
+        } else {
+            // Default display unexpectedly unavailable — fall back to the
+            // always-populated, context-free resources metrics rather than
+            // returning a degenerate 0×0 / density-0 object that downstream
+            // coordinate math would treat as a valid zero-size screen.
+            metrics.setTo(resources.displayMetrics)
+        }
+        return metrics
+    }
+
+    /** Default-display rotation, read without a visual context (see [realDisplayMetrics]). */
+    private fun displayRotation(): Int =
+        (getSystemService(DISPLAY_SERVICE) as android.hardware.display.DisplayManager)
+            .getDisplay(android.view.Display.DEFAULT_DISPLAY)
+            ?.rotation ?: 0
 
     /**
      * Re-resolve a ref to a live node (SPEC §3.1), in priority order, VERIFYING the resolved

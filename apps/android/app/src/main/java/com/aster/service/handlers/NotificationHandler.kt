@@ -36,7 +36,7 @@ class NotificationHandler : CommandHandler {
         command: Command
     ): CommandResult {
         if (service == null) {
-            return CommandResult.failure("Notification listener not enabled. Please enable it in Settings > Apps > Special app access > Notification access > Aster")
+            return CommandResult.failure("Notification listener not enabled. Please enable it in Settings > Apps > Special app access > Notification access > Aster by OpenAlly")
         }
 
         val limit = command.params?.get("limit")?.jsonPrimitive?.intOrNull ?: 50
