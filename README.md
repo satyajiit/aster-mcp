@@ -289,7 +289,7 @@ The diagram above is the *default* path, but it's not the only one. The companio
 |------|--------------------------------|-------------|
 | **Remote WebSocket** *(default)* | The phone dials out to the `aster` Node server; your AI talks MCP-over-HTTP to that server (the flow above). | You run the server on a laptop / home box and point any MCP client at it. |
 | **Local MCP Server** | The phone runs its **own** MCP server on-device — embedded **Ktor** + the **MCP Kotlin SDK** (Streamable HTTP), default port `8080`. No Node server in the middle. | You want an MCP client (local, or remote over [Tailscale](#tailscale-support)) to hit the phone **directly**. |
-| **IPC (Binder)** | An app **on the same device** drives Aster over Android **Binder IPC** — 32-char token auth (constant-time check) plus an on-device approval prompt. Never touches the network. | An on-device agent controls the phone locally — lowest latency, fully offline. |
+| **IPC (Binder)** | An app **on the same device** — e.g. the [OpenAlly.ai](https://openally.ai) app — drives Aster over Android **Binder IPC**, with 32-char token auth (constant-time check) plus an on-device approval prompt. Never touches the network. | An on-device agent (like [OpenAlly.ai](https://openally.ai)) controls the phone locally — lowest latency, fully offline. |
 
 All three share the same **49 tools** and the same `CommandHandler` registry — they differ only in *how a client reaches the phone* and *how it's trusted*: the server's device-approval gate (Remote WS), a token + approval prompt (IPC), or your own network controls (Local MCP). The on-device **Kill Switch** and **PackagePolicyGuard** (below) apply in every mode.
 
@@ -476,6 +476,10 @@ A tool is a **server-side triad + one device handler**:
 ## Tailscale Support
 
 Aster automatically detects Tailscale and displays your Tailscale IP for easy remote connections without port forwarding. Perfect for a dedicated AI phone that stays plugged in at home while you're away.
+
+## OpenAlly.ai
+
+Aster also ships as the **end-to-end companion** for the [**OpenAlly.ai**](https://openally.ai) app. OpenAlly drives the phone entirely on-device through Aster's [IPC (Binder) mode](#connection-modes) — no server, no network, nothing leaves the device. It works **out of the box**: install both, approve the on-device handshake once, and OpenAlly has the full 49-tool surface locally.
 
 ## License
 
