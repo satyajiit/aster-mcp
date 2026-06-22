@@ -12,6 +12,7 @@ import com.aster.service.handlers.ClipboardHandler
 import com.aster.service.handlers.ContactHandler
 import com.aster.service.handlers.DeviceInfoHandler
 import com.aster.service.handlers.FileSystemHandler
+import com.aster.service.handlers.HostDirHandler
 import com.aster.service.handlers.InstalledAppsHandler
 import com.aster.service.handlers.IntentHandler
 import com.aster.service.handlers.InteractiveOverlayHandler
@@ -61,6 +62,7 @@ object ModeModule {
         val allHandlers = listOf(
             DeviceInfoHandler(context),
             FileSystemHandler(context),
+            HostDirHandler(context),
             PackageHandler(context),
             InstalledAppsHandler(context),
             ClipboardHandler(context),

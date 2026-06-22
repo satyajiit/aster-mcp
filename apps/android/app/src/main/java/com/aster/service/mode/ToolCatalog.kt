@@ -136,6 +136,8 @@ object ToolCatalog {
         "read_file" to ToolEntry("Read File", "Read text or binary file contents", "Files"),
         "write_file" to ToolEntry("Write File", "Create or overwrite files on device", "Files"),
         "delete_file" to ToolEntry("Delete File", "Delete files or directories", "Files"),
+        "files.read" to ToolEntry("Read Host File", "Read a file from an owner-approved folder (App Builder host-dir)", "Files"),
+        "files.list" to ToolEntry("List Host Folder", "List a folder the owner approved for an app (App Builder host-dir)", "Files"),
 
         // -- Camera --
         "take_photo" to ToolEntry(

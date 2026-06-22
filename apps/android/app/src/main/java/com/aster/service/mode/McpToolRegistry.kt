@@ -38,6 +38,23 @@ object McpToolRegistry {
             )
         ),
         "delete_file" to ToolDef("Delete a file", mapOf("path" to PropDef("string", "File path"))),
+        // OpenAlly App Builder "host-dir": read/list a file within an owner-
+        // approved folder (SAF tree URI or path) for a served kind=dir surface.
+        "files.read" to ToolDef(
+            "Read a file within an owner-approved host folder (App Builder host-dir)",
+            mapOf(
+                "host_dir" to PropDef("string", "Owner-approved folder: a SAF tree URI (content://…) or a filesystem path"),
+                "path" to PropDef("string", "File path relative to host_dir (e.g. index.html, css/site.css)")
+            )
+        ),
+        "files.list" to ToolDef(
+            "List entries within an owner-approved host folder (App Builder host-dir)",
+            mapOf(
+                "host_dir" to PropDef("string", "Owner-approved folder: a SAF tree URI (content://…) or a filesystem path"),
+                "path" to PropDef("string", "Folder path relative to host_dir (defaults to the root)")
+            ),
+            required = listOf("host_dir")
+        ),
         "list_apps" to ToolDef("List installed applications", emptyMap()),
         "launch_app" to ToolDef(
             "Launch an application",
