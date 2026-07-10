@@ -18,6 +18,7 @@ import com.aster.service.handlers.IntentHandler
 import com.aster.service.handlers.InteractiveOverlayHandler
 import com.aster.service.handlers.MediaHandler
 import com.aster.service.handlers.NotificationHandler
+import com.aster.service.handlers.NowPlayingHandler
 import com.aster.service.handlers.OverlayHandler
 import com.aster.service.handlers.PackageHandler
 import com.aster.service.handlers.ShellHandler
@@ -67,6 +68,7 @@ object ModeModule {
             InstalledAppsHandler(context),
             ClipboardHandler(context),
             MediaHandler(context),
+            NowPlayingHandler(context),
             ShellHandler(),
             IntentHandler(context),
             AccessibilityHandler(packagePolicyGuard),

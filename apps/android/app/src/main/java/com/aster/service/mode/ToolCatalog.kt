@@ -190,6 +190,12 @@ object ToolCatalog {
         "stop_audio" to ToolEntry("Stop Audio", "Stop current audio playback", "Media"),
         "speak_tts" to ToolEntry("Text-to-Speech", "Speak text aloud using TTS engine", "Media"),
         "vibrate" to ToolEntry("Vibrate", "Vibrate with custom patterns", "Media"),
+        "get_now_playing" to ToolEntry(
+            "Now Playing",
+            "Read the currently-playing track (title, artist, source app) from the OS " +
+                "media sessions; reuses notification access, no extra permission",
+            "Media"
+        ),
 
         // -- Storage --
         "analyze_storage" to ToolEntry(
