@@ -32,4 +32,10 @@
 
     <!-- IPC -->
     <string name="ipc_service_description">Allows aster-one to communicate with Aster via secure IPC</string>
+
+    <!-- Companion face (the ambient OpenAlly face Aster draws beside the camera cutout) -->
+    <string name="companion_approval_title">OpenAlly companion</string>
+    <string name="companion_approval_body">The companion face is decorative. Open OpenAlly to interact.</string>
+    <string name="companion_approval_open">Open OpenAlly</string>
+    <string name="companion_overlay_permission_hint">Pick Aster from the list to let it draw the companion face over other apps.</string>
 </resources>

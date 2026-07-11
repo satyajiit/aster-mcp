@@ -139,6 +139,9 @@ class AsterService : Service() {
     lateinit var toolExecutionOverlay: ToolExecutionOverlay
 
     @Inject
+    lateinit var companionFaceOverlay: com.aster.service.overlay.CompanionFaceOverlay
+
+    @Inject
     lateinit var killSwitchController: com.aster.service.safety.KillSwitchController
 
     @Inject
@@ -280,6 +283,10 @@ class AsterService : Service() {
         smsBroadcastReceiver = null
 
         toolExecutionOverlay.detach()
+        // The companion face is a projection of a live OpenAlly session. This service
+        // going down means the process that feeds it is on its way out, so take the
+        // window with it rather than leaving a frozen face floating over the launcher.
+        companionFaceOverlay.hide()
         killSwitchController.detach()
         serviceScope.cancel()
         releaseWifiLock()

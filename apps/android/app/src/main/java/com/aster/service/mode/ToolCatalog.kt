@@ -240,6 +240,26 @@ object ToolCatalog {
         "hide_overlay" to ToolEntry("Hide Overlay", "Hide a specific floating overlay", "Overlays"),
         "hide_all_overlays" to ToolEntry("Hide All", "Remove all active overlays", "Overlays"),
         "list_overlays" to ToolEntry("List Overlays", "List active overlay IDs", "Overlays"),
+        "companion_overlay_status" to ToolEntry(
+            "Companion Face Status",
+            "Whether Aster can draw over other apps, and whether OpenAlly's companion face is up",
+            "Overlays"
+        ),
+        "companion_overlay_show" to ToolEntry(
+            "Show Companion Face",
+            "Draw OpenAlly's ambient companion face beside the camera cutout",
+            "Overlays"
+        ),
+        "companion_overlay_hide" to ToolEntry(
+            "Hide Companion Face",
+            "Take down OpenAlly's ambient companion face",
+            "Overlays"
+        ),
+        "companion_overlay_recompute" to ToolEntry(
+            "Re-place Companion Face",
+            "Recompute the companion face's position around the camera cutout",
+            "Overlays"
+        ),
 
         // -- Alarms --
         "get_alarms" to ToolEntry("Get Alarms", "View scheduled alarms", "Alarms"),

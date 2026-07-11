@@ -63,6 +63,14 @@
     <!-- System -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- OpenAlly. Aster launches it from the companion-face approval card. Package
+         visibility is already implied by QUERY_ALL_PACKAGES above, but declare the
+         dependency narrowly and explicitly so it survives that permission being
+         dropped. -->
+    <queries>
+        <package android:name="openally.ai" />
+    </queries>
+
     <application
         android:name=".AsterApplication"
         android:allowBackup="false"
@@ -125,6 +133,32 @@
             android:exported="false"
             android:theme="@style/Theme.Aster.Transparent"
             android:excludeFromRecents="true" />
+
+        <!-- Companion face approval card. The ambient OpenAlly face Aster draws over
+             other apps is strictly DECORATIVE: a bare tap on it performs nothing
+             privileged, it lands here — a normal, tap-jacking-protected activity.
+             Launched in-process by CompanionFaceOverlay. -->
+        <activity
+            android:name=".ui.CompanionApprovalActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.Aster.Transparent" />
+
+        <!-- Draw-over-other-apps request, exported so OpenAlly can knock. OpenAlly holds
+             no SYSTEM_ALERT_WINDOW and an app may only ever request this permission for
+             ITSELF, so OpenAlly cannot ask on Aster's behalf — it launches this and
+             Aster asks for its own grant. -->
+        <activity
+            android:name=".ui.OverlayPermissionActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.Aster.Transparent">
+            <intent-filter>
+                <action android:name="com.aster.action.REQUEST_OVERLAY_PERMISSION" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
         <!-- Accessibility Service -->
         <service
