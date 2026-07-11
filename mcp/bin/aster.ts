@@ -455,6 +455,21 @@ program
     await startMcp();
   });
 
+// Configure-Hermes command — wire Aster into Hermes Agent as an MCP server
+program
+  .command('configure-hermes')
+  .description('Generate MCP server config for Hermes Agent')
+  .option('--host <host>', 'Aster server host', 'localhost')
+  .option('--port <port>', 'Aster API port', '5988')
+  .option('--write', 'Auto-append to existing Hermes config')
+  .action(async (options) => {
+    const { runConfigureHeres: runConfigureHermes } = await import('../src/hermes/index.js');
+    // Re-export alias expected
+    // The module exports 'runConfigureHermes' — use dynamic import with correct name
+    const hermesModule = await import('../src/hermes/index.js');
+    await hermesModule.runConfigureHermes();
+  });
+
 // Devices command group
 const devicesCmd = program.command('devices').description('Manage devices');
 

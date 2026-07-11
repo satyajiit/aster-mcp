@@ -7,6 +7,7 @@ import {
 } from '../websocket/index.js';
 import { parseNaturalLanguageQuery } from '../util/queryParser.js';
 import {
+  AddCalendarEventSchema,
   AnalyzeStorageSchema,
   ClickByIdSchema,
   ClickByTextSchema,
@@ -14,20 +15,27 @@ import {
   DeleteFileSchema,
   DeleteAlarmSchema,
   DismissAlarmSchema,
+  DownloadFileSchema,
   ExecuteShellSchema,
   FindElementSchema,
   FindLargeFilesSchema,
   GetAlarmsSchema,
   GetBatterySchema,
+  GetBluetoothStatusSchema,
+  GetBrightnessSchema,
+  GetCalendarEventsSchema,
   GetClipboardSchema,
   GetDeviceInfoSchema,
   GetLocationSchema,
   GetScreenHierarchySchema,
+  GetStorageSummarySchema,
   GetVolumeSchema,
+  GetWifiInfoSchema,
   GlobalActionSchema,
   IndexMediaMetadataSchema,
   InputGestureSchema,
   InputTextSchema,
+  IsScreenOnSchema,
   LaunchIntentSchema,
   ListContactsFullSchema,
   ListFilesSchema,
@@ -35,6 +43,7 @@ import {
   ListPackagesSchema,
   MakeCallSchema,
   MakeCallWithVoiceSchema,
+  OpenUrlSchema,
   PlayAudioSchema,
   PostNotificationSchema,
   ReadFileSchema,
@@ -45,6 +54,7 @@ import {
   SearchMediaSchema,
   SendSmsSchema,
   SetAlarmSchema,
+  SetBrightnessSchema,
   SetClipboardSchema,
   SetVolumeSchema,
   ShowOverlaySchema,
@@ -53,7 +63,11 @@ import {
   StopAudioSchema,
   TakePhotoSchema,
   TakeScreenshotSchema,
+  ToggleBluetoothSchema,
+  ToggleWifiSchema,
+  UninstallPackageSchema,
   VibrateSchema,
+  WakeScreenSchema,
   WriteFileSchema,
 } from './tools.js';
 
@@ -244,6 +258,50 @@ export async function handleToolCall(
       case 'aster_record_video':
         return handleRecordVideo(args);
 
+      // ─── NEW TOOL HANDLERS ─────────────────────────────────────────────────
+
+      case 'aster_get_wifi_info':
+        return handleGetWifiInfo(args);
+
+      case 'aster_get_bluetooth_status':
+        return handleGetBluetoothStatus(args);
+
+      case 'aster_toggle_wifi':
+        return handleToggleWifi(args);
+
+      case 'aster_toggle_bluetooth':
+        return handleToggleBluetooth(args);
+
+      case 'aster_get_brightness':
+        return handleGetBrightness(args);
+
+      case 'aster_set_brightness':
+        return handleSetBrightness(args);
+
+      case 'aster_open_url':
+        return handleOpenUrl(args);
+
+      case 'aster_get_calendar_events':
+        return handleGetCalendarEvents(args);
+
+      case 'aster_add_calendar_event':
+        return handleAddCalendarEvent(args);
+
+      case 'aster_uninstall_package':
+        return handleUninstallPackage(args);
+
+      case 'aster_download_file':
+        return handleDownloadFile(args);
+
+      case 'aster_is_screen_on':
+        return handleIsScreenOn(args);
+
+      case 'aster_wake_screen':
+        return handleWakeScreen(args);
+
+      case 'aster_get_storage_summary':
+        return handleGetStorageSummary(args);
+
       default:
         return errorResult(`Unknown tool: ${name}`);
     }
@@ -253,7 +311,7 @@ export async function handleToolCall(
   }
 }
 
-// Tool handlers
+// ─── EXISTING TOOL HANDLERS ───────────────────────────────────────────────────
 
 function handleListDevices(): ToolResult {
   const devices = getAllDevices();
@@ -364,7 +422,6 @@ async function handleTakeScreenshot(args: Record<string, unknown>): Promise<Tool
   const { deviceId } = TakeScreenshotSchema.parse(args);
   const response = await sendCommand(deviceId, 'take_screenshot');
   const data = response.data as { screenshot?: string; base64?: string; format?: string; mimeType?: string };
-  // Android returns 'screenshot' field, but also support 'base64' for backward compatibility
   const base64Data = data.screenshot || data.base64;
   if (!base64Data) {
     return errorResult('Screenshot data not found in response');
@@ -452,7 +509,7 @@ async function handleMakeCall(args: Record<string, unknown>): Promise<ToolResult
 
 async function handleMakeCallWithVoice(args: Record<string, unknown>): Promise<ToolResult> {
   const { deviceId, number, text, waitSeconds } = MakeCallWithVoiceSchema.parse(args);
-  const timeout = ((waitSeconds || 8) + 2 + 60) * 1000; // 2s dialer + wait + 60s for TTS and overhead
+  const timeout = ((waitSeconds || 8) + 2 + 60) * 1000;
   const response = await sendCommand(deviceId, 'make_call_with_voice', { number, text, waitSeconds }, timeout);
   return jsonResult(response.data);
 }
@@ -477,7 +534,6 @@ async function handleShowToast(args: Record<string, unknown>): Promise<ToolResul
 
 async function handleLaunchIntent(args: Record<string, unknown>): Promise<ToolResult> {
   const { deviceId, packageName, action, data } = LaunchIntentSchema.parse(args);
-  // Android expects 'package' parameter, not 'packageName'
   const response = await sendCommand(deviceId, 'launch_intent', { package: packageName, action, data });
   return jsonResult(response.data);
 }
@@ -507,7 +563,7 @@ async function handleAnalyzeStorage(args: Record<string, unknown>): Promise<Tool
     maxDepth,
     minSizeMB,
     includeHidden,
-  }, 120000); // 2 minute timeout for large storage analysis
+  }, 120000);
   return jsonResult(response.data);
 }
 
@@ -518,7 +574,7 @@ async function handleFindLargeFiles(args: Record<string, unknown>): Promise<Tool
     path,
     fileTypes,
     limit,
-  }, 60000); // 1 minute timeout
+  }, 60000);
   return jsonResult(response.data);
 }
 
@@ -529,14 +585,13 @@ async function handleIndexMediaMetadata(args: Record<string, unknown>): Promise<
     includeLocation,
     includeExif,
     limit,
-  }, 120000); // 2 minute timeout for large media collections
+  }, 120000);
   return jsonResult(response.data);
 }
 
 async function handleSearchMedia(args: Record<string, unknown>): Promise<ToolResult> {
   const { deviceId, path, dateFrom, dateTo, location, fileTypes, minSizeMB, maxSizeMB, cameraModel, sortBy, limit, query } = SearchMediaSchema.parse(args);
 
-  // If natural language query is provided, parse it
   let searchParams: Record<string, unknown> = {
     path,
     dateFrom,
@@ -552,15 +607,13 @@ async function handleSearchMedia(args: Record<string, unknown>): Promise<ToolRes
 
   if (query) {
     const parsedQuery = parseNaturalLanguageQuery(query);
-
-    // Merge parsed filters with explicit filters (explicit takes precedence)
     if (!dateFrom && parsedQuery.dateFrom) searchParams.dateFrom = parsedQuery.dateFrom;
     if (!dateTo && parsedQuery.dateTo) searchParams.dateTo = parsedQuery.dateTo;
     if (!location && parsedQuery.location) searchParams.location = parsedQuery.location;
     if (!fileTypes && parsedQuery.fileTypes) searchParams.fileTypes = parsedQuery.fileTypes;
   }
 
-  const response = await sendCommand(deviceId, 'search_media', searchParams, 120000); // 2 minute timeout
+  const response = await sendCommand(deviceId, 'search_media', searchParams, 120000);
   return jsonResult(response.data);
 }
 
@@ -638,5 +691,98 @@ async function handleRecordVideo(args: Record<string, unknown>): Promise<ToolRes
   const { deviceId, camera, maxDuration } = RecordVideoSchema.parse(args);
   const timeout = ((maxDuration || 8) + 12) * 1000;
   const response = await sendCommand(deviceId, 'record_video', { camera, maxDuration }, timeout);
+  return jsonResult(response.data);
+}
+
+// ─── NEW TOOL HANDLERS ────────────────────────────────────────────────────────
+
+async function handleGetWifiInfo(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId } = GetWifiInfoSchema.parse(args);
+  const response = await sendCommand(deviceId, 'get_wifi_info');
+  return jsonResult(response.data);
+}
+
+async function handleGetBluetoothStatus(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId } = GetBluetoothStatusSchema.parse(args);
+  const response = await sendCommand(deviceId, 'get_bluetooth_status');
+  return jsonResult(response.data);
+}
+
+async function handleToggleWifi(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, enable } = ToggleWifiSchema.parse(args);
+  const response = await sendCommand(deviceId, 'toggle_wifi', { enable });
+  return jsonResult(response.data);
+}
+
+async function handleToggleBluetooth(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, enable } = ToggleBluetoothSchema.parse(args);
+  const response = await sendCommand(deviceId, 'toggle_bluetooth', { enable });
+  return jsonResult(response.data);
+}
+
+async function handleGetBrightness(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId } = GetBrightnessSchema.parse(args);
+  const response = await sendCommand(deviceId, 'get_brightness');
+  return jsonResult(response.data);
+}
+
+async function handleSetBrightness(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, level, automatic } = SetBrightnessSchema.parse(args);
+  const response = await sendCommand(deviceId, 'set_brightness', { level, automatic });
+  return jsonResult(response.data);
+}
+
+async function handleOpenUrl(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, url } = OpenUrlSchema.parse(args);
+  const response = await sendCommand(deviceId, 'open_url', { url });
+  return jsonResult(response.data);
+}
+
+async function handleGetCalendarEvents(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, dateFrom, dateTo, limit } = GetCalendarEventsSchema.parse(args);
+  const response = await sendCommand(deviceId, 'get_calendar_events', { dateFrom, dateTo, limit });
+  return jsonResult(response.data);
+}
+
+async function handleAddCalendarEvent(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, title, startTime, endTime, description, location, allDay } = AddCalendarEventSchema.parse(args);
+  const response = await sendCommand(deviceId, 'add_calendar_event', {
+    title,
+    startTime,
+    endTime,
+    description,
+    location,
+    allDay,
+  });
+  return jsonResult(response.data);
+}
+
+async function handleUninstallPackage(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, packageName } = UninstallPackageSchema.parse(args);
+  const response = await sendCommand(deviceId, 'uninstall_package', { packageName });
+  return jsonResult(response.data);
+}
+
+async function handleDownloadFile(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, url, destinationPath } = DownloadFileSchema.parse(args);
+  const response = await sendCommand(deviceId, 'download_file', { url, destinationPath }, 120000);
+  return jsonResult(response.data);
+}
+
+async function handleIsScreenOn(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId } = IsScreenOnSchema.parse(args);
+  const response = await sendCommand(deviceId, 'is_screen_on');
+  return jsonResult(response.data);
+}
+
+async function handleWakeScreen(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId, durationSec } = WakeScreenSchema.parse(args);
+  const response = await sendCommand(deviceId, 'wake_screen', { durationSec });
+  return jsonResult(response.data);
+}
+
+async function handleGetStorageSummary(args: Record<string, unknown>): Promise<ToolResult> {
+  const { deviceId } = GetStorageSummarySchema.parse(args);
+  const response = await sendCommand(deviceId, 'get_storage_summary');
   return jsonResult(response.data);
 }
