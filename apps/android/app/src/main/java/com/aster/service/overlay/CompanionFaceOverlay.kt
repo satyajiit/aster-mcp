@@ -15,6 +15,7 @@ import android.view.Display
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.FrameLayout
 import com.aster.BuildConfig
@@ -24,6 +25,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * CompanionFaceOverlay — hosts OpenAlly's ambient companion FACE in a
@@ -64,9 +67,14 @@ class CompanionFaceOverlay @Inject constructor(
     companion object {
         private const val TAG = "CompanionFaceOverlay"
 
-        /** Face window size, and its gap from the cutout. */
-        private const val FACE_DP = 52
-        private const val GAP_DP = 8
+        /** Responsive ambient pill bounds. The painter uses the same 200×96 crop as
+         *  the desktop notch, so the Android surface reads as a notch rather than a
+         *  square floating panel. */
+        private const val MIN_PILL_WIDTH_DP = 168
+        private const val MAX_PILL_WIDTH_DP = 240
+        private const val PILL_SIDE_MARGIN_DP = 8
+        private const val CUTOUT_SIDE_ROOM_DP = 96
+        private const val CUTOUT_HANG_DP = 44
 
         /** No cutout reported → an honest top-centre dock below the status bar.
          *  The cutout is never guessed. */
@@ -118,14 +126,17 @@ class CompanionFaceOverlay @Inject constructor(
      * user to [com.aster.ui.OverlayPermissionActivity] to grant it to ASTER, which is
      * the only app that can ask for it.
      */
-    fun show(): Boolean {
+    suspend fun show(): Boolean {
         if (!canDrawOverlays()) {
             Log.w(TAG, "show() refused — Aster does not hold draw-over-other-apps")
             return false
         }
         if (attached) return true
-        runOnMain { attachWindow() }
-        return true
+        // `show` is called by a suspendable command handler. Await the real addView
+        // result instead of optimistically reporting success while a main-thread post
+        // is still pending; otherwise OpenAlly can send (and permanently dedupe) its
+        // initial frame before this window exists.
+        return withContext(Dispatchers.Main.immediate) { attachWindow() }
     }
 
     fun hide() {
@@ -167,8 +178,8 @@ class CompanionFaceOverlay @Inject constructor(
     // ── window ───────────────────────────────────────────────────────────────
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun attachWindow() {
-        if (attached) return
+    private fun attachWindow(): Boolean {
+        if (attached) return true
 
         val face = CompanionFaceView(context)
         faceView = face
@@ -184,7 +195,17 @@ class CompanionFaceOverlay @Inject constructor(
             // Tap-jacking hygiene: drop touches delivered while another window
             // obscures this one, so nothing under the face can drive it.
             filterTouchesWhenObscured = true
+            setOnClickListener { openApproval() }
             setOnTouchListener(faceTouchListener())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                // On API 28–29 `rootWindowInsets` is commonly null immediately after
+                // addView. Re-run placement when the platform delivers the real cutout
+                // instead of leaving the one-time fallback parked below the status bar.
+                setOnApplyWindowInsetsListener { _, insets ->
+                    mainHandler.post { recomputeGeometry() }
+                    insets
+                }
+            }
         }
         container = root
 
@@ -197,11 +218,13 @@ class CompanionFaceOverlay @Inject constructor(
             applyDisplayPowerState()
             displayManager.registerDisplayListener(displayListener, mainHandler)
             Log.i(TAG, "companion face attached")
+            return true
         } catch (e: Exception) {
             Log.w(TAG, "Failed to add companion face window", e)
             container = null
             faceView = null
             params = null
+            return false
         }
     }
 
@@ -219,8 +242,8 @@ class CompanionFaceOverlay @Inject constructor(
 
     private fun buildLayoutParams(): WindowManager.LayoutParams {
         val lp = WindowManager.LayoutParams(
-            dp(FACE_DP),
-            dp(FACE_DP),
+            dp(MIN_PILL_WIDTH_DP),
+            dp(MIN_PILL_WIDTH_DP * CompanionOverlayGeometry.CROP_HEIGHT / CompanionOverlayGeometry.CROP_WIDTH),
             overlayType(),
             // Non-focusable (never steals focus), non-touch-modal + LAYOUT_NO_LIMITS
             // so taps outside the small face pass straight through to the app beneath
@@ -236,63 +259,79 @@ class CompanionFaceOverlay @Inject constructor(
             gravity = Gravity.TOP or Gravity.START
         }
         // Render into the cutout region so the face can dock right beside the hole.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             lp.layoutInDisplayCutoutMode =
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            lp.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
         return lp
     }
 
-    private fun overlayType(): Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+    private fun overlayType(): Int = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 
     // ── punch-hole geometry ──────────────────────────────────────────────────
 
     /**
-     * Dock the face BESIDE the camera cutout: just right of the hole, or left of it
-     * when that would run off-screen, vertically aligned with it. When the platform
-     * reports NO cutout, fall back to an honest top-centre dock below the status bar
-     * — the hole is never guessed.
+     * Centre the ambient pill ON the camera cutout and hang it below the sensor area,
+     * matching the desktop notch's silhouette. When the platform reports NO cutout,
+     * fall back to an honest top-centre dock below the status bar — the hole is never
+     * guessed.
      */
     private fun recomputeGeometry() {
         val root = container ?: return
         val lp = params ?: return
 
         val screenW = displayWidth()
-        val faceW = dp(FACE_DP)
-        val gap = dp(GAP_DP)
-
-        val cutout = firstCutoutRect(root)
-        if (cutout != null) {
-            var x = cutout.right + gap
-            if (x + faceW > screenW) x = cutout.left - gap - faceW
-            lp.x = x.coerceIn(0, (screenW - faceW).coerceAtLeast(0))
-            lp.y = cutout.top.coerceAtLeast(0)
-        } else {
-            lp.x = ((screenW - faceW) / 2).coerceAtLeast(0)
-            lp.y = statusBarHeight() + dp(FALLBACK_TOP_DP)
+        val cutout = preferredCutoutRect(root, screenW)?.let {
+            CutoutBounds(it.left, it.top, it.right, it.bottom)
         }
+        val geometry = CompanionOverlayGeometry.compute(
+            screenWidthPx = screenW,
+            density = context.resources.displayMetrics.density,
+            cutout = cutout,
+            statusBarHeightPx = statusBarHeight(root),
+            minWidthDp = MIN_PILL_WIDTH_DP,
+            maxWidthDp = MAX_PILL_WIDTH_DP,
+            sideMarginDp = PILL_SIDE_MARGIN_DP,
+            cutoutSideRoomDp = CUTOUT_SIDE_ROOM_DP,
+            cutoutHangDp = CUTOUT_HANG_DP,
+            fallbackTopDp = FALLBACK_TOP_DP,
+        )
+        if (
+            lp.width == geometry.width &&
+            lp.height == geometry.height &&
+            lp.x == geometry.x &&
+            lp.y == geometry.y
+        ) return
+        lp.width = geometry.width
+        lp.height = geometry.height
+        lp.x = geometry.x
+        lp.y = geometry.y
 
         runCatching { windowManager.updateViewLayout(root, lp) }
             .onFailure { Log.w(TAG, "Failed to reposition companion face", it) }
     }
 
-    private fun firstCutoutRect(root: View): Rect? {
+    private fun preferredCutoutRect(root: View, screenWidth: Int): Rect? {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val cutout = windowManager.currentWindowMetrics.windowInsets.displayCutout ?: return null
-            return cutout.boundingRects.firstOrNull()
+            return preferredTopCutout(cutout.boundingRects, screenWidth)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val cutout = root.rootWindowInsets?.displayCutout ?: return null
-            return cutout.boundingRects.firstOrNull()
+            return preferredTopCutout(cutout.boundingRects, screenWidth)
         }
         return null
     }
+
+    /** Prefer a top-edge sensor and, when an OEM reports several cutouts, the one
+     *  nearest the display centre. `boundingRects.first()` is not an ordering API. */
+    private fun preferredTopCutout(rects: List<Rect>, screenWidth: Int): Rect? =
+        rects
+            .filter { !it.isEmpty && it.top <= 0 }
+            .minByOrNull { kotlin.math.abs(it.centerX() - screenWidth / 2) }
 
     private fun displayWidth(): Int {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -302,10 +341,14 @@ class CompanionFaceOverlay @Inject constructor(
         return context.resources.displayMetrics.widthPixels
     }
 
-    private fun statusBarHeight(): Int {
-        val id = context.resources.getIdentifier("status_bar_height", "dimen", "android")
-        return if (id > 0) context.resources.getDimensionPixelSize(id) else dp(24)
-    }
+    private fun statusBarHeight(root: View): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            windowManager.currentWindowMetrics.windowInsets
+                .getInsetsIgnoringVisibility(WindowInsets.Type.statusBars()).top
+        } else {
+            @Suppress("DEPRECATION")
+            root.rootWindowInsets?.stableInsetTop ?: dp(24)
+        }
 
     /** Stop repainting while the display is off/dozing (battery); the view repaints
      *  its last frame on resume. */
@@ -328,7 +371,7 @@ class CompanionFaceOverlay @Inject constructor(
         var startX = 0
         var startY = 0
         var dragged = false
-        return View.OnTouchListener { _, ev ->
+        return View.OnTouchListener { view, ev ->
             if ((ev.flags and MotionEvent.FLAG_WINDOW_IS_OBSCURED) != 0) return@OnTouchListener false
             val lp = params ?: return@OnTouchListener false
             val root = container ?: return@OnTouchListener false
@@ -353,7 +396,7 @@ class CompanionFaceOverlay @Inject constructor(
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (!dragged) openApproval()
+                    if (!dragged) view.performClick()
                     true
                 }
                 else -> false

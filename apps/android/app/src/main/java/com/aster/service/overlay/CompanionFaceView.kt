@@ -64,9 +64,18 @@ class CompanionFaceView(context: Context) : View(context) {
         if (width == 0 || height == 0) return
 
         canvas.save()
-        // View-fit: letterbox the design view (200×150) into the window, centred.
-        val s = min(width / m.viewW, height / m.viewH)
-        canvas.translate((width - m.viewW * s) / 2f, (height - m.viewH * s) / 2f)
+        // Match the desktop notch: paint the rig's 200×96 feature band (y=30…126),
+        // not the full 200×150 stage. Fitting the full stage made Android's former
+        // square window look like a small black panel with tiny, apparently static
+        // features. The rig and geometry remain shared; this is only a viewport crop.
+        val cropTop = 30f
+        val cropHeight = CompanionOverlayGeometry.CROP_HEIGHT.toFloat()
+        val s = min(width / m.viewW, height / cropHeight)
+        canvas.clipRect(0f, 0f, width.toFloat(), height.toFloat())
+        canvas.translate(
+            (width - m.viewW * s) / 2f,
+            (height - cropHeight * s) / 2f - cropTop * s,
+        )
         canvas.scale(s, s)
 
         // Whole-face transform (offset → tilt/scale about the view centre) + opacity.
