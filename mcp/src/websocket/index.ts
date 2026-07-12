@@ -21,7 +21,7 @@ import {
   updateDeviceStatus,
   upsertDevice,
 } from '../db/index.js';
-import { forwardEventToOpenClaw, type DeviceContext } from '../openclaw/index.js';
+import { forwardAgentEvent, type DeviceContext } from '../event-forwarding/index.js';
 import type { ExtendedDeviceInfo } from '../types/index.js';
 
 // Store for connected devices
@@ -141,7 +141,7 @@ export function createWebSocketServer(config: ServerConfig): WebSocketServer {
           }
           connectedDevices.delete(deviceId);
 
-          forwardEventToOpenClaw(deviceCtx, 'device_disconnected', {}, Date.now()).catch(() => {});
+          forwardAgentEvent(deviceCtx, 'device_disconnected', {}, Date.now()).catch(() => {});
         }
         addLog(deviceId, 'info', 'Device disconnected');
         consola.info(`Device ${deviceId} disconnected`);
@@ -231,13 +231,13 @@ function handleMessage(
         model: dev?.model ?? '',
         osVersion: dev?.osVersion ?? '',
       };
-      forwardEventToOpenClaw(
+      forwardAgentEvent(
         deviceCtx,
         eventResult.data.eventType,
         eventResult.data.data as Record<string, unknown>,
         eventResult.data.timestamp
       ).catch((err) => {
-        consola.debug('OpenClaw forward failed:', err);
+        consola.debug('Agent event forwarding failed:', err);
       });
     }
     return;
@@ -335,12 +335,12 @@ function handleAuth(
   addLog(deviceId, 'info', `Device connected with status: ${device.status}`);
   consola.success(`Device ${deviceName} connected (status: ${device.status})`);
 
-  // Forward connection events to OpenClaw
+  // Forward connection events to the configured agent endpoint
   const deviceCtx: DeviceContext = { deviceId, manufacturer, model, osVersion };
   if (device.status === 'approved') {
-    forwardEventToOpenClaw(deviceCtx, 'device_connected', {}, Date.now()).catch(() => {});
+    forwardAgentEvent(deviceCtx, 'device_connected', {}, Date.now()).catch(() => {});
   } else if (device.status === 'pending') {
-    forwardEventToOpenClaw(deviceCtx, 'pairing_required', {}, Date.now()).catch(() => {});
+    forwardAgentEvent(deviceCtx, 'pairing_required', {}, Date.now()).catch(() => {});
   }
 
   // Auto-fetch extended info for approved devices (with slight delay to ensure connection is stable)

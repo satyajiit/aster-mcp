@@ -112,7 +112,7 @@ export interface FileContentResult {
   mimeType?: string;
 }
 
-export interface OpenClawConfig {
+export interface AgentEventForwardingConfig {
   enabled: boolean;
   endpoint: string;
   webhookPath: string;
@@ -130,13 +130,13 @@ export interface OpenClawConfig {
   };
 }
 
-export interface OpenClawConfigResponse {
-  config: OpenClawConfig | null;
+export interface AgentEventForwardingConfigResponse {
+  config: AgentEventForwardingConfig | null;
   hasSourceToken: boolean;
   sourceTokenPreview: string | null;
 }
 
-export interface OpenClawTestResult {
+export interface AgentEventForwardingTestResult {
   success: boolean;
   status?: number;
   error?: string;
@@ -172,6 +172,34 @@ export function useApi() {
     return data as T;
   }
 
+  const getAgentEventForwardingConfig = () =>
+    fetchJson<AgentEventForwardingConfigResponse>('/api/event-forwarding/config');
+  const prefillAgentEventForwardingToken = () =>
+    fetchJson<{ token: string | null }>('/api/event-forwarding/prefill-token', { method: 'POST' });
+  const saveAgentEventForwardingConfig = (eventForwardingConfig: {
+    enabled: boolean;
+    endpoint: string;
+    webhookPath: string;
+    token: string;
+    channel: string;
+    deliverTo: string;
+    events: {
+      notifications: boolean;
+      sms: boolean;
+      deviceConnected: boolean;
+      deviceDisconnected: boolean;
+      pairingRequired: boolean;
+    };
+  }) => fetchJson<{ success: boolean }>('/api/event-forwarding/config', {
+    method: 'POST',
+    body: JSON.stringify(eventForwardingConfig),
+  });
+  const testAgentEventForwardingConnection = (endpoint: string, webhookPath: string, token?: string) =>
+    fetchJson<AgentEventForwardingTestResult>('/api/event-forwarding/test', {
+      method: 'POST',
+      body: JSON.stringify({ endpoint, webhookPath, token: token || '' }),
+    });
+
   return {
     // Stats
     getStats: () => fetchJson<Stats>('/api/stats'),
@@ -201,25 +229,23 @@ export function useApi() {
     // Health
     getHealth: () => fetchJson<{ status: string; timestamp: number }>('/api/health'),
 
-    // OpenClaw
-    getOpenClawConfig: () => fetchJson<OpenClawConfigResponse>('/api/openclaw/config'),
-    prefillOpenClawToken: () => fetchJson<{ token: string | null }>('/api/openclaw/prefill-token', { method: 'POST' }),
-    saveOpenClawConfig: (config: {
-      enabled: boolean;
-      endpoint: string;
-      webhookPath: string;
-      token: string;
-      channel: string;
-      deliverTo: string;
-      events: { notifications: boolean; sms: boolean };
-    }) => fetchJson<{ success: boolean }>('/api/openclaw/config', {
-      method: 'POST',
-      body: JSON.stringify(config),
-    }),
-    testOpenClawConnection: (endpoint: string, webhookPath: string, token?: string) =>
-      fetchJson<OpenClawTestResult>('/api/openclaw/test', {
-        method: 'POST',
-        body: JSON.stringify({ endpoint, webhookPath, token: token || '' }),
-      }),
+    // Agent event forwarding
+    getAgentEventForwardingConfig,
+    prefillAgentEventForwardingToken,
+    saveAgentEventForwardingConfig,
+    testAgentEventForwardingConnection,
+
+    // Deprecated zero-logic aliases for dashboard extensions using the old API.
+    getOpenClawConfig: getAgentEventForwardingConfig,
+    prefillOpenClawToken: prefillAgentEventForwardingToken,
+    saveOpenClawConfig: saveAgentEventForwardingConfig,
+    testOpenClawConnection: testAgentEventForwardingConnection,
   };
 }
+
+/** @deprecated Use AgentEventForwardingConfig. */
+export type OpenClawConfig = AgentEventForwardingConfig;
+/** @deprecated Use AgentEventForwardingConfigResponse. */
+export type OpenClawConfigResponse = AgentEventForwardingConfigResponse;
+/** @deprecated Use AgentEventForwardingTestResult. */
+export type OpenClawTestResult = AgentEventForwardingTestResult;

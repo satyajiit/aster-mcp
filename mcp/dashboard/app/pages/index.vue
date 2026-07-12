@@ -9,7 +9,7 @@ const logs = ref<LogEntry[]>([]);
 const loading = ref(true);
 const serverOnline = ref(false);
 const currentTime = ref(new Date());
-const openclawEnabled = ref<boolean | null>(null);
+const eventForwardingEnabled = ref<boolean | null>(null);
 
 // Update time every second
 let timeInterval: ReturnType<typeof setInterval>;
@@ -31,17 +31,17 @@ onUnmounted(() => {
 
 async function fetchData() {
   try {
-    const [statsData, devicesData, logsData, openclawData] = await Promise.all([
+    const [statsData, devicesData, logsData, eventForwardingData] = await Promise.all([
       api.getStats(),
       api.getDevices(),
       api.getLogs(20),
-      api.getOpenClawConfig().catch(() => null),
+      api.getAgentEventForwardingConfig().catch(() => null),
     ]);
 
     stats.value = statsData;
     devices.value = devicesData;
     logs.value = logsData;
-    openclawEnabled.value = openclawData?.config?.enabled ?? null;
+    eventForwardingEnabled.value = eventForwardingData?.config?.enabled ?? null;
     serverOnline.value = true;
   } catch {
     serverOnline.value = false;
@@ -130,10 +130,10 @@ function formatTime(date: Date): string {
         </div>
       </div>
 
-      <!-- OpenClaw Integration CTA -->
+      <!-- Agent Event Forwarding CTA -->
       <NuxtLink
-        to="/settings/openclaw"
-        class="openclaw-cta animate-fade-in stagger-4"
+        to="/settings/event-forwarding"
+        class="event-forwarding-cta animate-fade-in stagger-4"
       >
         <div class="cta-content">
           <div class="flex items-center gap-3">
@@ -141,12 +141,12 @@ function formatTime(date: Date): string {
               <span>&#9889;</span>
             </div>
             <div>
-              <div class="cta-title">OpenClaw Integration</div>
+              <div class="cta-title">Agent Event Forwarding</div>
               <div class="cta-subtitle">
-                <template v-if="openclawEnabled === true">
+                <template v-if="eventForwardingEnabled === true">
                   Event forwarding is active
                 </template>
-                <template v-else-if="openclawEnabled === false">
+                <template v-else-if="eventForwardingEnabled === false">
                   Event forwarding is disabled
                 </template>
                 <template v-else>
@@ -157,11 +157,11 @@ function formatTime(date: Date): string {
           </div>
           <div class="cta-right">
             <span
-              v-if="openclawEnabled !== null"
+              v-if="eventForwardingEnabled !== null"
               class="badge text-[9px]"
-              :class="openclawEnabled ? 'badge-emerald' : 'badge-amber'"
+              :class="eventForwardingEnabled ? 'badge-emerald' : 'badge-amber'"
             >
-              {{ openclawEnabled ? 'ACTIVE' : 'DISABLED' }}
+              {{ eventForwardingEnabled ? 'ACTIVE' : 'DISABLED' }}
             </span>
             <span v-else class="badge badge-muted text-[9px]">SETUP</span>
             <span class="cta-arrow">&#8594;</span>
@@ -246,7 +246,7 @@ function formatTime(date: Date): string {
           <div class="flex items-center gap-4">
             <NuxtLink to="/devices" class="hover:text-primary transition-colors">Devices</NuxtLink>
             <span class="text-terminal-dim">|</span>
-            <NuxtLink to="/settings/openclaw" class="hover:text-primary transition-colors">OpenClaw</NuxtLink>
+            <NuxtLink to="/settings/event-forwarding" class="hover:text-primary transition-colors">Event Forwarding</NuxtLink>
             <span class="text-terminal-dim">|</span>
             <a href="#" class="hover:text-primary transition-colors">Documentation</a>
           </div>
@@ -257,7 +257,7 @@ function formatTime(date: Date): string {
 </template>
 
 <style scoped>
-.openclaw-cta {
+.event-forwarding-cta {
   display: block;
   background: rgba(30, 41, 59, 0.95);
   border: 1px solid var(--color-terminal-border);
@@ -269,7 +269,7 @@ function formatTime(date: Date): string {
   color: inherit;
 }
 
-.openclaw-cta:hover {
+.event-forwarding-cta:hover {
   border-color: rgba(139, 92, 246, 0.35);
   background: rgba(139, 92, 246, 0.04);
   transform: translateY(-1px);
@@ -320,7 +320,7 @@ function formatTime(date: Date): string {
   transition: all 0.2s ease;
 }
 
-.openclaw-cta:hover .cta-arrow {
+.event-forwarding-cta:hover .cta-arrow {
   color: var(--color-violet);
   transform: translateX(3px);
 }

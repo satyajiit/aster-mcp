@@ -16,7 +16,7 @@ import {
   stopTailscaleServe,
 } from './util/tailscale.js';
 import { homedir } from 'os';
-import { loadOpenClawConfig } from './openclaw/index.js';
+import { loadAgentEventForwardingConfig } from './event-forwarding/index.js';
 
 config();
 
@@ -119,7 +119,7 @@ export async function startServer(overrides: Partial<ServerConfig> = {}): Promis
 
   // Initialize database
   initDatabase(serverConfig.dbPath);
-  loadOpenClawConfig();
+  loadAgentEventForwardingConfig();
 
   // Start WebSocket server for Android devices
   createWebSocketServer(serverConfig);
@@ -210,7 +210,7 @@ export async function startMcp(): Promise<void> {
 
   // Initialize database
   initDatabase(serverConfig.dbPath);
-  loadOpenClawConfig();
+  loadAgentEventForwardingConfig();
 
   // Start WebSocket server
   createWebSocketServer(serverConfig);
@@ -236,6 +236,7 @@ export { createApiServer, startApiServer } from './server/index.js';
 export * from './db/index.js';
 export * from './types/index.js';
 export * from './util/tailscale.js';
+export * from './event-forwarding/index.js';
 
 // Auto-start when run directly
 const currentFile = fileURLToPath(import.meta.url);

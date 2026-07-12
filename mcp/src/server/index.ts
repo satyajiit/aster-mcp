@@ -12,13 +12,13 @@ import { TOOL_DEFINITIONS } from '../mcp/tools.js';
 import { handleToolCall } from '../mcp/handler.js';
 import { registerMcpHttpRoutes } from '../mcp/http.js';
 import {
-  getOpenClawConfig,
-  getOpenClawSourceToken,
-  getOpenClawSavedToken,
-  saveOpenClawConfig,
-  testOpenClawConnection,
-  type OpenClawConfig,
-} from '../openclaw/index.js';
+  getAgentEventForwardingConfig,
+  getLegacyOpenClawSourceToken,
+  getSavedAgentEventForwardingToken,
+  saveAgentEventForwardingConfig,
+  testAgentEventForwardingConnection,
+  type AgentEventForwardingConfig,
+} from '../event-forwarding/index.js';
 
 export function createApiServer(config: ServerConfig) {
   const app = Fastify({
@@ -164,38 +164,35 @@ export function createApiServer(config: ServerConfig) {
     };
   });
 
-  // --- OpenClaw Configuration ---
+  // --- Agent Event Forwarding Configuration ---
 
-  // Get current config (token masked) + source token availability
-  app.get('/api/openclaw/config', async () => {
-    const cfg = getOpenClawConfig();
-    const sourceToken = getOpenClawSourceToken();
+  const getEventForwardingConfigHandler = async () => {
+    const cfg = getAgentEventForwardingConfig();
+    const sourceToken = getLegacyOpenClawSourceToken();
     return {
       config: cfg,
       hasSourceToken: !!sourceToken,
       sourceTokenPreview: sourceToken ? `${sourceToken.slice(0, 8)}...` : null,
     };
-  });
+  };
 
   // Pre-fill token from ~/.openclaw/openclaw.json (local use only)
-  app.post('/api/openclaw/prefill-token', async () => {
-    const token = getOpenClawSourceToken();
+  const prefillEventForwardingTokenHandler = async () => {
+    const token = getLegacyOpenClawSourceToken();
     return { token: token || null };
-  });
+  };
 
   // Save config — empty token preserves existing saved token
-  app.post<{ Body: Partial<OpenClawConfig> }>('/api/openclaw/config', async (request) => {
+  const saveEventForwardingConfigHandler = async (request: { body: Partial<AgentEventForwardingConfig> }) => {
     const body = request.body;
 
     // If token is empty, preserve existing saved token
     let token = body.token || '';
     if (!token) {
-      const existing = getOpenClawConfig();
-      // getOpenClawConfig masks the token, so read the raw saved token
-      token = getOpenClawSavedToken() || '';
+      token = getSavedAgentEventForwardingToken() || '';
     }
 
-    saveOpenClawConfig({
+    saveAgentEventForwardingConfig({
       enabled: body.enabled ?? true,
       endpoint: body.endpoint || 'http://localhost:18789',
       webhookPath: body.webhookPath || '/hooks/agent',
@@ -206,20 +203,30 @@ export function createApiServer(config: ServerConfig) {
       events: body.events ?? { notifications: true, sms: true, deviceConnected: true, deviceDisconnected: true, pairingRequired: true },
     });
     return { success: true };
-  });
+  };
 
   // Test connection — empty token uses saved token as fallback
-  app.post<{ Body: { endpoint: string; webhookPath: string; token?: string } }>(
-    '/api/openclaw/test',
-    async (request) => {
-      const { endpoint, webhookPath } = request.body;
-      let token = request.body.token || '';
-      if (!token) {
-        token = getOpenClawSavedToken() || '';
-      }
-      return testOpenClawConnection(endpoint, webhookPath, token);
+  const testEventForwardingConnectionHandler = async (request: {
+    body: { endpoint: string; webhookPath: string; token?: string };
+  }) => {
+    const { endpoint, webhookPath } = request.body;
+    let token = request.body.token || '';
+    if (!token) {
+      token = getSavedAgentEventForwardingToken() || '';
     }
-  );
+    return testAgentEventForwardingConnection(endpoint, webhookPath, token);
+  };
+
+  // The legacy routes are registered against the exact same handlers. In
+  // particular, mutating POST requests are never redirected.
+  app.get('/api/event-forwarding/config', getEventForwardingConfigHandler);
+  app.get('/api/openclaw/config', getEventForwardingConfigHandler);
+  app.post<{ Body: Partial<AgentEventForwardingConfig> }>('/api/event-forwarding/config', saveEventForwardingConfigHandler);
+  app.post<{ Body: Partial<AgentEventForwardingConfig> }>('/api/openclaw/config', saveEventForwardingConfigHandler);
+  app.post('/api/event-forwarding/prefill-token', prefillEventForwardingTokenHandler);
+  app.post('/api/openclaw/prefill-token', prefillEventForwardingTokenHandler);
+  app.post<{ Body: { endpoint: string; webhookPath: string; token?: string } }>('/api/event-forwarding/test', testEventForwardingConnectionHandler);
+  app.post<{ Body: { endpoint: string; webhookPath: string; token?: string } }>('/api/openclaw/test', testEventForwardingConnectionHandler);
 
   return app;
 }

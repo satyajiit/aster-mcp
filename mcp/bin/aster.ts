@@ -8,6 +8,12 @@ import { dirname, join } from 'path';
 import { existsSync, writeFileSync, readFileSync, unlinkSync, openSync, mkdirSync } from 'fs';
 import { homedir } from 'os';
 import { createInterface } from 'readline';
+import {
+  AGENT_EVENT_FORWARDING_CONFIG_PATH,
+  LEGACY_OPENCLAW_EVENT_FORWARDING_CONFIG_PATH,
+  getLegacyOpenClawSourceToken,
+  saveAgentEventForwardingConfig,
+} from '../src/event-forwarding/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -230,9 +236,9 @@ program
       console.log(chalk.gray(`  Use ${chalk.white('aster logs')} to view logs`));
       console.log(chalk.gray(`  Use ${chalk.white('aster stop')} to stop the server\n`));
 
-      // Ask about OpenClaw event forwarding
-      const openclawConfigPath = join(ASTER_DIR, 'openclaw.json');
-      const alreadyConfigured = existsSync(openclawConfigPath);
+      // Ask about proactive event forwarding
+      const alreadyConfigured = existsSync(AGENT_EVENT_FORWARDING_CONFIG_PATH)
+        || existsSync(LEGACY_OPENCLAW_EVENT_FORWARDING_CONFIG_PATH);
 
       if (!alreadyConfigured) {
         console.log(chalk.cyan('─'.repeat(45)));
@@ -242,21 +248,21 @@ program
         console.log(chalk.gray('  reacts instantly without polling.\n'));
         console.log(chalk.gray(`  Works out of the box with ${chalk.white('OpenClaw')}, ${chalk.white('ClawdBot')}, and ${chalk.white('MoltBot')}.\n`));
 
-        const wantOpenClaw = await askYesNo(chalk.white('  Enable event forwarding? (y/N): '));
+        const wantEventForwarding = await askYesNo(chalk.white('  Enable event forwarding? (y/N): '));
 
-        if (wantOpenClaw) {
+        if (wantEventForwarding) {
           const dashboardPort = status?.dashboardUrl
             ? new URL(status.dashboardUrl).port
             : options.apiPort;
-          const settingsUrl = `http://localhost:${dashboardPort}/settings/openclaw`;
+          const settingsUrl = `http://localhost:${dashboardPort}/settings/event-forwarding`;
           console.log(chalk.green(`\n  ✓ Opening dashboard to configure event forwarding...`));
           console.log(chalk.gray(`    ${settingsUrl}\n`));
-          console.log(chalk.gray(`  Or use the CLI: ${chalk.white('aster set-openclaw-callbacks')}\n`));
+          console.log(chalk.gray(`  Or use the CLI: ${chalk.white('aster set-event-forwarding')}\n`));
           openBrowser(settingsUrl);
         } else {
           console.log(chalk.gray(`\n  Skipped. You can enable it later with:`));
-          console.log(chalk.gray(`    ${chalk.white('aster set-openclaw-callbacks')}`));
-          console.log(chalk.gray(`    or from the dashboard at ${chalk.white('/settings/openclaw')}\n`));
+          console.log(chalk.gray(`    ${chalk.white('aster set-event-forwarding')}`));
+          console.log(chalk.gray(`    or from the dashboard at ${chalk.white('/settings/event-forwarding')}\n`));
         }
       }
     } else {
@@ -365,32 +371,20 @@ program
     openBrowser(url);
   });
 
-// Set OpenClaw callbacks command
+// Configure proactive event forwarding. The old command remains a strict alias.
 program
-  .command('set-openclaw-callbacks')
-  .description('Configure OpenClaw webhook for event forwarding (notifications, SMS)')
+  .command('set-event-forwarding')
+  .alias('set-openclaw-callbacks')
+  .description('Configure an agent webhook for event forwarding (notifications, SMS)')
   .action(async () => {
-    // Read OpenClaw token from ~/.openclaw/openclaw.json
-    const openclawConfigPath = join(homedir(), '.openclaw', 'openclaw.json');
-    if (!existsSync(openclawConfigPath)) {
-      console.log(chalk.red('Error: ~/.openclaw/openclaw.json not found.'));
+    // Compatibility importer for an external OpenClaw installation.
+    const token = getLegacyOpenClawSourceToken();
+    if (!token) {
+      console.log(chalk.red('Error: No token found in ~/.openclaw/openclaw.json (gateway.auth.token).'));
       console.log(chalk.gray('Please install and configure OpenClaw first.'));
       process.exit(1);
     }
-
-    let token = '';
-    try {
-      const openclawConfig = JSON.parse(readFileSync(openclawConfigPath, 'utf-8'));
-      token = openclawConfig?.gateway?.auth?.token || '';
-      if (!token) {
-        console.log(chalk.red('Error: No token found in ~/.openclaw/openclaw.json (gateway.auth.token)'));
-        process.exit(1);
-      }
-      console.log(chalk.green(`✓ Found OpenClaw token: ${token.slice(0, 8)}...`));
-    } catch (err: any) {
-      console.log(chalk.red(`Error reading OpenClaw config: ${err.message}`));
-      process.exit(1);
-    }
+    console.log(chalk.green(`✓ Found OpenClaw token: ${token.slice(0, 8)}...`));
 
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     const ask = (q: string, def: string): Promise<string> =>
@@ -424,7 +418,7 @@ program
     }
 
     // Save config
-    const asterOpenClawConfig = {
+    const eventForwardingConfig = {
       enabled: true,
       endpoint,
       webhookPath,
@@ -435,9 +429,8 @@ program
       events: { notifications: true, sms: true, deviceConnected: true, deviceDisconnected: true, pairingRequired: true },
     };
 
-    const configPath = join(ASTER_DIR, 'openclaw.json');
-    writeFileSync(configPath, JSON.stringify(asterOpenClawConfig, null, 2));
-    console.log(chalk.green(`\n✓ OpenClaw config saved to ${configPath}`));
+    saveAgentEventForwardingConfig(eventForwardingConfig);
+    console.log(chalk.green(`\n✓ Event-forwarding config saved to ${AGENT_EVENT_FORWARDING_CONFIG_PATH}`));
     console.log(chalk.gray('  Restart Aster for changes to take effect.'));
   });
 
