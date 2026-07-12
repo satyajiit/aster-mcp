@@ -39,6 +39,16 @@ class CompanionFaceView(context: Context) : View(context) {
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val windowClip = Path()
+
+    /** Desktop parity: square/flush top corners, restrained rounded bottoms only. */
+    var bottomCornerRadiusPx: Float = 12f * resources.displayMetrics.density
+        set(value) {
+            if (field == value) return
+            field = value
+            rebuildWindowClip()
+            invalidate()
+        }
 
     private var model: CompanionFaceModel? = null
 
@@ -59,11 +69,31 @@ class CompanionFaceView(context: Context) : View(context) {
      *  would be an empty rectangle, so the controller waits for this. */
     fun hasFrame(): Boolean = model != null
 
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        rebuildWindowClip()
+    }
+
+    private fun rebuildWindowClip() {
+        windowClip.reset()
+        if (width <= 0 || height <= 0) return
+        val r = bottomCornerRadiusPx.coerceAtMost(height / 2f)
+        windowClip.addRoundRect(
+            0f,
+            0f,
+            width.toFloat(),
+            height.toFloat(),
+            floatArrayOf(0f, 0f, 0f, 0f, r, r, r, r),
+            Path.Direction.CW,
+        )
+    }
+
     override fun onDraw(canvas: Canvas) {
         val m = model ?: return
         if (width == 0 || height == 0) return
 
         canvas.save()
+        canvas.clipPath(windowClip)
         // Match the desktop notch: paint the rig's 200×96 feature band (y=30…126),
         // not the full 200×150 stage. Fitting the full stage made Android's former
         // square window look like a small black panel with tiny, apparently static

@@ -18,6 +18,7 @@ data class OverlayGeometry(
     val y: Int,
     val width: Int,
     val height: Int,
+    val bottomCornerRadius: Float,
 )
 
 /**
@@ -62,7 +63,17 @@ object CompanionOverlayGeometry {
         val x = (anchorX - width / 2).coerceIn(0, (screenWidthPx - width).coerceAtLeast(0))
         val y = cutout?.top?.coerceAtLeast(0)
             ?: (statusBarHeightPx + dp(fallbackTopDp))
+        // Desktop parity: CSS uses `0 0 r r`, where r is 24% of the visible
+        // hang below the hardware notch, clamped to 12…24 logical pixels.
+        val hang = if (cutout == null) height else (height - cutout.bottom).coerceAtLeast(0)
+        val bottomCornerRadius = (hang * 0.24f).coerceIn(dp(12).toFloat(), dp(24).toFloat())
 
-        return OverlayGeometry(x = x, y = y, width = width, height = height)
+        return OverlayGeometry(
+            x = x,
+            y = y,
+            width = width,
+            height = height,
+            bottomCornerRadius = bottomCornerRadius,
+        )
     }
 }

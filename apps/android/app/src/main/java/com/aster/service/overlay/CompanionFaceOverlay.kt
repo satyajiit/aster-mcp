@@ -304,7 +304,11 @@ class CompanionFaceOverlay @Inject constructor(
             lp.height == geometry.height &&
             lp.x == geometry.x &&
             lp.y == geometry.y
-        ) return
+        ) {
+            faceView?.bottomCornerRadiusPx = geometry.bottomCornerRadius
+            return
+        }
+        faceView?.bottomCornerRadiusPx = geometry.bottomCornerRadius
         lp.width = geometry.width
         lp.height = geometry.height
         lp.x = geometry.x

@@ -30,6 +30,11 @@ class CompanionOverlayGeometryTest {
         assertEquals(540, result.x + result.width / 2)
         assertEquals(0, result.y)
         assertTrue(result.height >= 90 + 44 * 3)
+        assertEquals(
+            ((result.height - 90) * 0.24f).coerceIn(12 * 3f, 24 * 3f),
+            result.bottomCornerRadius,
+            0.01f,
+        )
     }
 
     @Test
@@ -46,6 +51,7 @@ class CompanionOverlayGeometryTest {
 
         assertEquals(540, result.x + result.width / 2)
         assertEquals(72 + 8 * 3, result.y)
+        assertTrue(result.bottomCornerRadius in 12 * 3f..24 * 3f)
         assertEquals(
             (result.width * CompanionOverlayGeometry.CROP_HEIGHT.toFloat() /
                 CompanionOverlayGeometry.CROP_WIDTH).roundToInt(),
