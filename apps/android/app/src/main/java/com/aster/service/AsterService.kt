@@ -276,6 +276,7 @@ class AsterService : Service() {
         activeModeTypes = emptySet()
 
         AsterNotificationListenerService.onNotificationEvent = null
+        AsterAccessibilityService.onCompanionPulseEvent = null
         EventDeduplicator.stopCleanup()
         smsBroadcastReceiver?.let {
             try { unregisterReceiver(it) } catch (_: Exception) {}
@@ -547,6 +548,26 @@ class AsterService : Service() {
                 "postTime" to JsonPrimitive(postTime)
             )
             forwardEvent("notification", data)
+            // The companion receives only app identity — never title or body.
+            forwardEvent(
+                "companion_system_pulse",
+                mapOf(
+                    "kind" to JsonPrimitive("notification"),
+                    "packageName" to JsonPrimitive(packageName),
+                ),
+            )
+        }
+
+        AsterAccessibilityService.onCompanionPulseEvent = { pulse ->
+            val data = mutableMapOf<String, JsonElement>("kind" to JsonPrimitive(pulse.kind))
+            pulse.values.forEach { (key, value) ->
+                data[key] = when (value) {
+                    is Boolean -> JsonPrimitive(value)
+                    is Number -> JsonPrimitive(value)
+                    else -> JsonPrimitive(value.toString())
+                }
+            }
+            forwardEvent("companion_system_pulse", data)
         }
 
         val receiver = SmsBroadcastReceiver()

@@ -14,6 +14,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import com.aster.service.accessibility.ActionMapper
+import com.aster.service.accessibility.AccessibilityPulseClassifier
 import com.aster.service.accessibility.Bounds
 import com.aster.service.accessibility.ElementState
 import com.aster.service.accessibility.NodeDescriptor
@@ -61,6 +62,11 @@ class AsterAccessibilityService : AccessibilityService() {
 
         fun isServiceEnabled(): Boolean = instance != null
 
+        /** Installed by [AsterService] while an IPC session is alive. The
+         * payload is already privacy-minimised by the classifier. */
+        @Volatile
+        internal var onCompanionPulseEvent: ((AccessibilityPulseClassifier.Pulse) -> Unit)? = null
+
         // Global action constants
         const val ACTION_BACK = "BACK"
         const val ACTION_HOME = "HOME"
@@ -85,6 +91,8 @@ class AsterAccessibilityService : AccessibilityService() {
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val companionPulseClassifier = AccessibilityPulseClassifier()
 
     /** On-device OCR engine (lazily creates the ML Kit recognizer; closed in onDestroy). */
     private val ocrEngine = OcrEngine()
@@ -147,6 +155,27 @@ class AsterAccessibilityService : AccessibilityService() {
             type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
         ) {
             screenSyncTracker.recordChange(System.currentTimeMillis())
+        }
+
+        // System Pulse observes only allow-listed event metadata. This branch
+        // never accesses event.text, contentDescription, or event.source.
+        val pulseEvent = type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            type == AccessibilityEvent.TYPE_VIEW_CLICKED ||
+            type == AccessibilityEvent.TYPE_VIEW_LONG_CLICKED ||
+            type == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
+            type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
+        if (pulseEvent) onCompanionPulseEvent?.let { publish ->
+            val dx = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) event.scrollDeltaX else 0
+            val dy = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) event.scrollDeltaY else 0
+            val input = AccessibilityPulseClassifier.Input(
+                eventType = type,
+                packageName = event.packageName?.toString(),
+                scrollDeltaX = dx,
+                scrollDeltaY = dy,
+                fromIndex = event.fromIndex,
+                toIndex = event.toIndex,
+            )
+            companionPulseClassifier.classify(input, System.currentTimeMillis()).forEach(publish)
         }
 
         // RECORD MODE (companion live recorder). Cheap guard first: do NO tree work
@@ -360,6 +389,7 @@ class AsterAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         instance = null
+        companionPulseClassifier.reset()
         ocrEngine.close()
         if (BuildConfig.DEBUG) Log.d(TAG, "Accessibility service destroyed")
         super.onDestroy()
