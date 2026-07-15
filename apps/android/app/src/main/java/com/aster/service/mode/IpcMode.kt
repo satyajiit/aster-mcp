@@ -37,6 +37,8 @@ class IpcMode(
         private const val TOKEN_LENGTH = 32
         /** Results above this byte size are offloaded to PFD pipe instead of Binder. */
         private const val LARGE_RESULT_THRESHOLD = 500_000 // ~500 KB
+        private const val MAX_COMPANION_STATUS_BYTES = 8 * 1024
+        private const val MAX_COMPANION_CONFIGURATION_BYTES = 2 * 1024
 
         /** Ack for one drained companion face frame — lets the client bound its
          *  in-flight frames instead of flooding this process's binder async pool. */
@@ -316,6 +318,24 @@ class IpcMode(
             companionFaceOverlay.onFrame(frame)
             // Ack the sender only (not broadcastEvent — that fans out to every client).
             runCatching { callbacks[callingUid]?.onEvent(EVENT_COMPANION_FRAME_ACK, "{}") }
+        }
+
+        override fun pushCompanionStatus(status: ByteArray?) {
+            val callingUid = Binder.getCallingUid()
+            if (!authenticatedUids.containsKey(callingUid)) return
+            if (status == null || status.isEmpty() || status.size > MAX_COMPANION_STATUS_BYTES) return
+            companionFaceOverlay.onStatus(status)
+        }
+
+        override fun pushCompanionConfiguration(configuration: ByteArray?) {
+            val callingUid = Binder.getCallingUid()
+            if (!authenticatedUids.containsKey(callingUid)) return
+            if (
+                configuration == null ||
+                configuration.isEmpty() ||
+                configuration.size > MAX_COMPANION_CONFIGURATION_BYTES
+            ) return
+            companionFaceOverlay.onConfiguration(configuration)
         }
     }
 

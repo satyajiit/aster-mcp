@@ -5,6 +5,10 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RectF
+import android.graphics.Typeface
+import android.os.SystemClock
+import android.view.Choreographer
 import android.view.View
 import androidx.core.graphics.PathParser
 import org.json.JSONArray
@@ -21,25 +25,34 @@ import kotlin.math.roundToInt
  * SYSTEM_ALERT_WINDOW for its screen-control work, so it hosts the window and
  * OpenAlly only feeds it geometry over the existing IPC bridge.
  *
- * SINGLE SOURCE OF TRUTH: this view does NOT run the face engine. OpenAlly runs the
- * ONE shared `@openally/face` rig and streams the SAME renderer-agnostic
+ * POSE SOURCE OF TRUTH: OpenAlly runs the shared `@openally/face` rig and streams the
+ * same renderer-agnostic
  * `buildGeometry` output — serialized as JSON — over `IAsterService.pushCompanionFrame`.
  * This view only PAINTS an already-parsed [CompanionFaceModel], in the exact order
  * `FaceCanvas.tsx` draws (head pill → blush → hands → headphones → brows → eyes →
  * mouth → cookie → props → particles). So the overlay face is identical to
- * OpenAlly's in-app face by construction — there is no second engine to diverge.
+ * OpenAlly's in-app face by construction. A bounded native layer animates only
+ * transforms and decorations (blink, breath, semantic reactions) after remote frames
+ * become stale; a fresh remote frame disables ambient native transforms immediately.
  *
  * THREADING: [parseCompanionFace] is a pure function called on the Binder pool
  * thread that receives the frame, so the binder transaction buffer is released
- * immediately and this view's main thread only invalidates + draws. The view is
- * passive — it repaints solely when a new frame lands, so an idle face costs ≈0%
- * CPU, and `paused` gates repaints while the display is off.
+ * immediately and this view's main thread only invalidates + draws. Its native clock
+ * is capped at 30 fps and `paused` stops it entirely while the display is off.
  */
-class CompanionFaceView(context: Context) : View(context) {
+class CompanionFaceView(context: Context) : View(context), Choreographer.FrameCallback {
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val windowClip = Path()
+    private val animator = CompanionNativeAnimator()
+    private var status: CompanionStatusModel? = null
+    private var statusVisible = false
+    private var lastRemoteFrameAtMs = 0L
+    private var animationScheduled = false
+
+    /** Geometry must shrink when a timed side readout expires. */
+    var onStatusVisibilityChanged: (() -> Unit)? = null
 
     /** Desktop parity: square/flush top corners, restrained rounded bottoms only. */
     var bottomCornerRadiusPx: Float = 12f * resources.displayMetrics.density
@@ -55,19 +68,79 @@ class CompanionFaceView(context: Context) : View(context) {
     /** Gate repaints while the display is off/dozing (battery). */
     var paused: Boolean = false
         set(value) {
+            if (field == value) return
             field = value
-            if (!value) invalidate()
+            if (value) {
+                Choreographer.getInstance().removeFrameCallback(this)
+                animationScheduled = false
+            } else {
+                invalidate()
+                scheduleAnimation()
+            }
         }
 
     /** Install one already-parsed frame. Main thread only. */
     fun setFrame(frame: CompanionFaceModel) {
         model = frame
+        lastRemoteFrameAtMs = SystemClock.elapsedRealtime()
         if (!paused) invalidate()
+    }
+
+    fun setStatus(next: CompanionStatusModel?) {
+        status = next
+        refreshStatusVisibility()
+        if (!paused) invalidate()
+    }
+
+    fun hasStatus(): Boolean = statusVisible
+
+    /** A delayed Pomodoro countdown may exist while its face-only interlude is visible. */
+    fun hasStatusModel(): Boolean = status != null
+
+    fun react(reaction: CompanionReaction, nowMs: Long = SystemClock.elapsedRealtime()) {
+        if (reaction == CompanionReaction.LAND) animator.land(nowMs) else animator.react(reaction, nowMs)
+        scheduleAnimation()
     }
 
     /** True once at least one frame has landed — an attached window with no frame
      *  would be an empty rectangle, so the controller waits for this. */
     fun hasFrame(): Boolean = model != null
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        scheduleAnimation()
+    }
+
+    override fun onDetachedFromWindow() {
+        Choreographer.getInstance().removeFrameCallback(this)
+        animationScheduled = false
+        animator.clear()
+        super.onDetachedFromWindow()
+    }
+
+    override fun doFrame(frameTimeNanos: Long) {
+        animationScheduled = false
+        if (!isAttachedToWindow || paused) return
+        val now = frameTimeNanos / 1_000_000L
+        expireStatusIfNeeded(now)
+        refreshStatusVisibility()
+        postInvalidateOnAnimation()
+        scheduleAnimation()
+    }
+
+    private fun scheduleAnimation() {
+        if (animationScheduled || paused || !isAttachedToWindow) return
+        animationScheduled = true
+        // 30 fps is ample at notch scale and halves the cost of a 60/120 Hz panel.
+        Choreographer.getInstance().postFrameCallbackDelayed(this, 33L)
+    }
+
+    private fun expireStatusIfNeeded(nowMs: Long) {
+        val current = status ?: return
+        if (current.expiresAtMs == 0L || nowMs < current.expiresAtMs) return
+        status = null
+        refreshStatusVisibility()
+    }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
@@ -91,19 +164,52 @@ class CompanionFaceView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         val m = model ?: return
         if (width == 0 || height == 0) return
-
+        val now = SystemClock.elapsedRealtime()
+        expireStatusIfNeeded(now)
+        val currentStatus = status.takeIf { statusVisible }
+        val motion = animator.sample(now, lastRemoteFrameAtMs)
         canvas.save()
         canvas.clipPath(windowClip)
+        canvas.drawColor(Color.BLACK)
+
+        val faceWidth = when (currentStatus?.mode) {
+            "full" -> 0f
+            "side" -> min(width * 0.43f, height * 2.08f)
+            else -> width.toFloat()
+        }
+        if (faceWidth > 0f) drawFace(canvas, m, faceWidth, motion)
+        if (currentStatus != null) drawStatus(canvas, currentStatus, faceWidth)
+        drawNativeDecoration(canvas, motion.decoration, faceWidth)
+        canvas.restore()
+    }
+
+    private fun refreshStatusVisibility() {
+        val nextVisible = status?.let { model ->
+            val revealAt = model.visibleAfterEpochMs
+            revealAt == null || System.currentTimeMillis() >= revealAt
+        } ?: false
+        if (statusVisible == nextVisible) return
+        statusVisible = nextVisible
+        onStatusVisibilityChanged?.invoke()
+    }
+
+    private fun drawFace(
+        canvas: Canvas,
+        m: CompanionFaceModel,
+        viewportWidth: Float,
+        motion: CompanionMotionFrame,
+    ) {
+        canvas.save()
+        canvas.clipRect(0f, 0f, viewportWidth, height.toFloat())
         // Match the desktop notch: paint the rig's 200×96 feature band (y=30…126),
         // not the full 200×150 stage. Fitting the full stage made Android's former
         // square window look like a small black panel with tiny, apparently static
         // features. The rig and geometry remain shared; this is only a viewport crop.
         val cropTop = 30f
         val cropHeight = CompanionOverlayGeometry.CROP_HEIGHT.toFloat()
-        val s = min(width / m.viewW, height / cropHeight)
-        canvas.clipRect(0f, 0f, width.toFloat(), height.toFloat())
+        val s = min(viewportWidth / m.viewW, height / cropHeight)
         canvas.translate(
-            (width - m.viewW * s) / 2f,
+            (viewportWidth - m.viewW * s) / 2f,
             (height - cropHeight * s) / 2f - cropTop * s,
         )
         canvas.scale(s, s)
@@ -118,10 +224,10 @@ class CompanionFaceView(context: Context) : View(context) {
             }
         val cx = m.viewW / 2f
         val cy = m.viewH / 2f
-        canvas.translate(m.offsetX, m.offsetY)
+        canvas.translate(m.offsetX + motion.dx, m.offsetY + motion.dy)
         canvas.translate(cx, cy)
-        canvas.rotate(m.tiltDeg)
-        canvas.scale(m.scale, m.scale)
+        canvas.rotate(m.tiltDeg + motion.rotationDeg)
+        canvas.scale(m.scale * motion.scaleX, m.scale * motion.scaleY)
         canvas.translate(-cx, -cy)
 
         // 1. Head pill.
@@ -159,14 +265,20 @@ class CompanionFaceView(context: Context) : View(context) {
         // 5. Brows + eyes (ink fills).
         fill.color = m.ink
         fill.alpha = 255
+        canvas.save()
+        canvas.translate(cx, 75f)
+        canvas.scale(1f, motion.eyeScaleY)
+        canvas.translate(-cx, -75f)
         for (p in m.brows) canvas.drawPath(p, fill)
         for (p in m.eyes) canvas.drawPath(p, fill)
+        canvas.restore()
 
         // 6. Mouth: lip ring (ink) + cavity (head) + clipped tongue (red) & teeth (ink).
         val mouth = m.mouth
         canvas.save()
         canvas.translate(mouth.pivotX, mouth.pivotY)
         canvas.rotate(mouth.tiltDeg)
+        canvas.scale(1f, motion.mouthScaleY)
         canvas.translate(-mouth.pivotX, -mouth.pivotY)
         mouth.outer?.let {
             fill.color = m.ink
@@ -218,6 +330,205 @@ class CompanionFaceView(context: Context) : View(context) {
         canvas.restoreToCount(restoreTo)
         canvas.restore()
     }
+
+    private fun drawStatus(canvas: Canvas, status: CompanionStatusModel, faceWidth: Float) {
+        val density = resources.displayMetrics.density
+        val accent = parseStatusColor(status.hue)
+        val full = status.mode == "full"
+        val countdownSeconds = status.countdownEndsAtEpochMs?.let { deadline ->
+            ((deadline - System.currentTimeMillis()).coerceAtLeast(0L) + 999L) / 1_000L
+        }
+        val renderedText = countdownSeconds?.let(::formatCountdown) ?: status.text
+        val renderedProgress = if (countdownSeconds != null && status.countdownTotalSeconds != null) {
+            (1f - countdownSeconds.toFloat() / status.countdownTotalSeconds).coerceIn(0f, 1f)
+        } else {
+            status.progress
+        }
+        val left = if (full) 0f else faceWidth
+        val available = width - left
+        if (available <= 0f) return
+
+        val iconSize = if (full) 25f * density else 21f * density
+        val iconCx = if (full) left + 27f * density else left + 25f * density
+        val iconCy = height * 0.48f
+        drawStatusIcon(canvas, status.icon, iconCx, iconCy, iconSize, accent, renderedProgress)
+
+        val textLeft = if (status.icon == null) left + 14f * density else iconCx + iconSize * 0.72f
+        val textRight = width - 11f * density
+        val primary = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            typeface = if (full) Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+            else Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textSize = (if (full) 23f else 14f) * density
+        }
+        val secondary = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(190, 255, 255, 255)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            textSize = 10f * density
+        }
+        val hasDetail = !status.detail.isNullOrBlank()
+        val primaryY = if (hasDetail) height * 0.48f else height * 0.57f
+        canvas.drawText(ellipsize(renderedText, primary, textRight - textLeft), textLeft, primaryY, primary)
+        status.detail?.let {
+            canvas.drawText(
+                ellipsize(it, secondary, textRight - textLeft),
+                textLeft,
+                primaryY + 15f * density,
+                secondary,
+            )
+        }
+        renderedProgress?.let { value ->
+            val trackLeft = if (full) 13f * density else textLeft
+            val trackRight = width - 12f * density
+            val top = height - 7f * density
+            fill.color = Color.argb(72, 255, 255, 255)
+            fill.alpha = 255
+            canvas.drawRoundRect(trackLeft, top, trackRight, top + 3f * density, 2f * density, 2f * density, fill)
+            fill.color = accent
+            canvas.drawRoundRect(
+                trackLeft,
+                top,
+                trackLeft + (trackRight - trackLeft) * value.coerceIn(0f, 1f),
+                top + 3f * density,
+                2f * density,
+                2f * density,
+                fill,
+            )
+        }
+    }
+
+    private fun formatCountdown(totalSeconds: Long): String {
+        val seconds = totalSeconds.coerceAtLeast(0L)
+        val hours = seconds / 3_600L
+        val minutes = (seconds % 3_600L) / 60L
+        val remainder = seconds % 60L
+        return if (hours > 0L) {
+            "$hours:${minutes.toString().padStart(2, '0')}:${remainder.toString().padStart(2, '0')}"
+        } else {
+            "${minutes.toString().padStart(2, '0')}:${remainder.toString().padStart(2, '0')}"
+        }
+    }
+
+    private fun drawStatusIcon(
+        canvas: Canvas,
+        icon: String?,
+        cx: Float,
+        cy: Float,
+        size: Float,
+        color: Int,
+        progress: Float?,
+    ) {
+        if (icon == null) return
+        stroke.color = color
+        stroke.alpha = 255
+        stroke.strokeWidth = maxOf(1.7f, size * 0.09f)
+        stroke.strokeCap = Paint.Cap.ROUND
+        stroke.strokeJoin = Paint.Join.ROUND
+        fill.color = color
+        fill.alpha = 255
+        val r = size / 2f
+        when (icon) {
+            "battery" -> {
+                val body = RectF(cx - r, cy - r * 0.58f, cx + r * 0.78f, cy + r * 0.58f)
+                canvas.drawRoundRect(body, r * 0.18f, r * 0.18f, stroke)
+                canvas.drawRoundRect(cx + r * 0.82f, cy - r * 0.22f, cx + r, cy + r * 0.22f, r * 0.08f, r * 0.08f, fill)
+                val level = (progress ?: 0.5f).coerceIn(0f, 1f)
+                canvas.drawRoundRect(
+                    body.left + r * 0.17f,
+                    body.top + r * 0.17f,
+                    body.left + r * 0.17f + (body.width() - r * 0.34f) * level,
+                    body.bottom - r * 0.17f,
+                    r * 0.08f,
+                    r * 0.08f,
+                    fill,
+                )
+            }
+            "bolt" -> {
+                val p = Path().apply {
+                    moveTo(cx + r * 0.12f, cy - r)
+                    lineTo(cx - r * 0.58f, cy + r * 0.08f)
+                    lineTo(cx - r * 0.04f, cy + r * 0.08f)
+                    lineTo(cx - r * 0.18f, cy + r)
+                    lineTo(cx + r * 0.62f, cy - r * 0.18f)
+                    lineTo(cx + r * 0.08f, cy - r * 0.18f)
+                    close()
+                }
+                canvas.drawPath(p, fill)
+            }
+            "move", "scroll" -> {
+                canvas.drawLine(cx, cy - r, cx, cy + r, stroke)
+                canvas.drawLine(cx, cy - r, cx - r * 0.35f, cy - r * 0.65f, stroke)
+                canvas.drawLine(cx, cy - r, cx + r * 0.35f, cy - r * 0.65f, stroke)
+                canvas.drawLine(cx, cy + r, cx - r * 0.35f, cy + r * 0.65f, stroke)
+                canvas.drawLine(cx, cy + r, cx + r * 0.35f, cy + r * 0.65f, stroke)
+            }
+            "notification" -> {
+                canvas.drawArc(cx - r * 0.62f, cy - r * 0.72f, cx + r * 0.62f, cy + r * 0.62f, 195f, 150f, false, stroke)
+                canvas.drawLine(cx - r * 0.68f, cy + r * 0.58f, cx + r * 0.68f, cy + r * 0.58f, stroke)
+                canvas.drawCircle(cx, cy + r * 0.82f, r * 0.12f, fill)
+            }
+            "typing" -> {
+                for (i in -1..1) canvas.drawCircle(cx + i * r * 0.62f, cy, r * 0.17f, fill)
+            }
+            else -> {
+                canvas.drawCircle(cx, cy, r * 0.82f, stroke)
+                canvas.drawCircle(cx, cy, r * 0.18f, fill)
+            }
+        }
+    }
+
+    private fun drawNativeDecoration(canvas: Canvas, reaction: CompanionReaction?, faceWidth: Float) {
+        if (reaction == null || faceWidth <= 0f) return
+        val density = resources.displayMetrics.density
+        val alpha = 220
+        fill.alpha = alpha
+        stroke.alpha = alpha
+        when (reaction) {
+            CompanionReaction.LIFT -> {
+                fill.color = Color.rgb(96, 165, 250)
+                canvas.drawOval(
+                    faceWidth * 0.76f,
+                    height * 0.12f,
+                    faceWidth * 0.76f + 7f * density,
+                    height * 0.12f + 12f * density,
+                    fill,
+                )
+                stroke.color = Color.WHITE
+                stroke.strokeWidth = 2f * density
+                canvas.drawLine(faceWidth * 0.18f, height * 0.16f, faceWidth * 0.10f, height * 0.05f, stroke)
+                canvas.drawLine(faceWidth * 0.82f, height * 0.16f, faceWidth * 0.90f, height * 0.05f, stroke)
+            }
+            CompanionReaction.CHARGE, CompanionReaction.PING -> {
+                fill.color = if (reaction == CompanionReaction.CHARGE) Color.rgb(52, 211, 153) else Color.rgb(251, 191, 36)
+                canvas.drawCircle(faceWidth * 0.17f, height * 0.22f, 3.2f * density, fill)
+                canvas.drawCircle(faceWidth * 0.82f, height * 0.16f, 2.5f * density, fill)
+            }
+            CompanionReaction.SHAKE -> {
+                stroke.color = Color.rgb(251, 113, 133)
+                stroke.strokeWidth = 2f * density
+                canvas.drawArc(2f * density, height * 0.26f, 13f * density, height * 0.74f, 90f, 180f, false, stroke)
+                canvas.drawArc(faceWidth - 13f * density, height * 0.26f, faceWidth - 2f * density, height * 0.74f, -90f, 180f, false, stroke)
+            }
+            CompanionReaction.LAND -> {
+                fill.color = Color.rgb(52, 211, 153)
+                canvas.drawCircle(faceWidth * 0.76f, height * 0.20f, 3f * density, fill)
+                canvas.drawCircle(faceWidth * 0.82f, height * 0.27f, 2f * density, fill)
+            }
+            else -> Unit
+        }
+        fill.alpha = 255
+        stroke.alpha = 255
+    }
+
+    private fun ellipsize(value: String, paint: Paint, width: Float): String {
+        if (width <= 0f || paint.measureText(value) <= width) return value
+        val suffix = "…"
+        val count = paint.breakText(value, true, (width - paint.measureText(suffix)).coerceAtLeast(0f), null)
+        return value.take(count.coerceAtLeast(0)).trimEnd() + suffix
+    }
+
+    private fun parseStatusColor(value: String?): Int =
+        value?.let { runCatching { Color.parseColor(it) }.getOrNull() } ?: Color.rgb(96, 165, 250)
 
     /** One prim group: a rotation about (`ox`,`oy`) + a group alpha over its prims. */
     private fun drawGroup(canvas: Canvas, g: FaceGroup, palette: Map<String, Int>) {

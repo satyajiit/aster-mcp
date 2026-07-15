@@ -40,4 +40,10 @@ interface IAsterService {
      * binder thread and coalesces to the newest frame.
      */
     oneway void pushCompanionFrame(in byte[] frame);
+
+    /** APPEND-ONLY low-rate companion readout lane. UTF-8 JSON; `null` clears. */
+    oneway void pushCompanionStatus(in byte[] status);
+
+    /** APPEND-ONLY native System Pulse policy. UTF-8 JSON, whitelist validated. */
+    oneway void pushCompanionConfiguration(in byte[] configuration);
 }

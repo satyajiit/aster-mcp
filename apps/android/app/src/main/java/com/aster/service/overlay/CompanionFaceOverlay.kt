@@ -9,6 +9,7 @@ import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import android.view.Display
@@ -36,8 +37,9 @@ import kotlinx.coroutines.withContext
  * draw-over-other-apps permission. Aster is sideloaded and already holds
  * SYSTEM_ALERT_WINDOW for its screen-control overlays, so the WINDOW lives here and
  * OpenAlly only streams face geometry over the existing IPC bridge
- * (`IAsterService.pushCompanionFrame`). There is no second face engine: OpenAlly
- * runs the one shared rig, [CompanionFaceView] merely paints what it sends.
+ * (`IAsterService.pushCompanionFrame`). OpenAlly remains the pose source of truth;
+ * [CompanionFaceView] adds a small native liveness/reaction layer only when remote
+ * frames go stale, so Android background throttling cannot leave a frozen face.
  *
  * FRAME PATH (the part that must not misbehave). Frames arrive on a Binder pool
  * thread. Two properties are load-bearing:
@@ -92,6 +94,24 @@ class CompanionFaceOverlay @Inject constructor(
     private var container: FrameLayout? = null
     private var faceView: CompanionFaceView? = null
     private var params: WindowManager.LayoutParams? = null
+    private val pulseMonitor by lazy { CompanionSystemPulseMonitor(context, ::onSystemPulse) }
+
+    private data class PowerSnapshot(
+        val charging: Boolean,
+        val external: Boolean,
+        val percent: Int,
+    )
+
+    private var lastPower: PowerSnapshot? = null
+    private var lastBatteryBucket = -1
+    private var airborne = false
+    @Volatile
+    private var pulseConfiguration = CompanionPulseConfiguration.NONE
+    /** Main-thread attribution for a currently visible native moment. */
+    private var nativeMomentLane: String? = null
+    private var dispatchingPulseLane: String? = null
+    /** Last OpenAlly-arbitrated readout, preserved beneath short native moments. */
+    private var remoteStatus: CompanionStatusModel? = null
 
     /** Read from the binder thread on every frame; written on the main thread. */
     @Volatile
@@ -175,13 +195,64 @@ class CompanionFaceOverlay @Inject constructor(
         }
     }
 
+    /** Low-rate structured readout lane. Parsing stays on the Binder pool thread;
+     *  malformed payloads are dropped and a wire `null` clears the status. */
+    fun onStatus(payload: ByteArray) {
+        if (!attached) return
+        val parsed = parseCompanionStatus(String(payload, Charsets.UTF_8), SystemClock.elapsedRealtime())
+        if (!parsed.valid) {
+            if (BuildConfig.DEBUG) Log.w(TAG, "dropped a malformed companion status")
+            return
+        }
+        runOnMain {
+            remoteStatus = parsed.status
+            // Native system moments have the same priority role as the shared
+            // arbiter's `system` channel. Keep them visible for their bounded TTL,
+            // but continuously remember the underlying Pomodoro/music readout.
+            if (nativeMomentLane == null) faceView?.setStatus(parsed.status)
+        }
+    }
+
+    /** Apply the last known-good System Pulse policy even while no window is up. */
+    fun onConfiguration(payload: ByteArray) {
+        val parsed = parseCompanionPulseConfiguration(String(payload, Charsets.UTF_8))
+        if (parsed == null) {
+            if (BuildConfig.DEBUG) Log.w(TAG, "dropped a malformed companion configuration")
+            return
+        }
+        pulseConfiguration = parsed
+        runOnMain { applyPulseConfiguration(parsed) }
+    }
+
+    /** Native/background system moment. Safe from Binder, sensor, and main threads. */
+    fun onSystemPulse(kind: String, values: Map<String, Any>) {
+        if (!attached) return
+        runOnMain { applySystemPulse(kind, values) }
+    }
+
     // ── window ───────────────────────────────────────────────────────────────
 
     @SuppressLint("ClickableViewAccessibility")
     private fun attachWindow(): Boolean {
         if (attached) return true
 
-        val face = CompanionFaceView(context)
+        val face = CompanionFaceView(context).apply {
+            onStatusVisibilityChanged = {
+                mainHandler.post {
+                    if (faceView?.hasStatus() != true && faceView?.hasStatusModel() != true) {
+                        val nativeExpired = nativeMomentLane != null
+                        nativeMomentLane = null
+                        if (nativeExpired) {
+                            remoteStatus?.let { faceView?.setStatus(it) }
+                        } else {
+                            // A remote side readout reached its safety expiry.
+                            remoteStatus = null
+                        }
+                    }
+                    recomputeGeometry()
+                }
+            }
+        }
         faceView = face
 
         val root = FrameLayout(context).apply {
@@ -217,6 +288,8 @@ class CompanionFaceOverlay @Inject constructor(
             recomputeGeometry()
             applyDisplayPowerState()
             displayManager.registerDisplayListener(displayListener, mainHandler)
+            applyPulseConfiguration(pulseConfiguration)
+            pulseMonitor.start(displayActive())
             Log.i(TAG, "companion face attached")
             return true
         } catch (e: Exception) {
@@ -232,6 +305,12 @@ class CompanionFaceOverlay @Inject constructor(
         if (!attached) return
         attached = false
         pending.set(null)
+        pulseMonitor.stop()
+        lastPower = null
+        lastBatteryBucket = -1
+        airborne = false
+        nativeMomentLane = null
+        remoteStatus = null
         runCatching { displayManager.unregisterDisplayListener(displayListener) }
         container?.let { root -> runCatching { windowManager.removeView(root) } }
         container = null
@@ -299,19 +378,29 @@ class CompanionFaceOverlay @Inject constructor(
             cutoutHangDp = CUTOUT_HANG_DP,
             fallbackTopDp = FALLBACK_TOP_DP,
         )
+        val baseCentre = geometry.x + geometry.width / 2
+        val statusWidth = if (faceView?.hasStatus() == true) {
+            minOf(screenW - dp(PILL_SIDE_MARGIN_DP * 2), dp(336))
+        } else {
+            geometry.width
+        }
+        val resolvedX = (baseCentre - statusWidth / 2).coerceIn(
+            dp(PILL_SIDE_MARGIN_DP),
+            (screenW - statusWidth - dp(PILL_SIDE_MARGIN_DP)).coerceAtLeast(dp(PILL_SIDE_MARGIN_DP)),
+        )
         if (
-            lp.width == geometry.width &&
+            lp.width == statusWidth &&
             lp.height == geometry.height &&
-            lp.x == geometry.x &&
+            lp.x == resolvedX &&
             lp.y == geometry.y
         ) {
             faceView?.bottomCornerRadiusPx = geometry.bottomCornerRadius
             return
         }
         faceView?.bottomCornerRadiusPx = geometry.bottomCornerRadius
-        lp.width = geometry.width
+        lp.width = statusWidth
         lp.height = geometry.height
-        lp.x = geometry.x
+        lp.x = resolvedX
         lp.y = geometry.y
 
         runCatching { windowManager.updateViewLayout(root, lp) }
@@ -358,10 +447,211 @@ class CompanionFaceOverlay @Inject constructor(
      *  its last frame on resume. */
     private fun applyDisplayPowerState() {
         val display = displayManager.getDisplay(Display.DEFAULT_DISPLAY) ?: return
-        faceView?.paused = display.state == Display.STATE_OFF ||
+        val paused = display.state == Display.STATE_OFF ||
             display.state == Display.STATE_DOZE ||
             display.state == Display.STATE_DOZE_SUSPEND
+        faceView?.paused = paused
+        pulseMonitor.setDisplayActive(!paused)
     }
+
+    private fun displayActive(): Boolean {
+        val display = displayManager.getDisplay(Display.DEFAULT_DISPLAY) ?: return true
+        return display.state != Display.STATE_OFF &&
+            display.state != Display.STATE_DOZE &&
+            display.state != Display.STATE_DOZE_SUSPEND
+    }
+
+    private fun applySystemPulse(kind: String, values: Map<String, Any>) {
+        if (kind == "interaction" || kind == "scroll" || kind == "typing") {
+            // User handling is also a classifier guard: do not call a deliberate
+            // phone movement a height scare merely because that reaction is muted.
+            pulseMonitor.noteInteraction()
+        }
+        val lane = when (kind) {
+            "motion" -> "lift"
+            else -> kind
+        }
+        val configuration = pulseConfiguration
+        val now = SystemClock.elapsedRealtime()
+        dispatchingPulseLane = lane
+        try {
+            when (kind) {
+            "power" -> applyPowerPulse(values, now, configuration.allows("power"))
+            "motion" -> {
+                if (!configuration.allows("lift")) return
+                val moving = values["moving"] as? Boolean ?: return
+                if (moving) {
+                    if (!airborne) {
+                        airborne = true
+                        showNativeMoment(
+                            CompanionStatusModel("side", "Too high!", "Hold on", "move", "#fb7185", null, null),
+                            CompanionReaction.LIFT,
+                            0L,
+                            now,
+                        )
+                    }
+                } else if (airborne) {
+                    airborne = false
+                    showNativeMoment(
+                        CompanionStatusModel("side", "Solid ground", "Phew", "move", "#34d399", null, null),
+                        CompanionReaction.LAND,
+                        4_400L,
+                        now,
+                    )
+                }
+            }
+            "shake" -> if (configuration.allows("shake")) showNativeMoment(
+                CompanionStatusModel("side", "Whoa there!", "Easy on the shake", "vibrate", "#fb7185", null, null),
+                CompanionReaction.SHAKE,
+                3_200L,
+                now,
+            )
+            "foregroundApp" -> {
+                if (!configuration.allows("foregroundApp")) return
+                if (values["initial"] == true) return
+                val pkg = values["packageName"]?.toString() ?: return
+                showNativeMoment(
+                    CompanionStatusModel("side", "New scene", packageHint(pkg), "app", "#a78bfa", null, null),
+                    CompanionReaction.CURIOUS,
+                    3_000L,
+                    now,
+                )
+            }
+            "interaction" -> {
+                if (!configuration.allows("interaction")) return
+                val longPress = values["action"] == "longPress"
+                showNativeMoment(
+                    CompanionStatusModel("side", if (longPress) "Holding on" else "Boop!", if (longPress) "Still with you" else "I felt that", "touch", "#fb7185", null, null),
+                    CompanionReaction.BOOP,
+                    2_300L,
+                    now,
+                )
+            }
+            "scroll" -> {
+                if (!configuration.allows("scroll")) return
+                val direction = values["direction"]?.toString()?.take(12) ?: "down"
+                showNativeMoment(
+                    CompanionStatusModel("side", if (direction == "up" || direction == "left") "Wheee!" else "Down we go", "${direction.replaceFirstChar(Char::uppercase)}ward scroll", "scroll", "#22d3ee", null, null),
+                    CompanionReaction.SCROLL,
+                    2_100L,
+                    now,
+                )
+            }
+            "typing" -> {
+                if (!configuration.allows("typing")) return
+                if (values["active"] != true) return
+                showNativeMoment(
+                    CompanionStatusModel("side", "Thinking with you", "Keys are moving", "typing", "#60a5fa", null, null),
+                    CompanionReaction.TYPING,
+                    2_800L,
+                    now,
+                )
+            }
+            "notification" -> {
+                if (!configuration.allows("notification")) return
+                val pkg = values["packageName"]?.toString() ?: return
+                showNativeMoment(
+                    CompanionStatusModel("side", "New ping", packageHint(pkg), "notification", "#fbbf24", null, null),
+                    CompanionReaction.PING,
+                    3_200L,
+                    now,
+                )
+            }
+        }
+        } finally {
+            dispatchingPulseLane = null
+        }
+    }
+
+    private fun applyPowerPulse(values: Map<String, Any>, now: Long, reactionsEnabled: Boolean) {
+        val next = PowerSnapshot(
+            charging = values["charging"] as? Boolean ?: return,
+            external = values["external"] as? Boolean ?: return,
+            percent = (values["percent"] as? Number)?.toInt()?.coerceIn(0, 100) ?: return,
+        )
+        val previous = lastPower
+        lastPower = next
+        val bucket = next.percent / 5
+        if (values["initial"] == true || previous == null) {
+            lastBatteryBucket = bucket
+            return
+        }
+        if (!reactionsEnabled) {
+            // Keep the baseline current while muted so re-enabling never surfaces a
+            // transition that happened while the user explicitly had this lane off.
+            lastBatteryBucket = bucket
+            return
+        }
+        when {
+            next.external && !previous.external -> showNativeMoment(
+                CompanionStatusModel("side", "Charging", "${next.percent}%", "bolt", "#34d399", next.percent / 100f, null),
+                CompanionReaction.CHARGE,
+                5_000L,
+                now,
+            )
+            !next.external && previous.external -> showNativeMoment(
+                CompanionStatusModel("side", "On battery", "${next.percent}%", "battery", "#fbbf24", next.percent / 100f, null),
+                CompanionReaction.UNPLUG,
+                5_000L,
+                now,
+            )
+            next.percent == 100 && previous.percent < 100 -> showNativeMoment(
+                CompanionStatusModel("side", "Fully charged", "100%", "bolt", "#34d399", 1f, null),
+                CompanionReaction.CHARGE,
+                5_500L,
+                now,
+            )
+            previous.percent > 10 && next.percent <= 10 -> showNativeMoment(
+                CompanionStatusModel("side", "Battery critical", "${next.percent}% left", "battery", "#fb7185", next.percent / 100f, null),
+                CompanionReaction.LOW_BATTERY,
+                7_500L,
+                now,
+            )
+            previous.percent > 20 && next.percent <= 20 -> showNativeMoment(
+                CompanionStatusModel("side", "Battery low", "${next.percent}% left", "battery", "#fbbf24", next.percent / 100f, null),
+                CompanionReaction.LOW_BATTERY,
+                6_500L,
+                now,
+            )
+            bucket != lastBatteryBucket -> showNativeMoment(
+                CompanionStatusModel("side", if (next.charging) "Charging" else "Battery", "${next.percent}%", if (next.charging) "bolt" else "battery", if (next.charging) "#34d399" else "#60a5fa", next.percent / 100f, null),
+                if (next.charging) CompanionReaction.CHARGE else CompanionReaction.CURIOUS,
+                4_200L,
+                now,
+            )
+        }
+        lastBatteryBucket = bucket
+    }
+
+    private fun showNativeMoment(
+        status: CompanionStatusModel,
+        reaction: CompanionReaction,
+        ttlMs: Long,
+        now: Long,
+    ) {
+        nativeMomentLane = dispatchingPulseLane
+        faceView?.setStatus(status.copy(expiresAtMs = if (ttlMs == 0L) 0L else now + ttlMs))
+        faceView?.react(reaction, now)
+    }
+
+    private fun applyPulseConfiguration(configuration: CompanionPulseConfiguration) {
+        pulseMonitor.configure(
+            liftEnabled = configuration.allows("lift"),
+            shakeEnabled = configuration.allows("shake"),
+        )
+        val activeLane = nativeMomentLane
+        if (activeLane != null && !configuration.allows(activeLane)) {
+            nativeMomentLane = null
+            faceView?.setStatus(remoteStatus)
+        }
+        if (airborne && !configuration.allows("lift")) {
+            airborne = false
+            faceView?.react(CompanionReaction.LAND)
+        }
+    }
+
+    private fun packageHint(packageName: String): String =
+        packageName.split('.').lastOrNull().orEmpty().replace('_', ' ').replace('-', ' ').take(28)
 
     // ── interaction ──────────────────────────────────────────────────────────
 

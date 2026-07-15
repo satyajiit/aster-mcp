@@ -548,6 +548,13 @@ class AsterService : Service() {
                 "postTime" to JsonPrimitive(postTime)
             )
             forwardEvent("notification", data)
+            // Drive the notch in Aster's own foreground-service process first. The
+            // OpenAlly callback below is for app state/config UI; it may be suspended
+            // while the overlay must remain responsive.
+            companionFaceOverlay.onSystemPulse(
+                "notification",
+                mapOf("packageName" to packageName),
+            )
             // The companion receives only app identity — never title or body.
             forwardEvent(
                 "companion_system_pulse",
@@ -559,6 +566,7 @@ class AsterService : Service() {
         }
 
         AsterAccessibilityService.onCompanionPulseEvent = { pulse ->
+            companionFaceOverlay.onSystemPulse(pulse.kind, pulse.values)
             val data = mutableMapOf<String, JsonElement>("kind" to JsonPrimitive(pulse.kind))
             pulse.values.forEach { (key, value) ->
                 data[key] = when (value) {
