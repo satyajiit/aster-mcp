@@ -46,4 +46,7 @@ interface IAsterService {
 
     /** APPEND-ONLY native System Pulse policy. UTF-8 JSON, whitelist validated. */
     oneway void pushCompanionConfiguration(in byte[] configuration);
+
+    /** APPEND-ONLY versioned semantic face-state snapshot. UTF-8 JSON, max 4 KiB. */
+    oneway void pushCompanionState(in byte[] state);
 }

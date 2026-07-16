@@ -74,9 +74,11 @@ class CompanionFaceOverlay @Inject constructor(
          *  square floating panel. */
         private const val MIN_PILL_WIDTH_DP = 168
         private const val MAX_PILL_WIDTH_DP = 240
+        private const val EXPANDED_PILL_WIDTH_DP = 280
         private const val PILL_SIDE_MARGIN_DP = 8
         private const val CUTOUT_SIDE_ROOM_DP = 96
-        private const val CUTOUT_HANG_DP = 44
+        private const val CUTOUT_SAFE_GAP_DP = 4
+        private const val CONTENT_HEIGHT_DP = 60
 
         /** No cutout reported → an honest top-centre dock below the status bar.
          *  The cutout is never guessed. */
@@ -120,6 +122,14 @@ class CompanionFaceOverlay @Inject constructor(
     /** The newest undrawn frame (older ones are dropped — see the class doc). */
     private val pending = AtomicReference<CompanionFaceModel?>(null)
     private val drainScheduled = AtomicBoolean(false)
+    private data class ReceivedFaceState(
+        val snapshot: CompanionFaceStateSnapshot,
+        val receivedAtMs: Long,
+    )
+    /** Complete snapshots are coalescible: only the newest semantic state matters. */
+    private val latestFaceState = AtomicReference<ReceivedFaceState?>(null)
+    private val faceStateDrainScheduled = AtomicBoolean(false)
+    private val faceStateExpiry = Runnable { applyLatestFaceState() }
 
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {}
@@ -224,6 +234,71 @@ class CompanionFaceOverlay @Inject constructor(
         runOnMain { applyPulseConfiguration(parsed) }
     }
 
+    /**
+     * Versioned, text-free semantic state lane (currently live speech cues). Parsing
+     * happens on the Binder pool thread; complete snapshots coalesce to one main-
+     * thread application exactly like geometry frames.
+     */
+    fun onState(payload: ByteArray) {
+        val snapshot = parseCompanionFaceState(String(payload, Charsets.UTF_8))
+        if (snapshot == null) {
+            if (BuildConfig.DEBUG) Log.w(TAG, "dropped a malformed companion state")
+            return
+        }
+        val received = ReceivedFaceState(snapshot, SystemClock.elapsedRealtime())
+        while (true) {
+            val previous = latestFaceState.get()
+            if (
+                previous != null &&
+                previous.snapshot.session == snapshot.session &&
+                snapshot.sequence <= previous.snapshot.sequence
+            ) return
+            // Atomically replace the ordering marker and payload. A separate sequence
+            // atomic allows an older Binder thread to overwrite a newer payload after
+            // winning its sequence CAS; one composite CAS makes that impossible.
+            if (latestFaceState.compareAndSet(previous, received)) break
+        }
+        if (faceStateDrainScheduled.compareAndSet(false, true)) {
+            mainHandler.post {
+                faceStateDrainScheduled.set(false)
+                applyLatestFaceState()
+            }
+        }
+    }
+
+    private fun applyLatestFaceState() {
+        mainHandler.removeCallbacks(faceStateExpiry)
+        if (!attached || faceView == null) return
+        val received = latestFaceState.get() ?: return
+        val now = SystemClock.elapsedRealtime()
+        val aggregate = aggregateCompanionSpeech(received.snapshot, received.receivedAtMs, now)
+        if (aggregate == null) {
+            faceView?.setSpeaking(
+                active = false,
+                energy = 0f,
+                viseme = CompanionViseme.REST,
+                expiresAtMs = now,
+                reducedMotion = false,
+                nowMs = now,
+            )
+            return
+        }
+        faceView?.setSpeaking(
+            active = true,
+            energy = aggregate.cue.level,
+            viseme = aggregate.cue.viseme,
+            expiresAtMs = aggregate.cueExpiresAtMs,
+            reducedMotion = aggregate.reducedMotion,
+            nowMs = now,
+        )
+        // Re-evaluate when the first independently-correlated source expires. The
+        // next source can then take over without inheriting this cue's viseme or TTL.
+        mainHandler.postDelayed(
+            faceStateExpiry,
+            (aggregate.nextExpiryAtMs - now).coerceAtLeast(1L),
+        )
+    }
+
     /** Native/background system moment. Safe from Binder, sensor, and main threads. */
     fun onSystemPulse(kind: String, values: Map<String, Any>) {
         if (!attached) return
@@ -285,6 +360,7 @@ class CompanionFaceOverlay @Inject constructor(
         try {
             windowManager.addView(root, lp)
             attached = true
+            applyLatestFaceState()
             recomputeGeometry()
             applyDisplayPowerState()
             displayManager.registerDisplayListener(displayListener, mainHandler)
@@ -305,6 +381,8 @@ class CompanionFaceOverlay @Inject constructor(
         if (!attached) return
         attached = false
         pending.set(null)
+        latestFaceState.set(null)
+        mainHandler.removeCallbacks(faceStateExpiry)
         pulseMonitor.stop()
         lastPower = null
         lastBatteryBucket = -1
@@ -322,7 +400,7 @@ class CompanionFaceOverlay @Inject constructor(
     private fun buildLayoutParams(): WindowManager.LayoutParams {
         val lp = WindowManager.LayoutParams(
             dp(MIN_PILL_WIDTH_DP),
-            dp(MIN_PILL_WIDTH_DP * CompanionOverlayGeometry.CROP_HEIGHT / CompanionOverlayGeometry.CROP_WIDTH),
+            dp(CONTENT_HEIGHT_DP),
             overlayType(),
             // Non-focusable (never steals focus), non-touch-modal + LAYOUT_NO_LIMITS
             // so taps outside the small face pass straight through to the app beneath
@@ -352,79 +430,66 @@ class CompanionFaceOverlay @Inject constructor(
 
     // ── punch-hole geometry ──────────────────────────────────────────────────
 
-    /**
-     * Centre the ambient pill ON the camera cutout and hang it below the sensor area,
-     * matching the desktop notch's silhouette. When the platform reports NO cutout,
-     * fall back to an honest top-centre dock below the status bar — the hole is never
-     * guessed.
-     */
+    /** Build a hardware-aware safe band below every cutout touched by this window. */
     private fun recomputeGeometry() {
         val root = container ?: return
         val lp = params ?: return
 
         val screenW = displayWidth()
-        val cutout = preferredCutoutRect(root, screenW)?.let {
+        val cutouts = topCutoutRects(root).map {
             CutoutBounds(it.left, it.top, it.right, it.bottom)
         }
         val geometry = CompanionOverlayGeometry.compute(
             screenWidthPx = screenW,
             density = context.resources.displayMetrics.density,
-            cutout = cutout,
+            cutouts = cutouts,
             statusBarHeightPx = statusBarHeight(root),
+            expanded = faceView?.hasStatus() == true,
             minWidthDp = MIN_PILL_WIDTH_DP,
             maxWidthDp = MAX_PILL_WIDTH_DP,
+            expandedWidthDp = EXPANDED_PILL_WIDTH_DP,
             sideMarginDp = PILL_SIDE_MARGIN_DP,
             cutoutSideRoomDp = CUTOUT_SIDE_ROOM_DP,
-            cutoutHangDp = CUTOUT_HANG_DP,
+            safeGapDp = CUTOUT_SAFE_GAP_DP,
+            contentHeightDp = CONTENT_HEIGHT_DP,
             fallbackTopDp = FALLBACK_TOP_DP,
         )
-        val baseCentre = geometry.x + geometry.width / 2
-        val statusWidth = if (faceView?.hasStatus() == true) {
-            minOf(screenW - dp(PILL_SIDE_MARGIN_DP * 2), dp(336))
-        } else {
-            geometry.width
+        faceView?.apply {
+            bottomCornerRadiusPx = geometry.bottomCornerRadius
+            setSafeGeometry(geometry.contentBounds)
         }
-        val resolvedX = (baseCentre - statusWidth / 2).coerceIn(
-            dp(PILL_SIDE_MARGIN_DP),
-            (screenW - statusWidth - dp(PILL_SIDE_MARGIN_DP)).coerceAtLeast(dp(PILL_SIDE_MARGIN_DP)),
-        )
         if (
-            lp.width == statusWidth &&
+            lp.width == geometry.width &&
             lp.height == geometry.height &&
-            lp.x == resolvedX &&
+            lp.x == geometry.x &&
             lp.y == geometry.y
         ) {
-            faceView?.bottomCornerRadiusPx = geometry.bottomCornerRadius
             return
         }
-        faceView?.bottomCornerRadiusPx = geometry.bottomCornerRadius
-        lp.width = statusWidth
+        lp.width = geometry.width
         lp.height = geometry.height
-        lp.x = resolvedX
+        lp.x = geometry.x
         lp.y = geometry.y
 
         runCatching { windowManager.updateViewLayout(root, lp) }
             .onFailure { Log.w(TAG, "Failed to reposition companion face", it) }
     }
 
-    private fun preferredCutoutRect(root: View, screenWidth: Int): Rect? {
+    private fun topCutoutRects(root: View): List<Rect> {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val cutout = windowManager.currentWindowMetrics.windowInsets.displayCutout ?: return null
-            return preferredTopCutout(cutout.boundingRects, screenWidth)
+            val cutout = windowManager.currentWindowMetrics.windowInsets.displayCutout
+                ?: return emptyList()
+            return cutout.boundingRects.filter(::isTopCutout)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val cutout = root.rootWindowInsets?.displayCutout ?: return null
-            return preferredTopCutout(cutout.boundingRects, screenWidth)
+            val cutout = root.rootWindowInsets?.displayCutout ?: return emptyList()
+            return cutout.boundingRects.filter(::isTopCutout)
         }
-        return null
+        return emptyList()
     }
 
-    /** Prefer a top-edge sensor and, when an OEM reports several cutouts, the one
-     *  nearest the display centre. `boundingRects.first()` is not an ordering API. */
-    private fun preferredTopCutout(rects: List<Rect>, screenWidth: Int): Rect? =
-        rects
-            .filter { !it.isEmpty && it.top <= 0 }
-            .minByOrNull { kotlin.math.abs(it.centerX() - screenWidth / 2) }
+    /** `boundingRects` is not ordered and foldables can report more than one hole. */
+    private fun isTopCutout(rect: Rect): Boolean = !rect.isEmpty && rect.top <= 0
 
     private fun displayWidth(): Int {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -484,7 +549,7 @@ class CompanionFaceOverlay @Inject constructor(
                     if (!airborne) {
                         airborne = true
                         showNativeMoment(
-                            CompanionStatusModel("side", "Too high!", "Hold on", "move", "#fb7185", null, null),
+                            CompanionStatusModel("side", "Hold on!", null, "move", "#fb7185", null, null),
                             CompanionReaction.LIFT,
                             0L,
                             now,
@@ -493,7 +558,7 @@ class CompanionFaceOverlay @Inject constructor(
                 } else if (airborne) {
                     airborne = false
                     showNativeMoment(
-                        CompanionStatusModel("side", "Solid ground", "Phew", "move", "#34d399", null, null),
+                        CompanionStatusModel("side", "Phew", "Grounded", "move", "#34d399", null, null),
                         CompanionReaction.LAND,
                         4_400L,
                         now,
@@ -501,7 +566,7 @@ class CompanionFaceOverlay @Inject constructor(
                 }
             }
             "shake" -> if (configuration.allows("shake")) showNativeMoment(
-                CompanionStatusModel("side", "Whoa there!", "Easy on the shake", "vibrate", "#fb7185", null, null),
+                CompanionStatusModel("side", "Whoa!", null, "vibrate", "#fb7185", null, null),
                 CompanionReaction.SHAKE,
                 3_200L,
                 now,
@@ -511,7 +576,7 @@ class CompanionFaceOverlay @Inject constructor(
                 if (values["initial"] == true) return
                 val pkg = values["packageName"]?.toString() ?: return
                 showNativeMoment(
-                    CompanionStatusModel("side", "New scene", packageHint(pkg), "app", "#a78bfa", null, null),
+                    CompanionStatusModel("side", packageHint(pkg), null, "app", "#a78bfa", null, null),
                     CompanionReaction.CURIOUS,
                     3_000L,
                     now,
@@ -521,7 +586,7 @@ class CompanionFaceOverlay @Inject constructor(
                 if (!configuration.allows("interaction")) return
                 val longPress = values["action"] == "longPress"
                 showNativeMoment(
-                    CompanionStatusModel("side", if (longPress) "Holding on" else "Boop!", if (longPress) "Still with you" else "I felt that", "touch", "#fb7185", null, null),
+                    CompanionStatusModel("side", if (longPress) "Holding" else "Boop!", null, "touch", "#fb7185", null, null),
                     CompanionReaction.BOOP,
                     2_300L,
                     now,
@@ -531,7 +596,7 @@ class CompanionFaceOverlay @Inject constructor(
                 if (!configuration.allows("scroll")) return
                 val direction = values["direction"]?.toString()?.take(12) ?: "down"
                 showNativeMoment(
-                    CompanionStatusModel("side", if (direction == "up" || direction == "left") "Wheee!" else "Down we go", "${direction.replaceFirstChar(Char::uppercase)}ward scroll", "scroll", "#22d3ee", null, null),
+                    CompanionStatusModel("side", if (direction == "up" || direction == "left") "Up we go" else "Down we go", null, "scroll", "#22d3ee", null, null),
                     CompanionReaction.SCROLL,
                     2_100L,
                     now,
@@ -541,7 +606,7 @@ class CompanionFaceOverlay @Inject constructor(
                 if (!configuration.allows("typing")) return
                 if (values["active"] != true) return
                 showNativeMoment(
-                    CompanionStatusModel("side", "Thinking with you", "Keys are moving", "typing", "#60a5fa", null, null),
+                    CompanionStatusModel("side", "Typing", null, "typing", "#60a5fa", null, null),
                     CompanionReaction.TYPING,
                     2_800L,
                     now,
@@ -551,7 +616,7 @@ class CompanionFaceOverlay @Inject constructor(
                 if (!configuration.allows("notification")) return
                 val pkg = values["packageName"]?.toString() ?: return
                 showNativeMoment(
-                    CompanionStatusModel("side", "New ping", packageHint(pkg), "notification", "#fbbf24", null, null),
+                    CompanionStatusModel("side", "Ping", packageHint(pkg), "notification", "#fbbf24", null, null),
                     CompanionReaction.PING,
                     3_200L,
                     now,

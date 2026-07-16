@@ -27,7 +27,9 @@ data class CompanionMotionFrame(
     val scaleX: Float = 1f,
     val scaleY: Float = 1f,
     val eyeScaleY: Float = 1f,
+    val mouthScaleX: Float = 1f,
     val mouthScaleY: Float = 1f,
+    val mouthRotationDeg: Float = 0f,
     val autonomous: Boolean = false,
     val decoration: CompanionReaction? = null,
 )
@@ -48,6 +50,12 @@ class CompanionNativeAnimator {
     private var reaction: CompanionReaction? = null
     private var reactionStartedAt = 0L
     private var reactionEndsAt = 0L
+    private var speaking = false
+    private var speechEnergy = 0.52f
+    private var speechViseme = CompanionViseme.NEUTRAL
+    private var speechExpiresAt = 0L
+    private var speechStartedAt = 0L
+    private var speechReducedMotion = false
 
     fun react(next: CompanionReaction, nowMs: Long, holdMs: Long = durationOf(next)) {
         reaction = next
@@ -60,17 +68,100 @@ class CompanionNativeAnimator {
     }
 
     fun clear() {
+        clearReaction()
+        clearSpeech()
+    }
+
+    fun setSpeaking(
+        active: Boolean,
+        nowMs: Long,
+        energy: Float = 0.52f,
+        viseme: CompanionViseme = CompanionViseme.NEUTRAL,
+        expiresAtMs: Long = Long.MAX_VALUE,
+        reducedMotion: Boolean = false,
+    ) {
+        if (!active || expiresAtMs <= nowMs) {
+            clearSpeech()
+            return
+        }
+        if (!speaking) speechStartedAt = nowMs
+        speaking = true
+        // Smooth token discontinuities without hiding punctuation/closed-lip cues.
+        speechEnergy = (speechEnergy * 0.28f + energy.coerceIn(0f, 1f) * 0.72f)
+        speechViseme = viseme
+        speechExpiresAt = expiresAtMs
+        speechReducedMotion = reducedMotion
+    }
+
+    private fun clearReaction() {
         reaction = null
         reactionStartedAt = 0L
         reactionEndsAt = 0L
     }
 
+    private fun clearSpeech() {
+        speaking = false
+        speechEnergy = 0.52f
+        speechViseme = CompanionViseme.NEUTRAL
+        speechExpiresAt = 0L
+        speechStartedAt = 0L
+        speechReducedMotion = false
+    }
+
     fun sample(nowMs: Long, lastRemoteFrameAtMs: Long): CompanionMotionFrame {
-        if (reactionEndsAt != Long.MAX_VALUE && nowMs >= reactionEndsAt) clear()
+        if (reactionEndsAt != Long.MAX_VALUE && nowMs >= reactionEndsAt) clearReaction()
+        if (speaking && nowMs >= speechExpiresAt) clearSpeech()
         val active = reaction
         if (active != null) return reactionFrame(active, nowMs)
         if (nowMs - lastRemoteFrameAtMs <= REMOTE_FRESH_MS) return CompanionMotionFrame()
+        if (speaking) return speakingFrame(nowMs)
         return ambientFrame(nowMs)
+    }
+
+    /** Native talking fallback over the last shared geometry pose. */
+    private fun speakingFrame(nowMs: Long): CompanionMotionFrame {
+        val elapsed = (nowMs - speechStartedAt).coerceAtLeast(0L) / 1_000f
+        val fast = abs(sin(elapsed * PI.toFloat() * 2f * 5.4f))
+        val texture = abs(sin(elapsed * PI.toFloat() * 2f * 2.15f + 0.9f))
+        // Brief natural rests every few seconds. A live punctuation token also sends
+        // REST, so foreground/background use the same closed-mouth semantics.
+        val phrase = ((nowMs - speechStartedAt).coerceAtLeast(0L) % 3_200L) / 3_200f
+        val phraseGate = when {
+            phrase < 0.84f -> 1f
+            phrase < 0.91f -> 1f - (phrase - 0.84f) / 0.07f
+            else -> 0.08f + (phrase - 0.91f) / 0.09f * 0.92f
+        }
+        val articulation = (0.2f + fast * 0.58f + texture * 0.22f) * phraseGate
+        val (shapeX, shapeY) = when (speechViseme) {
+            CompanionViseme.REST -> 0.96f to 0.46f
+            CompanionViseme.CLOSED -> 0.86f to 0.52f
+            CompanionViseme.OPEN -> 0.91f to 1.16f
+            CompanionViseme.WIDE -> 1.18f to 0.76f
+            CompanionViseme.ROUND -> 0.76f to 1.02f
+            CompanionViseme.TEETH -> 1.06f to 0.68f
+            CompanionViseme.TONGUE -> 0.95f to 0.88f
+            CompanionViseme.NEUTRAL -> 1f to 0.9f
+        }
+        val energy = 0.35f + speechEnergy * 0.65f
+        val mouthY = (shapeY * (0.58f + articulation * 0.9f * energy)).coerceIn(0.34f, 1.9f)
+        if (speechReducedMotion) {
+            return CompanionMotionFrame(
+                mouthScaleX = shapeX,
+                mouthScaleY = mouthY,
+                autonomous = true,
+            )
+        }
+        return CompanionMotionFrame(
+            dy = -0.35f + articulation * -0.7f,
+            rotationDeg = sin(elapsed * PI.toFloat() * 2f * 0.72f) * 0.8f * energy,
+            scaleX = 1f + articulation * 0.008f,
+            scaleY = 1f - articulation * 0.006f,
+            eyeScaleY = 0.92f + texture * 0.08f,
+            mouthScaleX = shapeX * (1.04f - articulation * 0.08f),
+            mouthScaleY = mouthY,
+            mouthRotationDeg = sin(elapsed * PI.toFloat() * 2f * 1.1f) * 2.1f * energy,
+            autonomous = true,
+        )
     }
 
     private fun ambientFrame(nowMs: Long): CompanionMotionFrame {
@@ -107,8 +198,8 @@ class CompanionNativeAnimator {
             CompanionReaction.CHARGE -> {
                 val bounce = abs(wave(2.2f)) * exp(-elapsed * 1.7f)
                 CompanionMotionFrame(
-                    dy = -7f * bounce,
-                    rotationDeg = wave(1.7f) * 3f * exp(-elapsed * 1.4f),
+                    dy = -4.5f * bounce,
+                    rotationDeg = wave(1.7f) * 2.4f * exp(-elapsed * 1.4f),
                     scaleX = 1f + bounce * 0.05f,
                     scaleY = 1f - bounce * 0.035f,
                     eyeScaleY = 0.72f + bounce * 0.28f,
@@ -118,8 +209,8 @@ class CompanionNativeAnimator {
                 )
             }
             CompanionReaction.UNPLUG -> CompanionMotionFrame(
-                dx = wave(8f) * 3.8f * exp(-elapsed * 2.7f),
-                rotationDeg = wave(6f) * 4.5f * exp(-elapsed * 2.2f),
+                dx = wave(8f) * 2.8f * exp(-elapsed * 2.7f),
+                rotationDeg = wave(6f) * 3.2f * exp(-elapsed * 2.2f),
                 eyeScaleY = 1.22f,
                 mouthScaleY = 1.35f,
                 autonomous = true,
@@ -136,9 +227,9 @@ class CompanionNativeAnimator {
                 decoration = active,
             )
             CompanionReaction.SHAKE -> CompanionMotionFrame(
-                dx = wave(12f) * 7f * exp(-elapsed * 1.6f),
-                dy = wave(8f) * 1.8f,
-                rotationDeg = wave(10f) * 7f * exp(-elapsed * 1.3f),
+                dx = wave(12f) * 4f * exp(-elapsed * 1.6f),
+                dy = wave(8f) * 1.2f,
+                rotationDeg = wave(10f) * 4.5f * exp(-elapsed * 1.3f),
                 scaleX = 1.04f,
                 scaleY = 0.96f,
                 eyeScaleY = 1.25f,
@@ -147,9 +238,9 @@ class CompanionNativeAnimator {
                 decoration = active,
             )
             CompanionReaction.LIFT -> CompanionMotionFrame(
-                dx = wave(13f) * 2.8f + wave(5f) * 1.2f,
-                dy = -2.5f + abs(wave(3f)) * -1.2f,
-                rotationDeg = wave(11f) * 3.7f,
+                dx = wave(13f) * 2f + wave(5f) * 0.8f,
+                dy = -1.6f + abs(wave(3f)) * -0.8f,
+                rotationDeg = wave(11f) * 2.5f,
                 scaleX = 0.98f + abs(wave(6f)) * 0.025f,
                 scaleY = 1.04f,
                 eyeScaleY = 1.34f,
@@ -160,8 +251,8 @@ class CompanionNativeAnimator {
             CompanionReaction.LAND -> {
                 val bounce = wave(3.2f) * exp(-elapsed * 2.4f)
                 CompanionMotionFrame(
-                    dy = abs(bounce) * 5f,
-                    rotationDeg = bounce * 3f,
+                    dy = abs(bounce) * 3.5f,
+                    rotationDeg = bounce * 2.2f,
                     scaleX = 1f + abs(bounce) * 0.08f,
                     scaleY = 1f - abs(bounce) * 0.08f,
                     eyeScaleY = 0.62f,
@@ -183,8 +274,8 @@ class CompanionNativeAnimator {
                 )
             }
             CompanionReaction.SCROLL -> CompanionMotionFrame(
-                dy = wave(2.8f) * 5.5f,
-                rotationDeg = wave(1.4f) * 4f,
+                dy = wave(2.8f) * 3f,
+                rotationDeg = wave(1.4f) * 2.6f,
                 scaleX = 1.02f,
                 scaleY = 0.98f,
                 eyeScaleY = 1.1f,
@@ -205,8 +296,8 @@ class CompanionNativeAnimator {
             CompanionReaction.PING -> {
                 val hop = abs(wave(3.6f)) * exp(-elapsed * 2f)
                 CompanionMotionFrame(
-                    dy = -8f * hop,
-                    rotationDeg = wave(2.5f) * 5f * exp(-elapsed * 1.8f),
+                    dy = -5f * hop,
+                    rotationDeg = wave(2.5f) * 3.4f * exp(-elapsed * 1.8f),
                     scaleX = 1f + hop * 0.06f,
                     scaleY = 1f - hop * 0.04f,
                     eyeScaleY = 1.16f,

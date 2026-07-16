@@ -39,6 +39,7 @@ class IpcMode(
         private const val LARGE_RESULT_THRESHOLD = 500_000 // ~500 KB
         private const val MAX_COMPANION_STATUS_BYTES = 8 * 1024
         private const val MAX_COMPANION_CONFIGURATION_BYTES = 2 * 1024
+        private const val MAX_COMPANION_STATE_BYTES = 4 * 1024
 
         /** Ack for one drained companion face frame — lets the client bound its
          *  in-flight frames instead of flooding this process's binder async pool. */
@@ -336,6 +337,13 @@ class IpcMode(
                 configuration.size > MAX_COMPANION_CONFIGURATION_BYTES
             ) return
             companionFaceOverlay.onConfiguration(configuration)
+        }
+
+        override fun pushCompanionState(state: ByteArray?) {
+            val callingUid = Binder.getCallingUid()
+            if (!authenticatedUids.containsKey(callingUid)) return
+            if (state == null || state.isEmpty() || state.size > MAX_COMPANION_STATE_BYTES) return
+            companionFaceOverlay.onState(state)
         }
     }
 

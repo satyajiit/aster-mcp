@@ -10,7 +10,19 @@ data class CutoutBounds(
     val bottom: Int,
 ) {
     val width: Int get() = (right - left).coerceAtLeast(0)
+    val height: Int get() = (bottom - top).coerceAtLeast(0)
     val centerX: Int get() = left + width / 2
+}
+
+/** A local rectangle inside the overlay window which is guaranteed not to be occluded. */
+data class SafeBounds(
+    val left: Int,
+    val top: Int,
+    val right: Int,
+    val bottom: Int,
+) {
+    val width: Int get() = (right - left).coerceAtLeast(0)
+    val height: Int get() = (bottom - top).coerceAtLeast(0)
 }
 
 data class OverlayGeometry(
@@ -19,14 +31,21 @@ data class OverlayGeometry(
     val width: Int,
     val height: Int,
     val bottomCornerRadius: Float,
+    /** The only region in which text, face features, progress, and touch may live. */
+    val contentBounds: SafeBounds,
+    /** Top sensors which forced the window below their deepest edge. */
+    val avoidedCutouts: List<CutoutBounds>,
 )
 
 /**
  * Pure placement policy for the Android companion notch.
  *
- * The visible face uses the desktop renderer's 200×96 feature-band crop. A real
- * cutout anchors the pill at its horizontal centre and top edge; without one the
- * same pill sits below the status bar and makes no claim about nonexistent hardware.
+ * Android devices do not share one notch shape: a display can report a centred notch,
+ * one or more punch holes, or no cutout at all. The complete interactive window begins
+ * below the deepest horizontally intersecting cutout plus a safety gap. Keeping the
+ * window itself out of the occluded region is intentional: Android's public overlay API
+ * exposes rectangular input windows, so a transparent wing over the status bar would
+ * still steal taps. This policy keeps both pixels and input outside every camera region.
  */
 object CompanionOverlayGeometry {
     const val CROP_WIDTH = 200
@@ -35,45 +54,61 @@ object CompanionOverlayGeometry {
     fun compute(
         screenWidthPx: Int,
         density: Float,
-        cutout: CutoutBounds?,
+        cutouts: List<CutoutBounds>,
         statusBarHeightPx: Int,
+        expanded: Boolean,
         minWidthDp: Int,
         maxWidthDp: Int,
+        expandedWidthDp: Int,
         sideMarginDp: Int,
         cutoutSideRoomDp: Int,
-        cutoutHangDp: Int,
+        safeGapDp: Int,
+        contentHeightDp: Int,
         fallbackTopDp: Int,
     ): OverlayGeometry {
-        fun dp(value: Int): Int = (value * density).roundToInt()
+        val safeDensity = density.coerceAtLeast(0.1f)
+        fun dp(value: Int): Int = (value * safeDensity).roundToInt()
 
-        val margin = dp(sideMarginDp)
-        val availableWidth = (screenWidthPx - margin * 2).coerceAtLeast(1)
-        val desiredWidth = maxOf(
+        val screenWidth = screenWidthPx.coerceAtLeast(1)
+        val margin = dp(sideMarginDp).coerceAtMost((screenWidth - 1) / 2)
+        val availableWidth = (screenWidth - margin * 2).coerceAtLeast(1)
+        val validCutouts = cutouts.filter { it.width > 0 && it.height > 0 }
+        val anchor = validCutouts.minByOrNull { kotlin.math.abs(it.centerX - screenWidth / 2) }
+        val ambientWidth = maxOf(
             dp(minWidthDp),
-            (cutout?.width ?: 0) + dp(cutoutSideRoomDp),
-        )
-        val width = desiredWidth.coerceAtMost(dp(maxWidthDp)).coerceAtMost(availableWidth)
-        val cropHeight = (width * CROP_HEIGHT.toFloat() / CROP_WIDTH).roundToInt()
-        val height = if (cutout == null) {
-            cropHeight
-        } else {
-            maxOf(cropHeight, cutout.bottom + dp(cutoutHangDp))
+            (anchor?.width ?: 0) + dp(cutoutSideRoomDp),
+        ).coerceAtMost(dp(maxWidthDp))
+        val requestedWidth = if (expanded) maxOf(ambientWidth, dp(expandedWidthDp)) else ambientWidth
+        val maximumWidth = dp(if (expanded) expandedWidthDp else maxWidthDp)
+        val width = requestedWidth.coerceAtMost(maximumWidth).coerceAtMost(availableWidth).coerceAtLeast(1)
+
+        val anchorX = anchor?.centerX ?: screenWidth / 2
+        val minX = margin
+        val maxX = (screenWidth - margin - width).coerceAtLeast(minX)
+        val x = (anchorX - width / 2).coerceIn(minX, maxX)
+        val avoidedCutouts = validCutouts.filter { cutout ->
+            cutout.right > x && cutout.left < x + width
         }
-        val anchorX = cutout?.centerX ?: screenWidthPx / 2
-        val x = (anchorX - width / 2).coerceIn(0, (screenWidthPx - width).coerceAtLeast(0))
-        val y = cutout?.top?.coerceAtLeast(0)
-            ?: (statusBarHeightPx + dp(fallbackTopDp))
-        // Desktop parity: CSS uses `0 0 r r`, where r is 24% of the visible
-        // hang below the hardware notch, clamped to 12…24 logical pixels.
-        val hang = if (cutout == null) height else (height - cutout.bottom).coerceAtLeast(0)
-        val bottomCornerRadius = (hang * 0.24f).coerceIn(dp(12).toFloat(), dp(24).toFloat())
+        val y = if (avoidedCutouts.isEmpty()) {
+            statusBarHeightPx.coerceAtLeast(0) + dp(fallbackTopDp)
+        } else {
+            maxOf(
+                statusBarHeightPx.coerceAtLeast(0),
+                avoidedCutouts.maxOf { it.bottom }.coerceAtLeast(0),
+            ) + dp(safeGapDp)
+        }
+        val contentHeight = dp(contentHeightDp).coerceAtLeast(1)
+        val height = contentHeight
+        val cornerRadius = (contentHeight * 0.30f).coerceIn(dp(12).toFloat(), dp(20).toFloat())
 
         return OverlayGeometry(
             x = x,
             y = y,
             width = width,
             height = height,
-            bottomCornerRadius = bottomCornerRadius,
+            bottomCornerRadius = cornerRadius,
+            contentBounds = SafeBounds(0, 0, width, height),
+            avoidedCutouts = avoidedCutouts,
         )
     }
 }

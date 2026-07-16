@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.SystemClock
@@ -44,7 +45,20 @@ class CompanionFaceView(context: Context) : View(context), Choreographer.FrameCa
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    private val windowClip = Path()
+    private val contentClip = Path()
+    private val backgroundPath = Path()
+    private val safeContent = RectF()
+    private val faceViewport = RectF()
+    private val statusViewport = RectF()
+    private val iconScratch = RectF()
+    private val iconPath = Path()
+    private val primaryText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+    private val secondaryText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(190, 255, 255, 255)
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+    }
+    private val defaultBold = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    private val monospaceBold = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
     private val animator = CompanionNativeAnimator()
     private var status: CompanionStatusModel? = null
     private var statusVisible = false
@@ -54,12 +68,12 @@ class CompanionFaceView(context: Context) : View(context), Choreographer.FrameCa
     /** Geometry must shrink when a timed side readout expires. */
     var onStatusVisibilityChanged: (() -> Unit)? = null
 
-    /** Desktop parity: square/flush top corners, restrained rounded bottoms only. */
+    /** Symmetric island radius; the full window already sits below real hardware. */
     var bottomCornerRadiusPx: Float = 12f * resources.displayMetrics.density
         set(value) {
             if (field == value) return
             field = value
-            rebuildWindowClip()
+            rebuildSafePaths()
             invalidate()
         }
 
@@ -102,9 +116,46 @@ class CompanionFaceView(context: Context) : View(context), Choreographer.FrameCa
         scheduleAnimation()
     }
 
+    /** Install the aggregate semantic speech snapshot produced by OpenAlly. */
+    fun setSpeaking(
+        active: Boolean,
+        energy: Float,
+        viseme: CompanionViseme,
+        expiresAtMs: Long,
+        reducedMotion: Boolean,
+        nowMs: Long = SystemClock.elapsedRealtime(),
+    ) {
+        animator.setSpeaking(
+            active = active,
+            nowMs = nowMs,
+            energy = energy,
+            viseme = viseme,
+            expiresAtMs = expiresAtMs,
+            reducedMotion = reducedMotion,
+        )
+        scheduleAnimation()
+        if (!paused) invalidate()
+    }
+
     /** True once at least one frame has landed — an attached window with no frame
      *  would be an empty rectangle, so the controller waits for this. */
     fun hasFrame(): Boolean = model != null
+
+    /**
+     * Install the geometry policy's safe band. Face features, status copy, progress,
+     * decoration, and touch are all constrained to this same rectangle, so a new OEM
+     * cutout shape cannot be fixed visually while remaining unsafe interactively.
+     */
+    fun setSafeGeometry(bounds: SafeBounds) {
+        safeContent.set(
+            bounds.left.toFloat(),
+            bounds.top.toFloat(),
+            bounds.right.toFloat(),
+            bounds.bottom.toFloat(),
+        )
+        rebuildSafePaths()
+        if (!paused) invalidate()
+    }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
@@ -144,42 +195,66 @@ class CompanionFaceView(context: Context) : View(context), Choreographer.FrameCa
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        rebuildWindowClip()
+        rebuildSafePaths()
     }
 
-    private fun rebuildWindowClip() {
-        windowClip.reset()
-        if (width <= 0 || height <= 0) return
-        val r = bottomCornerRadiusPx.coerceAtMost(height / 2f)
-        windowClip.addRoundRect(
-            0f,
-            0f,
-            width.toFloat(),
-            height.toFloat(),
-            floatArrayOf(0f, 0f, 0f, 0f, r, r, r, r),
-            Path.Direction.CW,
-        )
+    private fun rebuildSafePaths() {
+        contentClip.reset()
+        backgroundPath.reset()
+        if (safeContent.isEmpty) return
+
+        val radius = bottomCornerRadiusPx.coerceAtMost(safeContent.height() / 2f)
+        contentClip.addRoundRect(safeContent, radius, radius, Path.Direction.CW)
+        backgroundPath.addRoundRect(safeContent, radius, radius, Path.Direction.CW)
     }
 
     override fun onDraw(canvas: Canvas) {
+        canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
         val m = model ?: return
-        if (width == 0 || height == 0) return
+        if (width == 0 || height == 0 || safeContent.isEmpty) return
         val now = SystemClock.elapsedRealtime()
         expireStatusIfNeeded(now)
         val currentStatus = status.takeIf { statusVisible }
         val motion = animator.sample(now, lastRemoteFrameAtMs)
-        canvas.save()
-        canvas.clipPath(windowClip)
-        canvas.drawColor(Color.BLACK)
+        fill.color = Color.BLACK
+        fill.alpha = 255
+        canvas.drawPath(backgroundPath, fill)
 
-        val faceWidth = when (currentStatus?.mode) {
-            "full" -> 0f
-            "side" -> min(width * 0.43f, height * 2.08f)
-            else -> width.toFloat()
+        canvas.save()
+        canvas.clipPath(contentClip)
+        when (currentStatus?.mode) {
+            "full" -> faceViewport.set(
+                safeContent.left,
+                safeContent.top,
+                safeContent.left,
+                safeContent.bottom,
+            )
+            "side" -> {
+                val compactFaceWidth = min(safeContent.width() * 0.34f, safeContent.height() * 1.55f)
+                faceViewport.set(
+                    safeContent.left,
+                    safeContent.top,
+                    safeContent.left + compactFaceWidth,
+                    safeContent.bottom,
+                )
+            }
+            else -> faceViewport.set(safeContent)
         }
-        if (faceWidth > 0f) drawFace(canvas, m, faceWidth, motion)
-        if (currentStatus != null) drawStatus(canvas, currentStatus, faceWidth)
-        drawNativeDecoration(canvas, motion.decoration, faceWidth)
+        if (!faceViewport.isEmpty) drawFace(canvas, m, faceViewport, motion)
+        if (currentStatus != null) {
+            if (currentStatus.mode == "full") {
+                statusViewport.set(safeContent)
+            } else {
+                statusViewport.set(
+                    faceViewport.right,
+                    safeContent.top,
+                    safeContent.right,
+                    safeContent.bottom,
+                )
+            }
+            drawStatus(canvas, currentStatus, statusViewport)
+        }
+        drawNativeDecoration(canvas, motion.decoration, faceViewport)
         canvas.restore()
     }
 
@@ -196,21 +271,21 @@ class CompanionFaceView(context: Context) : View(context), Choreographer.FrameCa
     private fun drawFace(
         canvas: Canvas,
         m: CompanionFaceModel,
-        viewportWidth: Float,
+        viewport: RectF,
         motion: CompanionMotionFrame,
     ) {
         canvas.save()
-        canvas.clipRect(0f, 0f, viewportWidth, height.toFloat())
+        canvas.clipRect(viewport)
         // Match the desktop notch: paint the rig's 200×96 feature band (y=30…126),
         // not the full 200×150 stage. Fitting the full stage made Android's former
         // square window look like a small black panel with tiny, apparently static
         // features. The rig and geometry remain shared; this is only a viewport crop.
         val cropTop = 30f
         val cropHeight = CompanionOverlayGeometry.CROP_HEIGHT.toFloat()
-        val s = min(viewportWidth / m.viewW, height / cropHeight)
+        val s = min(viewport.width() / m.viewW, viewport.height() / cropHeight)
         canvas.translate(
-            (viewportWidth - m.viewW * s) / 2f,
-            (height - cropHeight * s) / 2f - cropTop * s,
+            viewport.left + (viewport.width() - m.viewW * s) / 2f,
+            viewport.top + (viewport.height() - cropHeight * s) / 2f - cropTop * s,
         )
         canvas.scale(s, s)
 
@@ -277,8 +352,8 @@ class CompanionFaceView(context: Context) : View(context), Choreographer.FrameCa
         val mouth = m.mouth
         canvas.save()
         canvas.translate(mouth.pivotX, mouth.pivotY)
-        canvas.rotate(mouth.tiltDeg)
-        canvas.scale(1f, motion.mouthScaleY)
+        canvas.rotate(mouth.tiltDeg + motion.mouthRotationDeg)
+        canvas.scale(motion.mouthScaleX, motion.mouthScaleY)
         canvas.translate(-mouth.pivotX, -mouth.pivotY)
         mouth.outer?.let {
             fill.color = m.ink
@@ -331,7 +406,8 @@ class CompanionFaceView(context: Context) : View(context), Choreographer.FrameCa
         canvas.restore()
     }
 
-    private fun drawStatus(canvas: Canvas, status: CompanionStatusModel, faceWidth: Float) {
+    private fun drawStatus(canvas: Canvas, status: CompanionStatusModel, bounds: RectF) {
+        if (bounds.isEmpty) return
         val density = resources.displayMetrics.density
         val accent = parseStatusColor(status.hue)
         val full = status.mode == "full"
@@ -344,54 +420,57 @@ class CompanionFaceView(context: Context) : View(context), Choreographer.FrameCa
         } else {
             status.progress
         }
-        val left = if (full) 0f else faceWidth
-        val available = width - left
-        if (available <= 0f) return
-
-        val iconSize = if (full) 25f * density else 21f * density
-        val iconCx = if (full) left + 27f * density else left + 25f * density
-        val iconCy = height * 0.48f
+        val iconSize = (if (full) 22f else 17f) * density
+        val iconCx = bounds.left + (if (full) 24f else 14f) * density
+        val iconCy = bounds.centerY() - if (renderedProgress == null) 0f else 1.5f * density
         drawStatusIcon(canvas, status.icon, iconCx, iconCy, iconSize, accent, renderedProgress)
 
-        val textLeft = if (status.icon == null) left + 14f * density else iconCx + iconSize * 0.72f
-        val textRight = width - 11f * density
-        val primary = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            typeface = if (full) Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
-            else Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textSize = (if (full) 23f else 14f) * density
+        val textLeft = if (status.icon == null) {
+            bounds.left + 10f * density
+        } else {
+            iconCx + iconSize * 0.72f
         }
-        val secondary = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(190, 255, 255, 255)
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            textSize = 10f * density
-        }
+        val textRight = bounds.right - 10f * density
+        if (textRight <= textLeft) return
+        primaryText.typeface = if (full) monospaceBold else defaultBold
+        primaryText.textSize = (if (full) 21f else 12.5f) * density
+        secondaryText.textSize = 9f * density
         val hasDetail = !status.detail.isNullOrBlank()
-        val primaryY = if (hasDetail) height * 0.48f else height * 0.57f
-        canvas.drawText(ellipsize(renderedText, primary, textRight - textLeft), textLeft, primaryY, primary)
-        status.detail?.let {
+        val progressLift = if (renderedProgress == null) 0f else 2f * density
+        val primaryY = if (hasDetail) {
+            bounds.centerY() - 2f * density - progressLift
+        } else {
+            bounds.centerY() - (primaryText.ascent() + primaryText.descent()) / 2f - progressLift
+        }
+        canvas.drawText(
+            ellipsize(renderedText, primaryText, textRight - textLeft),
+            textLeft,
+            primaryY,
+            primaryText,
+        )
+        status.detail?.takeIf { it.isNotBlank() }?.let {
             canvas.drawText(
-                ellipsize(it, secondary, textRight - textLeft),
+                ellipsize(it, secondaryText, textRight - textLeft),
                 textLeft,
-                primaryY + 15f * density,
-                secondary,
+                primaryY + 11f * density,
+                secondaryText,
             )
         }
         renderedProgress?.let { value ->
-            val trackLeft = if (full) 13f * density else textLeft
-            val trackRight = width - 12f * density
-            val top = height - 7f * density
+            val trackLeft = if (full) bounds.left + 13f * density else textLeft
+            val trackRight = bounds.right - 10f * density
+            val top = bounds.bottom - 6f * density
             fill.color = Color.argb(72, 255, 255, 255)
             fill.alpha = 255
-            canvas.drawRoundRect(trackLeft, top, trackRight, top + 3f * density, 2f * density, 2f * density, fill)
+            canvas.drawRoundRect(trackLeft, top, trackRight, top + 2f * density, density, density, fill)
             fill.color = accent
             canvas.drawRoundRect(
                 trackLeft,
                 top,
                 trackLeft + (trackRight - trackLeft) * value.coerceIn(0f, 1f),
-                top + 3f * density,
-                2f * density,
-                2f * density,
+                top + 2f * density,
+                density,
+                density,
                 fill,
             )
         }
@@ -428,32 +507,58 @@ class CompanionFaceView(context: Context) : View(context), Choreographer.FrameCa
         fill.alpha = 255
         val r = size / 2f
         when (icon) {
+            "focus" -> {
+                canvas.drawCircle(cx, cy + r * 0.08f, r * 0.72f, stroke)
+                canvas.drawLine(cx, cy + r * 0.08f, cx, cy - r * 0.38f, stroke)
+                canvas.drawLine(cx, cy + r * 0.08f, cx + r * 0.34f, cy + r * 0.28f, stroke)
+                canvas.drawLine(cx - r * 0.22f, cy - r * 0.86f, cx + r * 0.22f, cy - r * 0.86f, stroke)
+            }
+            "break" -> {
+                canvas.drawRoundRect(cx - r * 0.72f, cy - r * 0.25f, cx + r * 0.44f, cy + r * 0.58f, r * 0.12f, r * 0.12f, stroke)
+                canvas.drawArc(cx + r * 0.20f, cy - r * 0.10f, cx + r * 0.88f, cy + r * 0.48f, -80f, 170f, false, stroke)
+                canvas.drawLine(cx - r * 0.32f, cy - r * 0.55f, cx - r * 0.18f, cy - r * 0.84f, stroke)
+                canvas.drawLine(cx + r * 0.12f, cy - r * 0.55f, cx + r * 0.24f, cy - r * 0.84f, stroke)
+            }
+            "rest" -> {
+                canvas.drawArc(cx - r * 0.70f, cy - r * 0.82f, cx + r * 0.68f, cy + r * 0.80f, 72f, 220f, false, stroke)
+                canvas.drawArc(cx - r * 0.24f, cy - r * 0.78f, cx + r * 0.68f, cy + r * 0.56f, 92f, 180f, false, stroke)
+            }
+            "music" -> {
+                canvas.drawLine(cx - r * 0.12f, cy - r * 0.68f, cx - r * 0.12f, cy + r * 0.48f, stroke)
+                canvas.drawLine(cx - r * 0.12f, cy - r * 0.68f, cx + r * 0.66f, cy - r * 0.48f, stroke)
+                canvas.drawLine(cx + r * 0.66f, cy - r * 0.48f, cx + r * 0.66f, cy + r * 0.62f, stroke)
+                canvas.drawCircle(cx - r * 0.38f, cy + r * 0.52f, r * 0.25f, fill)
+                canvas.drawCircle(cx + r * 0.40f, cy + r * 0.66f, r * 0.25f, fill)
+            }
+            "disc" -> {
+                canvas.drawCircle(cx, cy, r * 0.82f, stroke)
+                canvas.drawCircle(cx, cy, r * 0.19f, fill)
+            }
             "battery" -> {
-                val body = RectF(cx - r, cy - r * 0.58f, cx + r * 0.78f, cy + r * 0.58f)
-                canvas.drawRoundRect(body, r * 0.18f, r * 0.18f, stroke)
+                iconScratch.set(cx - r, cy - r * 0.58f, cx + r * 0.78f, cy + r * 0.58f)
+                canvas.drawRoundRect(iconScratch, r * 0.18f, r * 0.18f, stroke)
                 canvas.drawRoundRect(cx + r * 0.82f, cy - r * 0.22f, cx + r, cy + r * 0.22f, r * 0.08f, r * 0.08f, fill)
                 val level = (progress ?: 0.5f).coerceIn(0f, 1f)
                 canvas.drawRoundRect(
-                    body.left + r * 0.17f,
-                    body.top + r * 0.17f,
-                    body.left + r * 0.17f + (body.width() - r * 0.34f) * level,
-                    body.bottom - r * 0.17f,
+                    iconScratch.left + r * 0.17f,
+                    iconScratch.top + r * 0.17f,
+                    iconScratch.left + r * 0.17f + (iconScratch.width() - r * 0.34f) * level,
+                    iconScratch.bottom - r * 0.17f,
                     r * 0.08f,
                     r * 0.08f,
                     fill,
                 )
             }
             "bolt" -> {
-                val p = Path().apply {
-                    moveTo(cx + r * 0.12f, cy - r)
-                    lineTo(cx - r * 0.58f, cy + r * 0.08f)
-                    lineTo(cx - r * 0.04f, cy + r * 0.08f)
-                    lineTo(cx - r * 0.18f, cy + r)
-                    lineTo(cx + r * 0.62f, cy - r * 0.18f)
-                    lineTo(cx + r * 0.08f, cy - r * 0.18f)
-                    close()
-                }
-                canvas.drawPath(p, fill)
+                iconPath.reset()
+                iconPath.moveTo(cx + r * 0.12f, cy - r)
+                iconPath.lineTo(cx - r * 0.58f, cy + r * 0.08f)
+                iconPath.lineTo(cx - r * 0.04f, cy + r * 0.08f)
+                iconPath.lineTo(cx - r * 0.18f, cy + r)
+                iconPath.lineTo(cx + r * 0.62f, cy - r * 0.18f)
+                iconPath.lineTo(cx + r * 0.08f, cy - r * 0.18f)
+                iconPath.close()
+                canvas.drawPath(iconPath, fill)
             }
             "move", "scroll" -> {
                 canvas.drawLine(cx, cy - r, cx, cy + r, stroke)
@@ -461,6 +566,42 @@ class CompanionFaceView(context: Context) : View(context), Choreographer.FrameCa
                 canvas.drawLine(cx, cy - r, cx + r * 0.35f, cy - r * 0.65f, stroke)
                 canvas.drawLine(cx, cy + r, cx - r * 0.35f, cy + r * 0.65f, stroke)
                 canvas.drawLine(cx, cy + r, cx + r * 0.35f, cy + r * 0.65f, stroke)
+            }
+            "vibrate" -> {
+                canvas.drawRoundRect(cx - r * 0.46f, cy - r * 0.78f, cx + r * 0.46f, cy + r * 0.78f, r * 0.14f, r * 0.14f, stroke)
+                canvas.drawArc(cx - r, cy - r * 0.58f, cx - r * 0.48f, cy + r * 0.58f, 100f, 160f, false, stroke)
+                canvas.drawArc(cx + r * 0.48f, cy - r * 0.58f, cx + r, cy + r * 0.58f, -80f, 160f, false, stroke)
+            }
+            "app" -> {
+                val cell = r * 0.48f
+                val gap = r * 0.12f
+                for (row in 0..1) for (column in 0..1) {
+                    val left = cx - cell - gap / 2f + column * (cell + gap)
+                    val top = cy - cell - gap / 2f + row * (cell + gap)
+                    canvas.drawRoundRect(left, top, left + cell, top + cell, r * 0.10f, r * 0.10f, fill)
+                }
+            }
+            "touch" -> {
+                canvas.drawCircle(cx, cy, r * 0.26f, fill)
+                canvas.drawCircle(cx, cy, r * 0.62f, stroke)
+                canvas.drawArc(cx - r, cy - r, cx + r, cy + r, 205f, 100f, false, stroke)
+            }
+            "volume", "mute" -> {
+                iconPath.reset()
+                iconPath.moveTo(cx - r * 0.82f, cy - r * 0.26f)
+                iconPath.lineTo(cx - r * 0.42f, cy - r * 0.26f)
+                iconPath.lineTo(cx, cy - r * 0.68f)
+                iconPath.lineTo(cx, cy + r * 0.68f)
+                iconPath.lineTo(cx - r * 0.42f, cy + r * 0.26f)
+                iconPath.lineTo(cx - r * 0.82f, cy + r * 0.26f)
+                iconPath.close()
+                canvas.drawPath(iconPath, fill)
+                if (icon == "mute") {
+                    canvas.drawLine(cx + r * 0.28f, cy - r * 0.30f, cx + r * 0.80f, cy + r * 0.30f, stroke)
+                    canvas.drawLine(cx + r * 0.80f, cy - r * 0.30f, cx + r * 0.28f, cy + r * 0.30f, stroke)
+                } else {
+                    canvas.drawArc(cx - r * 0.08f, cy - r * 0.58f, cx + r * 0.72f, cy + r * 0.58f, -54f, 108f, false, stroke)
+                }
             }
             "notification" -> {
                 canvas.drawArc(cx - r * 0.62f, cy - r * 0.72f, cx + r * 0.62f, cy + r * 0.62f, 195f, 150f, false, stroke)
@@ -477,42 +618,44 @@ class CompanionFaceView(context: Context) : View(context), Choreographer.FrameCa
         }
     }
 
-    private fun drawNativeDecoration(canvas: Canvas, reaction: CompanionReaction?, faceWidth: Float) {
-        if (reaction == null || faceWidth <= 0f) return
+    private fun drawNativeDecoration(canvas: Canvas, reaction: CompanionReaction?, face: RectF) {
+        if (reaction == null || face.isEmpty) return
         val density = resources.displayMetrics.density
         val alpha = 220
+        fun x(fraction: Float): Float = face.left + face.width() * fraction
+        fun y(fraction: Float): Float = face.top + face.height() * fraction
         fill.alpha = alpha
         stroke.alpha = alpha
         when (reaction) {
             CompanionReaction.LIFT -> {
                 fill.color = Color.rgb(96, 165, 250)
                 canvas.drawOval(
-                    faceWidth * 0.76f,
-                    height * 0.12f,
-                    faceWidth * 0.76f + 7f * density,
-                    height * 0.12f + 12f * density,
+                    x(0.76f),
+                    y(0.12f),
+                    x(0.76f) + 5f * density,
+                    y(0.12f) + 9f * density,
                     fill,
                 )
                 stroke.color = Color.WHITE
-                stroke.strokeWidth = 2f * density
-                canvas.drawLine(faceWidth * 0.18f, height * 0.16f, faceWidth * 0.10f, height * 0.05f, stroke)
-                canvas.drawLine(faceWidth * 0.82f, height * 0.16f, faceWidth * 0.90f, height * 0.05f, stroke)
+                stroke.strokeWidth = 1.5f * density
+                canvas.drawLine(x(0.18f), y(0.16f), x(0.10f), y(0.05f), stroke)
+                canvas.drawLine(x(0.82f), y(0.16f), x(0.90f), y(0.05f), stroke)
             }
             CompanionReaction.CHARGE, CompanionReaction.PING -> {
                 fill.color = if (reaction == CompanionReaction.CHARGE) Color.rgb(52, 211, 153) else Color.rgb(251, 191, 36)
-                canvas.drawCircle(faceWidth * 0.17f, height * 0.22f, 3.2f * density, fill)
-                canvas.drawCircle(faceWidth * 0.82f, height * 0.16f, 2.5f * density, fill)
+                canvas.drawCircle(x(0.17f), y(0.22f), 2.6f * density, fill)
+                canvas.drawCircle(x(0.82f), y(0.16f), 2f * density, fill)
             }
             CompanionReaction.SHAKE -> {
                 stroke.color = Color.rgb(251, 113, 133)
-                stroke.strokeWidth = 2f * density
-                canvas.drawArc(2f * density, height * 0.26f, 13f * density, height * 0.74f, 90f, 180f, false, stroke)
-                canvas.drawArc(faceWidth - 13f * density, height * 0.26f, faceWidth - 2f * density, height * 0.74f, -90f, 180f, false, stroke)
+                stroke.strokeWidth = 1.5f * density
+                canvas.drawArc(face.left + 2f * density, y(0.27f), face.left + 10f * density, y(0.73f), 90f, 180f, false, stroke)
+                canvas.drawArc(face.right - 10f * density, y(0.27f), face.right - 2f * density, y(0.73f), -90f, 180f, false, stroke)
             }
             CompanionReaction.LAND -> {
                 fill.color = Color.rgb(52, 211, 153)
-                canvas.drawCircle(faceWidth * 0.76f, height * 0.20f, 3f * density, fill)
-                canvas.drawCircle(faceWidth * 0.82f, height * 0.27f, 2f * density, fill)
+                canvas.drawCircle(x(0.76f), y(0.20f), 2.4f * density, fill)
+                canvas.drawCircle(x(0.82f), y(0.27f), 1.6f * density, fill)
             }
             else -> Unit
         }

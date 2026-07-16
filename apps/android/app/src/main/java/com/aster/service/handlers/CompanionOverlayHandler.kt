@@ -39,6 +39,9 @@ class CompanionOverlayHandler(
             buildJsonObject {
                 put("canDrawOverlays", overlay.canDrawOverlays())
                 put("attached", overlay.isAttached())
+                // Append-only AIDL speech snapshot lane. OpenAlly gates calls on
+                // this value so a newer client remains safe with an older Aster.
+                put("speechProtocolVersion", 1)
             },
         )
 
