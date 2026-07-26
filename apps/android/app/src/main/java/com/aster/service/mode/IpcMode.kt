@@ -112,6 +112,21 @@ class IpcMode(
             }
 
             authenticatedUids[callingUid] = System.currentTimeMillis()
+            // THIS is the "fresh connect" that resumes screen control after a kill
+            // switch. It used to be cleared only in `start()` — the MODE start —
+            // which does not happen when aster-one re-binds, because this process
+            // outlives it. So pressing STOP once left `killed` true for the life of
+            // the companion: every later run was refused at its first control verb
+            // (`launch_intent`), while reads kept working because `observe` is not
+            // in SCREEN_CONTROL_ACTIONS. Restarting the OpenAlly app did not help,
+            // and nothing in either UI said why.
+            //
+            // Re-authenticating requires the current session token, so this cannot
+            // be used to bypass the kill — only the owner's own app can present it.
+            if (killed) {
+                Log.i(TAG, "Fresh connect from UID=$callingUid — clearing the kill switch")
+                killed = false
+            }
             Log.i(TAG, "UID=$callingUid authenticated successfully")
             updateClientCount()
             return "authenticated"
