@@ -8,6 +8,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -233,6 +234,31 @@ class WireContractTest {
                 "ordinal resolution depends on element ordering, and an undeclared " +
                 "contract is one nobody can be held to",
             invariants?.get("elements_in_reading_order")?.jsonPrimitive?.contentOrNull == "true",
+        )
+    }
+
+    @Test
+    fun `a generic contentDescription does not suppress label aggregation`() {
+        // Uber's ride chooser: eight ride options, each a clickable image
+        // carrying desc="Vehicle" and nothing else. The words UberGo, the fare
+        // and the ETA live in child TextViews that `actionable` mode drops, and
+        // the gate used to be `text.isEmpty() && desc.isEmpty()` — so one
+        // generic contentDescription switched off the aggregation that exists to
+        // recover exactly those words. All eight rows reached the kernel as
+        // byte-identical elements and "choose UberX" became unanswerable.
+        //
+        // A node's own `text` is its name; a contentDescription on an image or a
+        // row container very often is not. Only `text` may suppress aggregation.
+        val observer = serviceSource("accessibility/ScreenObserver.kt")
+        assertTrue(
+            "ScreenObserver must aggregate whenever the node has no text of its own, " +
+                "regardless of contentDescription — a generic desc must not blind the " +
+                "kernel to a row's actual words",
+            observer.contains("if (text.isEmpty()) LabelAggregator.aggregate(node)"),
+        )
+        assertFalse(
+            "the desc half of the old gate must be gone",
+            observer.contains("text.isEmpty() && desc.isEmpty()"),
         )
     }
 }

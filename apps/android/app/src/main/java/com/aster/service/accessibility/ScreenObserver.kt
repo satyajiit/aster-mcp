@@ -222,7 +222,25 @@ class ScreenObserver(
         // the cost exactly where it was: only nodes that survive the mode filter
         // pay for it. Aggregating over a node that already has text would only
         // make its text longer and less exact, so that case stays empty.
-        val label = if (text.isEmpty() && desc.isEmpty()) LabelAggregator.aggregate(node) else ""
+        //
+        // A non-empty `desc` deliberately does NOT suppress this, though it used
+        // to. A node's own `text` is its name; a contentDescription very often
+        // is not — on an image or a row container it names the PICTURE, and app
+        // after app sets the same generic string on every row. Uber's ride
+        // chooser is the case that proved it: eight ride options, each a
+        // clickable image carrying desc="Vehicle" and nothing else, so all eight
+        // reached the kernel as byte-identical elements. "Choose UberX" was
+        // literally unanswerable — not hard, unanswerable — because the words
+        // UberX, the fare and the ETA were in child TextViews that `actionable`
+        // mode drops, and the one generic desc had switched off the aggregation
+        // that exists to recover exactly them.
+        //
+        // This also repairs a latent divergence. `resolveRef` derives the live
+        // label with an UNCONDITIONAL `LabelAggregator.aggregate(node)`, so for
+        // any desc-bearing row the cached label ("") and the derived one (the
+        // real text) already disagreed — the very mismatch this object's doc
+        // comment exists to prevent. Both sides now compute the same thing.
+        val label = if (text.isEmpty()) LabelAggregator.aggregate(node) else ""
         if (!ElementFilter.matchesSearch(facts, label, searchText)) return
 
         // Hard safety cap on COLLECTION (not on the answer). Ranking needs to see
