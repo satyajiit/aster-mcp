@@ -194,4 +194,45 @@ class WireContractTest {
                 handler.contains("?: false"),
         )
     }
+
+    @Test
+    fun `observe emits elements in reading order, not rank order`() {
+        // Ranking decides WHAT survives the element budget; it must never decide
+        // what order the kernel reads. This was an incidental nicety until
+        // ordinal resolution shipped on the kernel side: a step can now declare
+        // `ordinal: first | last | <n>` to pick among rows no primitive can tell
+        // apart (a list of ride options differing only by a fare), and the
+        // kernel indexes the matching peers IN THE ORDER THIS FILE SENDS THEM.
+        // Emit rank order instead and "the first ride option" silently becomes
+        // "whichever row scored highest" — a wrong tap that reports success,
+        // across two independently-sideloaded APKs that can be on different
+        // versions. The manifest declares the invariant; this pins the code.
+        val observer = serviceSource("accessibility/ScreenObserver.kt")
+        assertTrue(
+            "ScreenObserver must re-sort the budget survivors back into traversal " +
+                "order before emitting them (kept.sortBy { it.order }) — see " +
+                "wire-manifest.json observe.result_invariants.elements_in_reading_order",
+            observer.contains("kept.sortBy { it.order }"),
+        )
+        // And the refs must be assigned FROM that final order, not before it.
+        val sortAt = observer.indexOf("kept.sortBy { it.order }")
+        val refAt = observer.indexOf("val ref = ")
+        assertTrue("could not locate the ref assignment", refAt > 0)
+        assertTrue(
+            "e<N> refs must be assigned after the reading-order sort, or the refs " +
+                "and the element order disagree",
+            sortAt in 1 until refAt,
+        )
+    }
+
+    @Test
+    fun `the observe result invariants are declared in the manifest`() {
+        val invariants = actions().getValue("observe").jsonObject["result_invariants"]?.jsonObject
+        assertTrue(
+            "wire-manifest.json must declare observe.result_invariants — the kernel's " +
+                "ordinal resolution depends on element ordering, and an undeclared " +
+                "contract is one nobody can be held to",
+            invariants?.get("elements_in_reading_order")?.jsonPrimitive?.contentOrNull == "true",
+        )
+    }
 }

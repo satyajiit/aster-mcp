@@ -52,7 +52,26 @@
         "truncated",
         "error"
       ],
-      "$note": "`window` is declared by the kernel's tool schema and advertised to the model, but no companion handler reads it — the observe walk always covers every window. Either implement it or drop it from observe.rs's schema."
+      "$note": "`window` is declared by the kernel's tool schema and advertised to the model, but no companion handler reads it — the observe walk always covers every window. Either implement it or drop it from observe.rs's schema.",
+      "result_invariants": {
+        "elements_in_reading_order": true
+      },
+      "$invariants": [
+        "`elements` MUST be returned in reading order (the companion's traversal order,",
+        "ascending down the screen) — NOT in rank order. ScreenObserver ranks candidates",
+        "to decide WHAT survives the element budget, then re-sorts the survivors by",
+        "traversal order before emitting, and `e<N>` refs are assigned from that final",
+        "order.",
+        "",
+        "This was an incidental nicety until ordinal resolution shipped. A step may now",
+        "declare `ordinal: first | last | <n>` to pick among rows that no primitive can",
+        "tell apart (a list of ride options differing only by a fare), and the kernel",
+        "indexes the matching peers IN THE ORDER THE COMPANION SENT THEM. If the",
+        "companion ever emitted rank order instead, `\"the first ride option\"` would",
+        "silently mean `\"whichever row scored highest\"` — a wrong tap that reports",
+        "success, across two independently-sideloaded APKs that can be on different",
+        "versions."
+      ]
     },
     "take_screenshot": {
       "params": [
