@@ -29,7 +29,15 @@ object ObserveMode {
  *  - full: everything (debug).
  *
  * [searchText] (case-insensitive) narrows the kept set to nodes whose text OR
- * desc contains it, applied on top of the mode predicate.
+ * desc OR aggregated label contains it, applied on top of the mode predicate.
+ *
+ * The label clause is not a nicety. On the dominant list-row pattern the row
+ * itself has NO text — its words live in child TextViews, which `actionable`
+ * mode filters out — so descendant aggregation is what makes the row
+ * addressable at all. Matching search against the node's own text only meant
+ * `search_text: "Network"` returned ZERO elements on a Settings screen whose
+ * first row plainly reads "Network & internet", i.e. narrowing failed on
+ * exactly the shape it exists to narrow.
  */
 object ElementFilter {
 
@@ -50,18 +58,32 @@ object ElementFilter {
      */
     const val SYSTEM_WINDOW_RESERVE = 25
 
-    fun keep(node: NodeFacts, mode: String, searchText: String?): Boolean {
-        val passesMode = when (mode) {
-            ObserveMode.FULL -> true
-            ObserveMode.TEXT -> node.text.isNotEmpty() || node.desc.isNotEmpty()
-            else -> // ACTIONABLE (default)
-                node.clickable || node.editable || node.checkable ||
-                    node.scrollable || node.longClickable
-        }
-        if (!passesMode) return false
+    /**
+     * The MODE half of the predicate. Split out so the caller can decide what a
+     * node is before paying to aggregate a label for it — see
+     * [matchesSearch].
+     */
+    fun keepByMode(node: NodeFacts, mode: String): Boolean = when (mode) {
+        ObserveMode.FULL -> true
+        ObserveMode.TEXT -> node.text.isNotEmpty() || node.desc.isNotEmpty()
+        else -> // ACTIONABLE (default)
+            node.clickable || node.editable || node.checkable ||
+                node.scrollable || node.longClickable
+    }
 
+    /**
+     * The SEARCH half. `label` is the descendant-aggregated name for a node that
+     * says nothing itself (empty when the node has its own text/desc, or when
+     * the caller has not aggregated one).
+     */
+    fun matchesSearch(node: NodeFacts, label: String, searchText: String?): Boolean {
         if (searchText.isNullOrEmpty()) return true
         return node.text.contains(searchText, ignoreCase = true) ||
-            node.desc.contains(searchText, ignoreCase = true)
+            node.desc.contains(searchText, ignoreCase = true) ||
+            label.contains(searchText, ignoreCase = true)
     }
+
+    /** Both halves, for callers with no label to offer. */
+    fun keep(node: NodeFacts, mode: String, searchText: String?): Boolean =
+        keepByMode(node, mode) && matchesSearch(node, "", searchText)
 }

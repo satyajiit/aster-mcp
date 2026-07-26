@@ -13,6 +13,7 @@ class SnapshotCacheTest {
         ref = ref,
         viewId = "com.x:id/$ref",
         text = "t-$ref",
+        desc = "",
         role = "button",
         className = "android.widget.Button",
         bounds = DescriptorBounds.fromLTRB(0, 0, 10, 10),

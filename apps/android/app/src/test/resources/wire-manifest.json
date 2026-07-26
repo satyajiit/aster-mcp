@@ -1,0 +1,387 @@
+{
+  "$comment": [
+    "THE KERNEL↔COMPANION WIRE CONTRACT for `device.execute`.",
+    "",
+    "This file is the single declaration of which params each `com.aster` companion",
+    "action accepts, and which result fields the kernel is allowed to depend on.",
+    "It exists because the transport is untyped in BOTH directions: the kernel ships",
+    "an opaque `serde_json::Value` (cortex-tools-screen/src/transport.rs) and the",
+    "companion parses it into an untyped map where every handler does",
+    "`params?.get(\"someKey\") ?: default`. An unknown key was never an error — it was",
+    "silently dropped and the action ran with a default. That is how `screen_gesture`",
+    "came to be entirely dead, how scroll-to-find degraded to a single swipe, and how",
+    "`wait_for {view_id}` hard-failed on every call.",
+    "",
+    "TWO-SIDED ENFORCEMENT — neither side may drift from this file:",
+    "  aster-one : crates/cortex-tools-screen/src/wire_contract.rs drives every",
+    "              `screen_*` tool through a recording client and asserts that every",
+    "              key it puts on the wire appears in `params` below.",
+    "  aster-mcp : app/src/test/java/com/aster/service/wire/WireContractTest.kt reads",
+    "              its own copy of this file and asserts each action's handler really",
+    "              reads those params.",
+    "",
+    "`contract_version` is compiled into both tests. Changing the contract therefore",
+    "requires touching BOTH repositories — that friction is the point, because the two",
+    "APKs are sideloaded independently and update out of step.",
+    "",
+    "Note on casing: params are declared in the kernel's canonical snake_case. Both",
+    "sides widen every key to snake_case AND camelCase on the wire",
+    "(`transport::widen_param_casing`, `WireParams.normalize`), so a handler reading",
+    "either convention resolves. Do NOT add both spellings here."
+  ],
+  "contract_version": "1",
+  "actions": {
+    "observe": {
+      "params": [
+        "mode",
+        "search_text",
+        "max_elements",
+        "window",
+        "ocr",
+        "ai_name"
+      ],
+      "not_implemented": [
+        "window"
+      ],
+      "results": [
+        "screen",
+        "elements",
+        "scrollables",
+        "source",
+        "snapshot_id",
+        "truncated",
+        "error"
+      ],
+      "$note": "`window` is declared by the kernel's tool schema and advertised to the model, but no companion handler reads it — the observe walk always covers every window. Either implement it or drop it from observe.rs's schema."
+    },
+    "take_screenshot": {
+      "params": [
+        "annotate",
+        "marks",
+        "from_snapshot",
+        "ai_name"
+      ],
+      "results": [
+        "path",
+        "width",
+        "height",
+        "scale",
+        "annotated"
+      ],
+      "$note": "P3: the companion now DERIVES `marks` from its own SnapshotCache when `annotate:true` and none are supplied (optionally pinned by `from_snapshot`). `marks` stays accepted so a caller that has already computed boxes can still send them; the kernel never does."
+    },
+    "tap": {
+      "params": [
+        "ref",
+        "snapshot_id",
+        "x",
+        "y",
+        "target_text",
+        "settle",
+        "risk",
+        "approval",
+        "ai_name",
+        "allow_coordinate_fallback"
+      ],
+      "results": [
+        "ok",
+        "resolved_by",
+        "changed",
+        "foreground_after",
+        "settled",
+        "ref",
+        "code"
+      ]
+    },
+    "long_press": {
+      "params": [
+        "ref",
+        "snapshot_id",
+        "duration",
+        "x",
+        "y",
+        "target_text",
+        "settle",
+        "risk",
+        "approval",
+        "ai_name",
+        "allow_coordinate_fallback"
+      ],
+      "results": [
+        "ok",
+        "resolved_by",
+        "changed",
+        "foreground_after",
+        "settled",
+        "ref",
+        "code"
+      ]
+    },
+    "set_text": {
+      "params": [
+        "ref",
+        "snapshot_id",
+        "text",
+        "mode",
+        "submit",
+        "target_text",
+        "settle",
+        "risk",
+        "approval",
+        "ai_name"
+      ],
+      "results": [
+        "ok",
+        "resolved_by",
+        "changed",
+        "foreground_after",
+        "settled",
+        "ref",
+        "code"
+      ]
+    },
+    "set_toggle": {
+      "params": [
+        "ref",
+        "snapshot_id",
+        "on",
+        "target_text",
+        "settle",
+        "risk",
+        "approval",
+        "ai_name"
+      ],
+      "results": [
+        "ok",
+        "resolved_by",
+        "changed",
+        "foreground_after",
+        "settled",
+        "ref",
+        "code"
+      ]
+    },
+    "perform": {
+      "params": [
+        "ref",
+        "snapshot_id",
+        "action",
+        "target_text",
+        "settle",
+        "risk",
+        "approval",
+        "ai_name"
+      ],
+      "results": [
+        "ok",
+        "resolved_by",
+        "changed",
+        "foreground_after",
+        "settled",
+        "ref",
+        "code"
+      ]
+    },
+    "scroll": {
+      "params": [
+        "ref",
+        "snapshot_id",
+        "direction",
+        "amount",
+        "until_text",
+        "timeout",
+        "target_text",
+        "settle",
+        "risk",
+        "approval",
+        "ai_name"
+      ],
+      "results": [
+        "ok",
+        "direction",
+        "scrolled",
+        "amount",
+        "ref",
+        "found",
+        "changed",
+        "foreground_after",
+        "settled"
+      ]
+    },
+    "input_gesture": {
+      "params": [
+        "gesture_type",
+        "points",
+        "x",
+        "y",
+        "cx",
+        "cy",
+        "start_x",
+        "start_y",
+        "end_x",
+        "end_y",
+        "start_gap",
+        "end_gap",
+        "duration",
+        "target_text",
+        "risk",
+        "approval",
+        "ai_name"
+      ],
+      "results": [
+        "gesture_type",
+        "point_count",
+        "start_x",
+        "start_y",
+        "end_x",
+        "end_y",
+        "screen"
+      ],
+      "$note": "The kernel's model-facing arg is `type`; gesture.rs renames it to `gesture_type` at dispatch because `type` has no casing alias."
+    },
+    "press_key": {
+      "params": [
+        "key",
+        "target_text",
+        "risk",
+        "approval",
+        "ai_name"
+      ],
+      "results": [
+        "ok",
+        "key"
+      ]
+    },
+    "global_action": {
+      "params": [
+        "action",
+        "target_text",
+        "risk",
+        "approval",
+        "ai_name"
+      ],
+      "results": [
+        "ok",
+        "action"
+      ]
+    },
+    "launch_intent": {
+      "params": [
+        "package",
+        "action",
+        "data",
+        "extras",
+        "target_text",
+        "risk",
+        "approval",
+        "ai_name"
+      ],
+      "results": [
+        "ok",
+        "launched",
+        "package"
+      ]
+    },
+    "wait_for": {
+      "params": [
+        "text",
+        "view_id",
+        "role",
+        "gone",
+        "timeout",
+        "ai_name"
+      ],
+      "results": [
+        "ok",
+        "matched",
+        "gone",
+        "foreground_after"
+      ],
+      "$note": "`ok` mirrors `matched` so a TIMEOUT reads as failure through result_failed()."
+    },
+    "wait_for_idle": {
+      "params": [
+        "quiet_ms",
+        "timeout",
+        "ai_name"
+      ],
+      "results": [
+        "ok",
+        "idle",
+        "waited_ms"
+      ]
+    },
+    "screen_prompt": {
+      "params": [
+        "prompt",
+        "options",
+        "text_input",
+        "default",
+        "timeout_ms",
+        "ai_name"
+      ],
+      "results": [
+        "choice",
+        "text"
+      ],
+      "$note": "`text_input` is accepted by InteractiveOverlayModel.parsePrompt but the kernel's screen_prompt tool never sends it."
+    },
+    "screen_approve": {
+      "params": [
+        "title",
+        "variants",
+        "editable",
+        "timeout_ms",
+        "ai_name"
+      ],
+      "results": [
+        "decision",
+        "selected_id",
+        "text"
+      ]
+    },
+    "screen_capability": {
+      "params": [
+        "ai_name"
+      ],
+      "results": [
+        "accessibility_enabled",
+        "service_bound",
+        "can_observe"
+      ]
+    },
+    "screen_signin_wait": {
+      "params": [
+        "kind",
+        "ai_name"
+      ],
+      "results": [
+        "ok",
+        "shown"
+      ]
+    },
+    "screen_handoff": {
+      "params": [
+        "kind",
+        "message",
+        "ai_name"
+      ],
+      "results": [
+        "ok",
+        "shown"
+      ]
+    },
+    "screen_set_policy": {
+      "params": [
+        "allow",
+        "deny"
+      ],
+      "results": [
+        "ok",
+        "allow",
+        "deny"
+      ],
+      "$note": "Owner allow/deny push (screen:set-app-policy fan-out + screen:sync-app-policy on companion connect). A WHOLE-POLICY replace, not a merge: a package the owner cleared must disappear companion-side, so an absent key means the empty set. Not a `screen_*` TOOL — dispatched by the RPC handler, so the kernel's drive_all() fixture does not exercise it."
+    }
+  }
+}

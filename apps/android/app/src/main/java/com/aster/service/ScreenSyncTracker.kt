@@ -24,11 +24,36 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class ScreenSyncTracker(baselineNow: Long = System.currentTimeMillis()) {
 
+    private companion object {
+        /**
+         * Cap on distinct surfaces tracked. A device has few live windows, but a
+         * long session that cycles through many apps would grow the map without
+         * bound; on overflow it is cleared wholesale, which costs one action's
+         * `changed` accuracy and nothing else.
+         */
+        const val MAX_TRACKED_SURFACES = 64
+    }
+
     /** Wall-clock millis of the most recent recorded change. */
     private val lastChangeAtMs = AtomicLong(baselineNow)
 
-    /** Monotonic count of recorded changes; used for pre/post-act `changed` derivation. */
+    /** Monotonic count of ALL recorded changes — the quiescence signal. */
     private val revisionCounter = AtomicLong(0L)
+
+    /**
+     * Per-surface revisions, keyed `"<package>#<windowId>"`.
+     *
+     * The global counter cannot answer "did MY tap do anything?". A screen with a
+     * live map, an autoplay video or a ticking clock bumps it many times a second,
+     * so `changed` came back true no matter what — a tap that hit nothing looked
+     * exactly like one that worked, and the engine's strongest post-condition
+     * quietly always passed. Dimensioning by surface means an unrelated animation
+     * in another window can no longer vouch for an action.
+     *
+     * Bounded: a device only has so many windows, but a long session cycling
+     * through many apps would otherwise grow this without limit.
+     */
+    private val perSurface = java.util.concurrent.ConcurrentHashMap<String, AtomicLong>()
 
     // replay=0: only nudge live collectors. extraBufferCapacity=1 + DROP_OLDEST keeps
     // tryEmit() non-suspending and lossless-enough (a coalesced extra emission is fine —
@@ -47,16 +72,35 @@ class ScreenSyncTracker(baselineNow: Long = System.currentTimeMillis()) {
      * TYPE_WINDOW_CONTENT_CHANGED and TYPE_WINDOW_STATE_CHANGED. Allocation-free on the
      * hot path apart from the SharedFlow nudge (tryEmit, non-suspending).
      */
-    fun recordChange(now: Long) {
+    @JvmOverloads
+    fun recordChange(now: Long, surfaceKey: String? = null) {
         lastChangeAtMs.set(now)
         revisionCounter.incrementAndGet()
+        if (surfaceKey != null) {
+            if (perSurface.size >= MAX_TRACKED_SURFACES) perSurface.clear()
+            perSurface.computeIfAbsent(surfaceKey) { AtomicLong(0L) }.incrementAndGet()
+        }
         _changes.tryEmit(Unit)
     }
+
+    /** Build the key [recordChange] and [revision] agree on. */
+    fun surfaceKey(packageName: String?, windowId: Int?): String =
+        "${packageName.orEmpty()}#${windowId ?: -1}"
+
+    /**
+     * Revision for ONE surface. Compare pre/post-act to derive `changed` without
+     * an unrelated animation elsewhere on the device vouching for the action.
+     */
+    fun revision(surfaceKey: String): Long = perSurface[surfaceKey]?.get() ?: 0L
 
     /** Wall-clock millis of the most recent change (or the construction baseline). */
     fun lastChangeAt(): Long = lastChangeAtMs.get()
 
-    /** Monotonic revision; compare pre/post-act to derive `changed`. */
+    /**
+     * Monotonic count of every change anywhere — the QUIESCENCE signal.
+     *
+     * Deliberately not what `changed` is derived from any more; see [perSurface].
+     */
     fun revision(): Long = revisionCounter.get()
 
     /**

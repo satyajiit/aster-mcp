@@ -224,6 +224,11 @@ object ToolCatalog {
         "launch_intent" to ToolEntry("Launch App", "Launch apps or custom Android intents", "Apps"),
 
         // -- System --
+        "screen_set_policy" to ToolEntry(
+            "Sync App Policy",
+            "Receive the owner's per-app screen-control allow/deny list from OpenAlly",
+            "System"
+        ),
         "execute_shell" to ToolEntry("Shell Command", "Run commands in app sandbox", "System"),
         "get_clipboard" to ToolEntry("Get Clipboard", "Read current clipboard content", "System"),
         "set_clipboard" to ToolEntry("Set Clipboard", "Copy text to clipboard", "System"),

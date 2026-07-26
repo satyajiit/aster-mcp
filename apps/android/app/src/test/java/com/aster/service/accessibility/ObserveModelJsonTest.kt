@@ -100,14 +100,56 @@ class ObserveModelJsonTest {
         assertEquals(1028, b["cx"]!!.jsonPrimitive.int)
         assertEquals(2228, b["cy"]!!.jsonPrimitive.int)
 
+        // `state` carries only the flags that are SET. Nine booleans per element,
+        // eight of them false on a typical node, was most of an observe payload —
+        // and absence already means false, so every one of those `false`s was a
+        // token spent to say nothing. The element below is clickable and enabled
+        // and nothing else.
         val s = el["state"]!!.jsonObject
-        listOf(
-            "clickable", "editable", "checkable", "checked", "scrollable",
-            "selected", "focused", "enabled", "password",
-        ).forEach { assertTrue("state missing $it", s.containsKey(it)) }
+        assertEquals(setOf("clickable"), s.keys)
+        assertTrue(s["clickable"]!!.jsonPrimitive.boolean)
 
-        val actions = el["actions"]!!.jsonArray.map { it.jsonPrimitive.content }
-        assertEquals(listOf("click", "long_click"), actions)
+        // …and `actions` drops the verbs `state` already implies. This element's
+        // click/long_click restate `clickable`/`longClickable`, so nothing
+        // informative remains and the key is omitted entirely.
+        assertTrue("actions implied by state must be dropped", !el.containsKey("actions"))
+    }
+
+    @Test
+    fun state_reports_disabled_and_password_because_silence_would_hide_them() {
+        // The two exceptions to "omit what is false". A DISABLED control is an
+        // unusual, decision-relevant state; and `password` is the primary
+        // login-wall signal, so a detector that keys on it must not have the key
+        // optimised away.
+        val disabledSecret = ElementState(
+            clickable = false, editable = true, checkable = false, checked = false,
+            scrollable = false, selected = false, focused = false,
+            enabled = false, password = true,
+        ).toJson()
+        assertEquals(setOf("editable", "enabled", "password"), disabledSecret.keys)
+        assertTrue(!disabledSecret["enabled"]!!.jsonPrimitive.boolean)
+        assertTrue(disabledSecret["password"]!!.jsonPrimitive.boolean)
+    }
+
+    @Test
+    fun informative_actions_survive_the_trim() {
+        // `expand` and `focus` are not restatements of any state flag — dropping
+        // them would remove a performable action, not a duplicate.
+        val el = ObservedElement(
+            ref = "e1", role = "button", text = "More", desc = "", viewId = "",
+            window = 0,
+            bounds = Bounds.fromLTRB(0, 0, 10, 10),
+            state = ElementState(
+                clickable = true, editable = false, checkable = false, checked = false,
+                scrollable = false, selected = false, focused = false,
+                enabled = true, password = false,
+            ),
+            actions = listOf("click", "expand", "focus"),
+        ).toJson()
+        assertEquals(
+            listOf("expand", "focus"),
+            el["actions"]!!.jsonArray.map { it.jsonPrimitive.content },
+        )
     }
 
     @Test

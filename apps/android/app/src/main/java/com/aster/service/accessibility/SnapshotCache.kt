@@ -77,4 +77,24 @@ class SnapshotCache {
             return snapshots[snapshotId]?.get(ref)
         }
     }
+
+    /**
+     * Every `ref → descriptor` in a snapshot, as a stable snapshot of the map.
+     *
+     * Exists so `take_screenshot(annotate: true)` can DERIVE its Set-of-Marks
+     * boxes from the observation the caller already has, instead of requiring the
+     * caller to send them. The kernel's `screen_screenshot` never sent a `marks`
+     * array, and the handler treats an empty array as "nothing to draw" — so
+     * `annotated` was permanently false and the only pixel channel the agent had
+     * was dead code on both sides.
+     *
+     * Returns a copy: callers iterate while the walk may be replacing entries,
+     * and an empty map for an evicted/unknown snapshot (never null — an absent
+     * observation is "no marks", not an error).
+     */
+    fun descriptors(snapshotId: String): Map<String, NodeDescriptor> {
+        synchronized(lock) {
+            return snapshots[snapshotId]?.toMap() ?: emptyMap()
+        }
+    }
 }

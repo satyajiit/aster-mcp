@@ -9,6 +9,7 @@ import com.aster.service.CommandHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import com.aster.service.wire.WireParams
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -77,7 +78,11 @@ class RemoteWsMode(
         return ToolCatalog.resolve(commandHandlers.keys)
     }
 
-    private suspend fun handleCommand(command: Command) {
+    private suspend fun handleCommand(incoming: Command) {
+        // Normalise snake_case↔camelCase before dispatch, exactly as the IPC and
+        // local-MCP paths do — a remote caller follows the published (snake_case)
+        // tool schema while several handlers read camelCase. See [WireParams].
+        val command = incoming.copy(params = WireParams.normalize(incoming.params))
         val handler = commandHandlers[command.action]
 
         if (handler == null) {

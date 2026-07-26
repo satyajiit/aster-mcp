@@ -1,5 +1,6 @@
 package com.aster.service
 
+import com.aster.service.accessibility.LabelAggregator
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonNull
@@ -63,9 +64,24 @@ object ScreenActionResult {
      * AccessibilityNodeInfo, so it is unit-testable without the Android runtime.
      *
      * Rules:
+     *  - If both sides carry a Compose testTag, they MUST be equal — checked first, because a
+     *    Compose node has no viewId at all and would otherwise fall through to the text rule.
      *  - If both sides carry a viewId, they MUST be equal (a differing viewId is a hard mismatch).
      *  - If they carry equal viewIds, that is a strong match (text may legitimately have changed).
-     *  - Otherwise (no viewId anchor), require text equality AND role-or-className equality.
+     *  - Otherwise (no viewId anchor), require text equality AND content-description equality
+     *    AND role-or-className equality.
+     *
+     * The content-description clause is not a refinement — without it this gate was close to
+     * vacuous for exactly the elements it most needed to protect. An icon-only button carries
+     * no viewId and no text, so the predicate collapsed to `"" == ""` plus a role comparison,
+     * and on a toolbar of icon buttons EVERY node satisfied it. `resolveRef`'s nearest-bounds
+     * strategy is gated on this predicate, so it then chose among them by proximity alone —
+     * and because the automation replay path runs no risk gate, that choice was dispatched as
+     * a tap. The description is usually the only thing distinguishing those nodes.
+     *
+     * This also brings the predicate into line with the kernel-side matcher
+     * (`cortex_screen_core::target`), which matches on `desc` and role-filters that arm. The
+     * two sides guessing differently about the same screen was its own class of bug.
      *
      * NOTE: P1's NodeDescriptor stores absence as the empty string "" (non-null fields). The
      * cached* params therefore arrive as "" when absent; this predicate treats "" identically
@@ -74,9 +90,26 @@ object ScreenActionResult {
     fun descriptorMatches(
         cachedViewId: String?, nodeViewId: String?,
         cachedText: String?, nodeText: String?,
+        cachedDesc: String?, nodeDesc: String?,
         cachedRole: String?, nodeRole: String?,
-        cachedClassName: String?, nodeClassName: String?
+        cachedClassName: String?, nodeClassName: String?,
+        cachedTestTag: String? = null, nodeTestTag: String? = null,
+        cachedLabel: String? = null, nodeLabel: (() -> String?)? = null
     ): Boolean {
+        // A Compose `testTag` is checked BEFORE `viewId` because a Compose node
+        // has no viewId at all: without this, every Compose screen falls straight
+        // through to the text comparison, which is the one primitive that changes
+        // with translation, copy edits and A/B tests.
+        val ct = cachedTestTag?.takeIf { it.isNotEmpty() }
+        val nt = nodeTestTag?.takeIf { it.isNotEmpty() }
+        if (ct != null && nt != null) {
+            return ct == nt
+        }
+        if (ct != null && nt == null) {
+            // Cached had a tag, the resolved node lost it → not confidently the
+            // same node (mirrors the viewId rule below).
+            return false
+        }
         val cv = cachedViewId?.takeIf { it.isNotEmpty() }
         val nv = nodeViewId?.takeIf { it.isNotEmpty() }
         if (cv != null && nv != null) {
@@ -86,12 +119,31 @@ object ScreenActionResult {
             // Cached had a viewId, resolved node lost it → not confidently the same node.
             return false
         }
-        // No viewId anchor on the cached side: fall back to text + role/className identity.
+        // No viewId anchor on the cached side: fall back to text + desc + role/className.
         val textOk = (cachedText ?: "") == (nodeText ?: "")
+        val descOk = (cachedDesc ?: "") == (nodeDesc ?: "")
         val cr = cachedRole?.takeIf { it.isNotEmpty() }
         val cc = cachedClassName?.takeIf { it.isNotEmpty() }
         val roleOk = (cr != null && cr == nodeRole) ||
             (cc != null && cc == nodeClassName)
-        return textOk && roleOk
+        if (!(textOk && descOk && roleOk)) return false
+
+        // Aggregated-label tiebreak — the ONLY thing that distinguishes two
+        // anonymous list rows.
+        //
+        // Reached exactly when the cached node owned no id, no text and no
+        // description, which is the dominant Android row shape: a clickable
+        // LinearLayout whose label lives in non-actionable child TextViews. Every
+        // clause above is then vacuous ("" == "" plus a class comparison), so
+        // without this the predicate says YES to every row on the screen and
+        // nearest-bounds picks by proximity alone — a mis-tap the replay path
+        // does not risk-gate.
+        //
+        // Evaluated LAST and LAZILY: re-deriving a live node's label walks its
+        // subtree, and the walk in findNearestMatchingNode calls this predicate
+        // once per node on the screen. Only the handful that already agree on
+        // every cheap primitive pay for it.
+        val cl = cachedLabel?.takeIf { it.isNotEmpty() } ?: return true
+        return LabelAggregator.matches(cl, nodeLabel?.invoke())
     }
 }

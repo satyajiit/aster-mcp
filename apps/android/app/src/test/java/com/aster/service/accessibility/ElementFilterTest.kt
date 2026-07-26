@@ -66,6 +66,45 @@ class ElementFilterTest {
     }
 
     @Test
+    fun searchText_matches_an_aggregated_label() {
+        // THE list-row case, and the reason narrowing exists. A Settings row is
+        // clickable with NO text of its own — its words ("Network & internet")
+        // live in child TextViews that `actionable` mode filters out. Matching
+        // the node's own text alone made `search_text: "Network"` return ZERO
+        // elements on a screen whose first row plainly says it. Verified against
+        // a live emulator tree before the fix.
+        val row = facts(clickable = true, text = "", desc = "")
+        assertFalse(
+            "the row's own text really is empty",
+            ElementFilter.matchesSearch(row, "", "network"),
+        )
+        assertTrue(
+            "…but its aggregated label names it",
+            ElementFilter.matchesSearch(row, "Network & internet · Mobile, Wi-Fi, hotspot", "network"),
+        )
+        assertFalse(
+            "a label that does not contain the term is still dropped",
+            ElementFilter.matchesSearch(row, "Connected devices · Bluetooth", "network"),
+        )
+    }
+
+    @Test
+    fun the_mode_gate_is_independent_of_search() {
+        // Split so the caller can decide what a node IS before paying to
+        // aggregate a label for it — the aggregation walks up to 3 levels.
+        assertTrue(ElementFilter.keepByMode(facts(clickable = true), ObserveMode.ACTIONABLE))
+        assertFalse(ElementFilter.keepByMode(facts(), ObserveMode.ACTIONABLE))
+        assertTrue(ElementFilter.keepByMode(facts(text = "hi"), ObserveMode.TEXT))
+        assertTrue(ElementFilter.keepByMode(facts(), ObserveMode.FULL))
+    }
+
+    @Test
+    fun an_absent_search_keeps_everything_the_mode_kept() {
+        assertTrue(ElementFilter.matchesSearch(facts(clickable = true), "", null))
+        assertTrue(ElementFilter.matchesSearch(facts(clickable = true), "", ""))
+    }
+
+    @Test
     fun default_cap_is_positive() {
         assertTrue(ElementFilter.MAX_ELEMENTS_DEFAULT > 0)
     }

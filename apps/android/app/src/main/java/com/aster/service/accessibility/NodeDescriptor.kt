@@ -49,6 +49,36 @@ data class NodeDescriptor(
     val ref: String,
     val viewId: String,
     val text: String,
+    /**
+     * Content description.
+     *
+     * Captured in the same walk as [text] and, for a long time, discarded here —
+     * which quietly gutted the verify-before-act gate for the elements that need
+     * it most. An icon-only button has no [viewId] and no [text], so the gate
+     * reduced to `"" == ""` plus a role comparison: on a toolbar of icon buttons
+     * every one of them "matched" the descriptor, and the nearest-bounds strategy
+     * then picked among them by proximity alone. The description is usually the
+     * ONLY primitive such a node exposes.
+     */
+    val desc: String,
+    /**
+     * Aggregated descendant text ([LabelAggregator]) — non-empty only when the
+     * node owns neither [text] nor [desc], i.e. the anonymous-list-row case.
+     *
+     * Kept SEPARATE from [text] on purpose. The two are compared against
+     * different things on the live node: [text] against `node.text`, this
+     * against a freshly re-derived aggregate of the live node's descendants.
+     * Collapsing them into one field is what made list rows untappable — the
+     * gate compared an aggregated label to an empty own-text and every strategy
+     * missed, so `tap` fail-closed on a row that had not moved at all.
+     */
+    val label: String = "",
+    /**
+     * Compose `Modifier.testTag`. Compared FIRST in the verify-before-act
+     * predicate for the same reason `viewId` is: it is the only stable id a
+     * Compose node has.
+     */
+    val testTag: String = "",
     val role: String,
     val className: String,
     val bounds: DescriptorBounds,

@@ -7,20 +7,20 @@ import com.aster.service.CommandHandler
 import com.aster.service.CommandResult
 import com.aster.service.Mark
 import com.aster.service.ScreenActionResult
-import com.aster.service.safety.PackagePolicyGuard
 import kotlinx.serialization.json.*
 
 /**
  * Handler for accessibility-based commands.
  * Handles screen hierarchy, gestures, global actions, text input, and screenshots.
  *
- * Guarded autonomy (Screen Control /goal P7): every control action is gated by
- * [packagePolicyGuard] at the top of [handle] (fail-closed) — defense in depth
- * alongside the kernel-side denylist.
+ * Guarded autonomy (Screen Control /goal P7): control actions are gated by
+ * `PackagePolicyGuard`, applied to EVERY handler by
+ * [com.aster.service.safety.GuardedCommandHandler] at map-construction time
+ * (fail-closed) — defense in depth alongside the kernel-side denylist. It used
+ * to be a call at the top of [handle], which covered only this handler's verbs
+ * and left `launch_intent` ungated.
  */
-class AccessibilityHandler(
-    private val packagePolicyGuard: PackagePolicyGuard
-) : CommandHandler {
+class AccessibilityHandler : CommandHandler {
 
     companion object {
         /**
@@ -31,6 +31,17 @@ class AccessibilityHandler(
          */
         private const val SETTLE_QUIET_MS = 350L
         private const val SETTLE_TIMEOUT_MS = 1_500L
+
+        /**
+         * How long to wait for an app to START reacting before concluding the
+         * action was inert (phase 1 of [AsterAccessibilityService.waitForSettle]).
+         *
+         * Sized from measurement, not taste: a stock Settings row resumes its
+         * target activity ~130 ms after the tap. 600 ms is ~4.5× that headroom
+         * while still bounded by [SETTLE_TIMEOUT_MS] overall, so a no-op action
+         * costs 600 ms rather than the full ceiling.
+         */
+        private const val SETTLE_REACTION_MS = 600L
     }
 
     override fun supportedActions() = listOf(
@@ -53,22 +64,12 @@ class AccessibilityHandler(
         "press_key",
         // -- P3: synchronization (SPEC §3.3) --
         "wait_for_idle",
-        "wait_for",
-        // -- Companion live recorder (user-demonstrated automation steps) --
-        "automation_record_start",
-        "automation_record_stop",
-        "automation_record_status"
+        "wait_for"
     )
 
     override suspend fun handle(command: Command): CommandResult {
         val service = AsterAccessibilityService.getInstance()
             ?: return CommandResult.failure("Accessibility service not enabled. Please enable it in Settings > Accessibility > Aster by OpenAlly")
-
-        // Guarded autonomy (P7): refuse denylisted foreground packages
-        // (fail-closed). Defense in depth — the kernel also gates.
-        packagePolicyGuard.checkAllowed(command.action)?.let { refusal ->
-            return CommandResult.failure(refusal)
-        }
 
         return when (command.action) {
             "observe" -> observe(service, command)
@@ -89,9 +90,6 @@ class AccessibilityHandler(
             "press_key" -> pressKey(service, command)
             "wait_for_idle" -> waitForIdle(service, command)
             "wait_for" -> waitFor(service, command)
-            "automation_record_start" -> recordStart(service)
-            "automation_record_stop" -> recordStop(service)
-            "automation_record_status" -> recordStatus(service)
             else -> CommandResult.failure("Unknown action: ${command.action}")
         }
     }
@@ -499,7 +497,20 @@ class AccessibilityHandler(
         command: Command
     ): CommandResult {
         val annotate = command.params?.get("annotate")?.jsonPrimitive?.booleanOrNull ?: false
-        val marks: List<Mark> = if (annotate) parseMarks(command.params?.get("marks")) else emptyList()
+        val supplied: List<Mark> =
+            if (annotate) parseMarks(command.params?.get("marks")) else emptyList()
+        // DERIVE the marks from the caller's own observation when it didn't send
+        // any. The kernel's `screen_screenshot` never sent a `marks` array, and an
+        // empty array means "nothing to draw" — so `annotated` was permanently
+        // false and the annotated-screenshot path was dead on both sides despite
+        // being fully implemented on each. The companion already holds exactly the
+        // data needed (the SnapshotCache the refs came from), so the caller
+        // shouldn't have to round-trip it back.
+        val marks: List<Mark> = when {
+            !annotate -> emptyList()
+            supplied.isNotEmpty() -> supplied
+            else -> derivedMarks(service, command.params?.get("from_snapshot"))
+        }
 
         val result = service.takeScreenshot(annotate = annotate, marks = marks)
         return if (result != null) {
@@ -515,6 +526,35 @@ class AccessibilityHandler(
         } else {
             CommandResult.failure("Failed to take screenshot. Requires Android 11+ with accessibility screenshot permission.")
         }
+    }
+
+    /**
+     * Build Set-of-Marks boxes from a cached observation.
+     *
+     * `from_snapshot` names which one; absent means the latest. The mark INDEX is
+     * parsed out of the `e<N>` ref so the number drawn on the screenshot is the
+     * same number the agent already knows the element by — a numbered box the
+     * model cannot map back to a ref would be decoration.
+     *
+     * Fail-soft throughout: an evicted snapshot, or one with no parseable refs,
+     * yields no marks and the screenshot comes back un-annotated rather than
+     * failing. Annotation is an aid, never a precondition.
+     */
+    private fun derivedMarks(
+        service: AsterAccessibilityService,
+        fromSnapshot: JsonElement?,
+    ): List<Mark> {
+        val requested = (fromSnapshot as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotEmpty() }
+        val snapshotId = requested ?: service.snapshotCache.latestId() ?: return emptyList()
+        return service.snapshotCache.descriptors(snapshotId)
+            .mapNotNull { (ref, d) ->
+                val index = ref.removePrefix("e").toIntOrNull() ?: return@mapNotNull null
+                val b = d.bounds
+                // A zero-area box draws nothing and only adds a floating number.
+                if (b.w <= 0 || b.h <= 0) return@mapNotNull null
+                Mark(index = index, bounds = Rect(b.x, b.y, b.x + b.w, b.y + b.h))
+            }
+            .sortedBy { it.index }
     }
 
     /**
@@ -645,16 +685,19 @@ class AccessibilityHandler(
         val untilText = command.params?.get("untilText")?.jsonPrimitive?.contentOrNull
 
         // P3 verify-after-act: snapshot revision + foreground BEFORE scrolling (SPEC §3.4).
-        val preRevision = service.screenRevision()
-        val preForeground = service.foregroundPackage()
+        val pre = preAct(service, command)
 
-        val (scrolled, found) = service.scrollRef(ref, snapshotIdOf(command), direction, amount, untilText)
+        val (scrolled, found) = service.scrollRef(
+            ref, snapshotIdOf(command), direction, amount, untilText,
+            timeoutMs = command.params?.get("timeout")?.jsonPrimitive?.longOrNull
+                ?: AsterAccessibilityService.SCROLL_FIND_TIMEOUT_MS,
+        )
         return if (scrolled || found == true) {
             // Scroll auto-resolves its container (no single ResolvedBy strategy), so resolvedBy
             // is null; settleAndVerify still adds changed/foreground_after/settled. The
             // scroll-specific fields ride along as `extra`.
             settleAndVerify(
-                service, command, preRevision, preForeground,
+                service, command, pre,
                 resolvedBy = null, actOk = true,
                 extra = buildJsonObject {
                     put("direction", direction)
@@ -678,20 +721,32 @@ class AccessibilityHandler(
     private fun snapshotIdOf(command: Command): String? =
         command.params?.get("snapshot_id")?.jsonPrimitive?.contentOrNull
 
+    /**
+     * Whether this call opts in to the blind coordinate fallback (`center_tap`).
+     *
+     * Default **false**. That branch is reached only after every verified strategy
+     * has failed, so taking it means acting on stale coordinates while reporting
+     * `{ok:true}` — which made `tap`/`long_press` structurally incapable of
+     * returning `stale_ref`. Off by default, an unresolvable ref becomes an honest
+     * failure the kernel can escalate; a caller that genuinely wants coordinates
+     * should use `input_gesture` or opt in explicitly.
+     */
+    private fun coordinateFallbackOf(command: Command): Boolean =
+        command.params?.get("allow_coordinate_fallback")?.jsonPrimitive?.booleanOrNull ?: false
+
     private suspend fun tap(
         service: AsterAccessibilityService,
         command: Command
     ): CommandResult {
         // P3 verify-after-act: snapshot revision + foreground BEFORE acting (SPEC §3.4).
-        val preRevision = service.screenRevision()
-        val preForeground = service.foregroundPackage()
+        val pre = preAct(service, command)
 
         val ref = command.params?.get("ref")?.jsonPrimitive?.contentOrNull
         if (ref != null) {
-            val resolvedBy = service.tapRef(ref, snapshotIdOf(command))
+            val resolvedBy = service.tapRef(ref, snapshotIdOf(command), coordinateFallbackOf(command))
                 ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
             return settleAndVerify(
-                service, command, preRevision, preForeground,
+                service, command, pre,
                 resolvedBy = resolvedBy.wire, actOk = true,
                 extra = buildJsonObject { put("ref", ref) }
             )
@@ -704,7 +759,7 @@ class AccessibilityHandler(
         val ok = service.performTap(x, y, 100L)
         return if (ok) {
             settleAndVerify(
-                service, command, preRevision, preForeground,
+                service, command, pre,
                 resolvedBy = ScreenActionResult.ResolvedBy.CENTER_TAP.wire, actOk = true,
                 extra = buildJsonObject { put("x", x); put("y", y) }
             )
@@ -719,15 +774,16 @@ class AccessibilityHandler(
     ): CommandResult {
         val duration = command.params?.get("duration")?.jsonPrimitive?.longOrNull ?: 600L
         // P3 verify-after-act: snapshot revision + foreground BEFORE acting (SPEC §3.4).
-        val preRevision = service.screenRevision()
-        val preForeground = service.foregroundPackage()
+        val pre = preAct(service, command)
 
         val ref = command.params?.get("ref")?.jsonPrimitive?.contentOrNull
         if (ref != null) {
-            val resolvedBy = service.longPressRef(ref, snapshotIdOf(command), duration)
+            val resolvedBy = service.longPressRef(
+                ref, snapshotIdOf(command), duration, coordinateFallbackOf(command),
+            )
                 ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
             return settleAndVerify(
-                service, command, preRevision, preForeground,
+                service, command, pre,
                 resolvedBy = resolvedBy.wire, actOk = true,
                 extra = buildJsonObject { put("ref", ref) }
             )
@@ -739,7 +795,7 @@ class AccessibilityHandler(
         val ok = service.performLongPress(x, y, duration.coerceAtLeast(500L))
         return if (ok) {
             settleAndVerify(
-                service, command, preRevision, preForeground,
+                service, command, pre,
                 resolvedBy = ScreenActionResult.ResolvedBy.CENTER_TAP.wire, actOk = true,
                 extra = buildJsonObject { put("x", x); put("y", y) }
             )
@@ -759,12 +815,11 @@ class AccessibilityHandler(
         val mode = command.params?.get("mode")?.jsonPrimitive?.contentOrNull ?: "replace"
         val submit = command.params?.get("submit")?.jsonPrimitive?.booleanOrNull ?: false
         // P3 verify-after-act: snapshot revision + foreground BEFORE acting (SPEC §3.4).
-        val preRevision = service.screenRevision()
-        val preForeground = service.foregroundPackage()
+        val pre = preAct(service, command)
         val resolvedBy = service.setTextRef(ref, snapshotIdOf(command), text, mode, submit)
             ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
         return settleAndVerify(
-            service, command, preRevision, preForeground,
+            service, command, pre,
             resolvedBy = resolvedBy.wire, actOk = true,
             extra = buildJsonObject { put("ref", ref); put("mode", mode); put("submit", submit) }
         )
@@ -779,13 +834,12 @@ class AccessibilityHandler(
         val on = command.params?.get("on")?.jsonPrimitive?.booleanOrNull
             ?: return CommandResult.failure("Missing 'on' (boolean) parameter")
         // P3 verify-after-act: snapshot revision + foreground BEFORE acting (SPEC §3.4).
-        val preRevision = service.screenRevision()
-        val preForeground = service.foregroundPackage()
+        val pre = preAct(service, command)
         val result = service.setToggleRef(ref, snapshotIdOf(command), on)
             ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
         val (resolvedBy, alreadyInState) = result
         return settleAndVerify(
-            service, command, preRevision, preForeground,
+            service, command, pre,
             resolvedBy = resolvedBy.wire, actOk = true,
             extra = buildJsonObject { put("ref", ref); put("on", on); put("already_in_state", alreadyInState) }
         )
@@ -809,12 +863,11 @@ class AccessibilityHandler(
             )
         }
         // P3 verify-after-act: snapshot revision + foreground BEFORE acting (SPEC §3.4).
-        val preRevision = service.screenRevision()
-        val preForeground = service.foregroundPackage()
+        val pre = preAct(service, command)
         val resolvedBy = service.performActionOnRef(ref, snapshotIdOf(command), action)
             ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
         return settleAndVerify(
-            service, command, preRevision, preForeground,
+            service, command, pre,
             resolvedBy = resolvedBy.wire, actOk = true,
             extra = buildJsonObject { put("ref", ref); put("action", action) }
         )
@@ -881,6 +934,15 @@ class AccessibilityHandler(
         )
 
         return CommandResult.success(buildJsonObject {
+            // `ok` mirrors `matched` so a TIMEOUT reads as a failure through the
+            // kernel's universal `result_failed` predicate (which inspects `ok` /
+            // `code`). Without it a timed-out wait was a *successful call reporting
+            // matched:false*, so every `verify.wait_for` post-condition — the
+            // engine's strongest "did this actually work" assertion — passed on
+            // timeout, and every template wait step silently advanced.
+            // A `gone:true` wait succeeds when the element is absent, which
+            // `matched` already encodes, so the mirror is correct for both senses.
+            put("ok", matched)
             put("matched", matched)
             put("gone", gone)
             // Real JSON null when there is no foreground package (the kotlinx put(String, String?)
@@ -912,30 +974,6 @@ class AccessibilityHandler(
     }
 
     // ------------------------------------------------------------------
-    // Companion live recorder (user-demonstrated automation steps)
-    // ------------------------------------------------------------------
-    //
-    // Arms/disarms RECORD MODE on the accessibility service. While armed, the
-    // user's own taps / typing / toggles are captured into the SAME SPEC §3.1
-    // element model the `observe` path emits, then inferred into steps. The
-    // captured steps[] returned by `automation_record_stop` are byte-compatible
-    // with the kernel's `automation_record_step` tool (each step's `element` →
-    // `cortex_automations::Selector::from_observed_value`). Complementary to the
-    // AI-demonstrate path. These are NOT screen control actions — they read no
-    // foreground app and dispatch no gesture — so they are intentionally NOT
-    // gated by packagePolicyGuard (the guard in handle() only inspects the
-    // action name; recorder verbs are absent from any denylist by design).
-
-    private fun recordStart(service: AsterAccessibilityService): CommandResult =
-        CommandResult.success(service.recordStart())
-
-    private fun recordStop(service: AsterAccessibilityService): CommandResult =
-        CommandResult.success(service.recordStop())
-
-    private fun recordStatus(service: AsterAccessibilityService): CommandResult =
-        CommandResult.success(service.recordStatus())
-
-    // ------------------------------------------------------------------
     // P3 — auto-settle + verify-after-act (SPEC §3.3 / §3.4)
     // ------------------------------------------------------------------
 
@@ -955,19 +993,49 @@ class AccessibilityHandler(
      * Single source of truth for the SPEC {ok, resolved_by, changed, foreground_after, settled}
      * ref-action result shape — do NOT duplicate this shape elsewhere.
      *
-     * @param preRevision   service.screenRevision() captured BEFORE the act.
-     * @param preForeground service.foregroundPackage() captured BEFORE the act.
+     * @param pre           [preAct] captured BEFORE the act.
      * @param resolvedBy    which re-resolution strategy resolved the ref (the 4-strategy wire
      *                      value from ScreenActionResult.ResolvedBy.wire); pass "" / null if a
      *                      coordinate action with no ref resolution.
      * @param actOk         whether the underlying act returned success.
      * @param extra         optional extra fields the specific action wants merged into the result.
      */
+    /**
+     * The window the command's `ref` lives in, from the descriptor it was
+     * observed with — `null` for a coordinate action with no ref.
+     *
+     * Used to dimension the `changed` signal: an element's OWN window is the only
+     * surface whose churn is evidence that acting on it did something.
+     */
+    private fun actedWindowId(service: AsterAccessibilityService, command: Command): Int? {
+        val ref = command.params?.get("ref")?.jsonPrimitive?.contentOrNull ?: return null
+        val snapshotId = snapshotIdOf(command) ?: service.snapshotCache.latestId() ?: return null
+        return service.snapshotCache.get(snapshotId, ref)?.windowId
+    }
+
+    /**
+     * The three pre-act samples `changed` is derived from. One value so a handler
+     * cannot capture two of the three and silently weaken the signal.
+     */
+    data class PreAct(
+        val revision: Long,
+        val foreground: String?,
+        val windows: Long,
+        val globalRevision: Long,
+    )
+
+    /** Sample [PreAct] immediately BEFORE acting. */
+    private fun preAct(service: AsterAccessibilityService, command: Command) = PreAct(
+        revision = service.screenRevision(actedWindowId(service, command)),
+        foreground = service.foregroundPackage(),
+        windows = service.windowsFingerprint(),
+        globalRevision = service.globalRevision(),
+    )
+
     suspend fun settleAndVerify(
         service: AsterAccessibilityService,
         command: Command,
-        preRevision: Long,
-        preForeground: String?,
+        pre: PreAct,
         resolvedBy: String?,
         actOk: Boolean,
         extra: JsonObject = JsonObject(emptyMap())
@@ -975,18 +1043,36 @@ class AccessibilityHandler(
         val settle = shouldSettle(command)
         var settled = true
         if (settle) {
-            // Post-act settle. The timeout is a CEILING that only bites on screens
-            // which never idle (feeds with autoplay video, live maps): there
-            // waitForIdle can't observe `quietMs` of quiet and burns the whole
-            // timeout on EVERY action — the dominant cause of an automation that
-            // "gets stuck". Keep it short: a tap's effect (navigation / a new
-            // element) lands well within ~1.5s, and `changed`/`foreground_after`
-            // below are read regardless of whether we reached true quiescence.
-            settled = service.waitForIdle(quietMs = SETTLE_QUIET_MS, timeoutMs = SETTLE_TIMEOUT_MS)
+            // Post-act settle: react-then-quiesce (see waitForSettle). Plain
+            // quiescence answered "was the screen already quiet?", which right after
+            // a tap is normally YES — so it returned at t≈0 and everything below
+            // sampled a screen the action had not touched yet.
+            //
+            // The timeout is a CEILING that only bites on screens which never idle
+            // (feeds with autoplay video, live maps): there quiescence is never
+            // observable and the whole budget is spent on EVERY action — the
+            // dominant cause of an automation that "gets stuck". Keep it short: a
+            // tap's effect lands well within it, and `changed`/`foreground_after`
+            // below are read regardless of whether true quiescence was reached.
+            settled = service.waitForSettle(
+                preGlobalRevision = pre.globalRevision,
+                reactionMs = SETTLE_REACTION_MS,
+                quietMs = SETTLE_QUIET_MS,
+                timeoutMs = SETTLE_TIMEOUT_MS,
+            )
         }
-        val postRevision = service.screenRevision()
+        val postRevision = service.screenRevision(actedWindowId(service, command))
         val foregroundAfter = service.foregroundPackage()
-        val changed = (postRevision != preRevision) || (foregroundAfter != preForeground)
+        // Three independent witnesses, OR'd — each catches what the others cannot:
+        //   revision  — content churn inside the SAME window (a toggle flipped, a
+        //               row expanded), the only evidence when nothing navigates;
+        //   windows   — the window set changed: navigation, a dialog, the IME. The
+        //               acted window is often DESTROYED here, which is precisely
+        //               why the revision alone reads false on a successful tap;
+        //   foreground— we left the app entirely.
+        val changed = (postRevision != pre.revision) ||
+            (service.windowsFingerprint() != pre.windows) ||
+            (foregroundAfter != pre.foreground)
 
         val body = buildJsonObject {
             put("ok", actOk)

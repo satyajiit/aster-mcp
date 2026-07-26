@@ -5,6 +5,7 @@ import com.aster.data.model.Command
 import com.aster.service.CommandHandler
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
+import com.aster.service.wire.WireParams
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.buildJsonObject
@@ -280,7 +281,9 @@ object McpToolRegistry {
                 description = def?.description ?: "Execute $action",
                 inputSchema = schema
             ) { request ->
-                val params = request.arguments?.mapValues { it.value }
+                // Same snake_case↔camelCase normalisation as the IPC path — an MCP
+                // client follows the published tool schema, which is snake_case.
+                val params = WireParams.normalize(request.arguments?.mapValues { it.value })
 
                 val command = Command(
                     type = "command",

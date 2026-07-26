@@ -23,6 +23,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
+import com.aster.service.wire.WireParams
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
 
@@ -151,15 +152,21 @@ class IpcMode(
                     )
                 }
 
-            val params = if (paramsJson.isNotBlank()) {
-                try {
-                    Json.parseToJsonElement(paramsJson).jsonObject.mapValues { it.value }
-                } catch (e: Exception) {
+            // Normalise snake_case↔camelCase once, here, so a handler resolves a
+            // param whichever convention it reads. The kernel emits snake_case;
+            // several handlers read camelCase, and an unmatched key was silently
+            // dropped rather than rejected. See [WireParams].
+            val params = WireParams.normalize(
+                if (paramsJson.isNotBlank()) {
+                    try {
+                        Json.parseToJsonElement(paramsJson).jsonObject.mapValues { it.value }
+                    } catch (e: Exception) {
+                        emptyMap()
+                    }
+                } else {
                     emptyMap()
                 }
-            } else {
-                emptyMap()
-            }
+            ) ?: emptyMap()
 
             val command = Command(
                 type = "command",

@@ -22,6 +22,7 @@ import com.aster.service.handlers.NotificationHandler
 import com.aster.service.handlers.NowPlayingHandler
 import com.aster.service.handlers.OverlayHandler
 import com.aster.service.handlers.PackageHandler
+import com.aster.service.handlers.PolicyHandler
 import com.aster.service.handlers.ShellHandler
 import com.aster.service.handlers.SignInWaitHandler
 import com.aster.service.handlers.SmsHandler
@@ -34,6 +35,7 @@ import com.aster.service.overlay.CompanionFaceOverlay
 import com.aster.service.overlay.InteractiveOverlayController
 import com.aster.service.overlay.SignInWaitOverlay
 import com.aster.service.overlay.ToolExecutionOverlay
+import com.aster.service.safety.GuardedCommandHandler
 import com.aster.service.safety.PackagePolicyGuard
 import dagger.Module
 import dagger.Provides
@@ -74,7 +76,7 @@ object ModeModule {
             NowPlayingHandler(context),
             ShellHandler(),
             IntentHandler(context),
-            AccessibilityHandler(packagePolicyGuard),
+            AccessibilityHandler(),
             NotificationHandler(),
             SmsHandler(context),
             OverlayHandler(context),
@@ -91,12 +93,21 @@ object ModeModule {
             // OverlayHandler's `*_overlay`: a duplicate key here would silently
             // overwrite the earlier handler in the map built below.
             CompanionOverlayHandler(companionFaceOverlay),
-            CapabilityHandler()
+            CapabilityHandler(),
+            // The kernel's owner allow/deny push. Without it `updatePolicy` had
+            // no caller at all, so an owner override never reached the guard.
+            PolicyHandler(packagePolicyGuard)
         )
 
+        // Every handler is wrapped, so the denylist gate applies on ALL THREE
+        // transports (IPC / local MCP / remote WS) and to every verb that drives
+        // another app — not just the accessibility ones, which is where the
+        // check used to live. `GuardedCommandHandler.supportedActions()`
+        // delegates, so the map is keyed exactly as before.
         allHandlers.forEach { handler ->
+            val guarded = GuardedCommandHandler(handler, packagePolicyGuard)
             handler.supportedActions().forEach { action ->
-                handlers[action] = handler
+                handlers[action] = guarded
             }
         }
 

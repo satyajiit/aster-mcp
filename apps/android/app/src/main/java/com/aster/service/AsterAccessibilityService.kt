@@ -8,6 +8,7 @@ import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import com.aster.BuildConfig
 import android.view.accessibility.AccessibilityEvent
@@ -17,26 +18,24 @@ import com.aster.service.accessibility.ActionMapper
 import com.aster.service.accessibility.AccessibilityPulseClassifier
 import com.aster.service.accessibility.Bounds
 import com.aster.service.accessibility.ElementState
+import com.aster.service.accessibility.LabelAggregator
 import com.aster.service.accessibility.NodeDescriptor
 import com.aster.service.accessibility.ObserveResult
 import com.aster.service.accessibility.ObservedElement
-import com.aster.service.accessibility.RecordBuffer
-import com.aster.service.accessibility.RecordNodeFacts
-import com.aster.service.accessibility.RecordedStep
 import com.aster.service.accessibility.RoleMapper
 import com.aster.service.accessibility.ScreenContext
 import com.aster.service.accessibility.ScreenObserver
 import com.aster.service.accessibility.SnapshotCache
-import com.aster.service.accessibility.StepInferrer
 import com.aster.service.accessibility.WindowInfo
-import com.aster.service.overlay.RecordingOverlay
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
 
 /**
@@ -66,6 +65,20 @@ class AsterAccessibilityService : AccessibilityService() {
          * payload is already privacy-minimised by the classifier. */
         @Volatile
         internal var onCompanionPulseEvent: ((AccessibilityPulseClassifier.Pulse) -> Unit)? = null
+
+        // ── scroll-to-find bounds ────────────────────────────────────────────
+        // An infinite feed's child-bounds signature changes on every scroll, so
+        // "no progress" is never reached there and the loop had no exit. These are
+        // the real terminators; the signature check stays as the fast path for a
+        // finite list that has hit its end.
+        /** Default wall-clock budget for one scroll-to-find. */
+        const val SCROLL_FIND_TIMEOUT_MS = 15_000L
+        /** Floor/ceiling applied to a caller-supplied budget. The ceiling stays well
+         *  under the kernel's 150s REMOTE_TIMEOUT so the IPC call is never orphaned. */
+        const val SCROLL_FIND_MIN_TIMEOUT_MS = 1_000L
+        const val SCROLL_FIND_MAX_TIMEOUT_MS = 60_000L
+        /** Hard cap on scroll steps, independent of the clock. */
+        const val MAX_SCROLL_FIND_STEPS = 25
 
         // Global action constants
         const val ACTION_BACK = "BACK"
@@ -107,33 +120,6 @@ class AsterAccessibilityService : AccessibilityService() {
      */
     val snapshotCache = SnapshotCache()
 
-    /**
-     * Companion live-recorder buffer (the "Appium recorder" experience). OFF by
-     * default — armed only between `automation_record_start` and `_record_stop`.
-     * Captures the USER's own taps/typing into the SAME §3.1 element model the
-     * `observe` path emits, so each captured step is loadable by the kernel's
-     * `automation_record_step` (its `element` → `Selector::from_observed_value`).
-     * Complementary to the AI-demonstrate recording path. See [RecordBuffer].
-     */
-    val recordBuffer = RecordBuffer()
-
-    /** Monotonic ref counter for synthetic `rec<N>` refs on captured elements. */
-    private var recordRefCounter = 0L
-
-    /**
-     * On-device recording indicator (REC dot + live step count + Finish), shown
-     * while [recordBuffer] is armed. The owner is inside the target app during a
-     * manual recording, so this floating strip is the only place to show progress
-     * and a reachable Finish. Finish marks [RecordBuffer.requestFinish]; the RN
-     * record screen's status poll turns that into the real record-stop.
-     */
-    private val recordingOverlay = RecordingOverlay()
-
-    /** Scroll-event coalescing: a fling fires many TYPE_VIEW_SCROLLED; collapse
-     *  consecutive same-direction scrolls within this window into one step. */
-    private var lastScrollMs = 0L
-    private var lastScrollDir: String? = null
-    private val scrollCoalesceMs = 600L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -154,7 +140,12 @@ class AsterAccessibilityService : AccessibilityService() {
         if (type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
             type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
         ) {
-            screenSyncTracker.recordChange(System.currentTimeMillis())
+            // Stamp WHICH surface changed, so `changed` can distinguish "my tap
+            // did something" from "a video is playing somewhere on the device".
+            screenSyncTracker.recordChange(
+                System.currentTimeMillis(),
+                screenSyncTracker.surfaceKey(event.packageName?.toString(), event.windowId),
+            )
         }
 
         // System Pulse observes only allow-listed event metadata. This branch
@@ -177,194 +168,6 @@ class AsterAccessibilityService : AccessibilityService() {
             )
             companionPulseClassifier.classify(input, System.currentTimeMillis()).forEach(publish)
         }
-
-        // RECORD MODE (companion live recorder). Cheap guard first: do NO tree work
-        // unless a recording session is armed (off by default), keeping the hot path
-        // allocation-free outside an explicit start/stop window.
-        if (recordBuffer.isActive() &&
-            (type == AccessibilityEvent.TYPE_VIEW_CLICKED ||
-                type == AccessibilityEvent.TYPE_VIEW_LONG_CLICKED ||
-                type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED ||
-                type == AccessibilityEvent.TYPE_VIEW_SCROLLED)
-        ) {
-            captureRecordEvent(event, type)
-        }
-    }
-
-    /**
-     * RECORD MODE capture (SPEC §3.1 element shape). Lifts the event's source node
-     * into an [ObservedElement] — identical fields to the `observe` path — infers a
-     * step verb via [StepInferrer], and buffers it. The framework owns [event]
-     * (never recycled here); the source node IS owned by us and recycled in finally.
-     *
-     * Runs on the main thread (the a11y event thread). It does a single node lift
-     * (no full-tree walk) so it is bounded per event.
-     */
-    private fun captureRecordEvent(event: AccessibilityEvent, type: Int) {
-        val source = event.source ?: return
-        try {
-            // Only lift visible nodes — an invisible node is not durably re-resolvable.
-            if (!source.isVisibleToUser) return
-
-            // Scroll: resolve a direction and coalesce a fling's burst of
-            // TYPE_VIEW_SCROLLED into a single step.
-            var scrollDir: String? = null
-            if (type == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
-                scrollDir = scrollDirectionOf(event) ?: return
-                val now = System.currentTimeMillis()
-                if (now - lastScrollMs < scrollCoalesceMs && scrollDir == lastScrollDir) return
-                lastScrollMs = now
-                lastScrollDir = scrollDir
-            }
-
-            val text = source.text?.toString() ?: ""
-            val desc = source.contentDescription?.toString() ?: ""
-            val viewId = source.viewIdResourceName ?: ""
-            val role = roleOf(source)
-
-            val facts = RecordNodeFacts(
-                editable = source.isEditable,
-                checkable = source.isCheckable,
-                checked = source.isChecked,
-                longClickable = source.isLongClickable,
-                text = text,
-                desc = desc,
-                viewId = viewId,
-                role = role,
-            )
-
-            // For a text change the post-change text is the source node's current text;
-            // event.text carries the same after the edit landed.
-            val changedText = if (type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
-                source.text?.toString() ?: event.text?.joinToString("")
-            } else {
-                null
-            }
-
-            val shape = StepInferrer.infer(type, facts, changedText, scrollDir) ?: return
-
-            val element = liftElement(source, role, text, desc, viewId)
-            val foreground = source.packageName?.toString() ?: foregroundPackage()
-
-            val buffered = recordBuffer.offer(
-                RecordedStep(
-                    kind = shape.kind,
-                    label = shape.label,
-                    element = element,
-                    params = shape.params,
-                    foregroundPackage = foreground,
-                ),
-            )
-            // Reflect the live count on the on-device recording strip.
-            if (buffered) recordingOverlay.setCount(recordBuffer.size())
-        } finally {
-            source.recycle()
-        }
-    }
-
-    /**
-     * Resolve a scroll direction from a TYPE_VIEW_SCROLLED event. Prefers the
-     * scroll deltas (API 28+); falls back to list index movement (Recycler /
-     * ListView) where deltas are absent. Returns null when no direction can be
-     * told (the event is then ignored rather than recorded as a no-op scroll).
-     */
-    private fun scrollDirectionOf(event: AccessibilityEvent): String? {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val dx = event.scrollDeltaX
-            val dy = event.scrollDeltaY
-            if (dx != 0 || dy != 0) {
-                return if (kotlin.math.abs(dy) >= kotlin.math.abs(dx)) {
-                    if (dy > 0) "down" else "up"
-                } else {
-                    if (dx > 0) "right" else "left"
-                }
-            }
-        }
-        val from = event.fromIndex
-        val to = event.toIndex
-        if (from >= 0 && to >= 0 && to != from) return if (to > from) "down" else "up"
-        return null
-    }
-
-    /**
-     * Lift a live node into the SPEC §3.1 [ObservedElement] (the `observe` element
-     * shape). The `ref` is a synthetic `rec<N>` — recorded steps drop ref/snapshot_id
-     * at the kernel anyway (the durable [Selector] is built from
-     * viewId/text/desc/role/window/bounds), but the field is populated to keep the
-     * element shape valid and unique. `window` comes from the live node's windowId.
-     */
-    private fun liftElement(
-        node: AccessibilityNodeInfo,
-        role: String,
-        text: String,
-        desc: String,
-        viewId: String,
-    ): ObservedElement {
-        val r = Rect()
-        node.getBoundsInScreen(r)
-        val bounds = Bounds.fromLTRB(r.left, r.top, r.right, r.bottom)
-        val actions = node.actionList.mapNotNull { ActionMapper.normalize(it.id) }.distinct()
-        return ObservedElement(
-            ref = "rec${recordRefCounter++}",
-            role = role,
-            text = text,
-            desc = desc,
-            viewId = viewId,
-            window = node.windowId,
-            bounds = bounds,
-            state = ElementState(
-                clickable = node.isClickable,
-                editable = node.isEditable,
-                checkable = node.isCheckable,
-                checked = node.isChecked,
-                scrollable = node.isScrollable,
-                selected = node.isSelected,
-                focused = node.isFocused,
-                enabled = node.isEnabled,
-                password = node.isPassword,
-            ),
-            actions = actions,
-        )
-    }
-
-    /**
-     * Arm the live recorder (clears any prior capture). Idempotent. Returns the
-     * companion-side status object so the caller can confirm the armed state.
-     */
-    fun recordStart(): JsonObject {
-        recordBuffer.start()
-        lastScrollMs = 0L
-        lastScrollDir = null
-        // Show the on-device REC strip; Finish marks the buffer finish-requested
-        // (the RN screen's status poll then drives the real record-stop).
-        recordingOverlay.show(this) { recordBuffer.requestFinish() }
-        return recordStatus()
-    }
-
-    /**
-     * Disarm the recorder and return the captured steps as a wire array. Each entry
-     * is a [RecordedStep] — its `element` is loadable by the kernel's
-     * `automation_record_step` (`Selector::from_observed_value`).
-     */
-    fun recordStop(): JsonObject {
-        val steps = recordBuffer.stop()
-        recordingOverlay.hide()
-        return buildJsonObject {
-            put("recording", false)
-            put("step_count", steps.size)
-            put("dropped", recordBuffer.droppedCount())
-            put("steps", JsonArray(steps.map { it.toJson() }))
-        }
-    }
-
-    /** Current recorder state (armed?, buffered count, dropped, started_at,
-     *  finish_requested — set when the owner taps Finish on the on-device strip). */
-    fun recordStatus(): JsonObject = buildJsonObject {
-        put("recording", recordBuffer.isActive())
-        put("step_count", recordBuffer.size())
-        put("dropped", recordBuffer.droppedCount())
-        put("started_at_ms", recordBuffer.startedAt())
-        put("finish_requested", recordBuffer.isFinishRequested())
     }
 
     /**
@@ -381,7 +184,55 @@ class AsterAccessibilityService : AccessibilityService() {
     }
 
     /** Current screen revision, for pre/post-act `changed` derivation (SPEC §3.4). */
-    fun screenRevision(): Long = screenSyncTracker.revision()
+    /**
+     * Revision of the surface an action is about to touch — the foreground
+     * package, narrowed to [windowId] when the caller knows which window its
+     * element lives in.
+     *
+     * This is what `changed` is derived from. The global counter it replaced
+     * ticked on ANY accessibility event anywhere, so on a screen with a live map
+     * or an autoplay video it was always moving and `changed` was always true:
+     * a tap that hit nothing was indistinguishable from one that worked.
+     */
+    @JvmOverloads
+    fun screenRevision(windowId: Int? = null): Long =
+        screenSyncTracker.revision(screenSyncTracker.surfaceKey(foregroundPackage(), windowId))
+
+    /**
+     * Identity fingerprint of the live window SET — window ids only, never their
+     * content.
+     *
+     * The per-surface revision above cannot see the single most common effect of a
+     * tap: navigation. Opening a new screen DESTROYS the window the element lived
+     * in and creates another, so events land on the new window's key and the acted
+     * surface's counter can never move again. With the foreground package
+     * unchanged (an in-app screen change), `changed` came back FALSE for a tap that
+     * had just navigated — the exact inversion of the signal, on the exact case the
+     * signal exists for.
+     *
+     * Window IDENTITY is the right complement precisely because it ignores content:
+     * a ticking clock, a live map and an autoplay video do not mint windows, so
+     * this stays silent for the ambient churn that dimensioning was introduced to
+     * suppress, while a new activity, dialog, IME or popup shows up immediately.
+     *
+     * Order-independent (XOR): the window list is not ordered by contract, and a
+     * reshuffle is not a change.
+     */
+    fun windowsFingerprint(): Long {
+        val windowList: List<AccessibilityWindowInfo> = try {
+            windows
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) Log.w(TAG, "getWindows() threw", e)
+            return 0L
+        }
+        var acc = 0L
+        for (w in windowList) {
+            // Mix so that {1,2} and {3} cannot collide on a plain XOR of ids.
+            val id = w.id.toLong()
+            acc = acc xor (id * -0x61c8864680b583ebL + 0x165667b19e3779f9L)
+        }
+        return acc
+    }
 
     override fun onInterrupt() {
         if (BuildConfig.DEBUG) Log.d(TAG, "Accessibility service interrupted")
@@ -430,6 +281,52 @@ class AsterAccessibilityService : AccessibilityService() {
             // First check posts immediately; if already quiet it resolves on the first tick.
             mainHandler.post(tick)
         }
+
+    /**
+     * Post-act settle: wait for the action's effect to BEGIN, then for the screen
+     * to go quiet.
+     *
+     * [waitForIdle] alone cannot do this. It answers "has the screen been quiet for
+     * quietMs?", and immediately after a tap the honest answer is usually YES —
+     * the app has not reacted yet, so the last recorded event is the one that
+     * preceded the action. It therefore resolved on its first tick, at t≈0, and
+     * every post-act reading (`changed`, `foreground_after`, and the observe the
+     * next replay step takes) sampled the screen BEFORE the action had any effect.
+     * Measured on a stock Settings row: the target activity resumes ~130 ms after
+     * the tap; the settle was returning `true` before any of that.
+     *
+     * So: phase 1 waits for the first change AFTER the act, bounded by
+     * [reactionMs]; phase 2 is the existing quiescence wait, spending whatever is
+     * left of [timeoutMs]. A genuinely inert tap costs [reactionMs] and then
+     * reports honestly — which is the point.
+     *
+     * Phase 1 watches the GLOBAL revision on purpose: the acted window is often
+     * destroyed by what the action triggers, so a per-surface counter is exactly
+     * the thing that cannot observe a navigation.
+     *
+     * @param preGlobalRevision [globalRevision] sampled BEFORE the act.
+     */
+    suspend fun waitForSettle(
+        preGlobalRevision: Long,
+        reactionMs: Long,
+        quietMs: Long,
+        timeoutMs: Long,
+    ): Boolean {
+        val started = System.currentTimeMillis()
+        if (screenSyncTracker.revision() == preGlobalRevision) {
+            withTimeoutOrNull(reactionMs.coerceAtMost(timeoutMs)) {
+                while (screenSyncTracker.revision() == preGlobalRevision) {
+                    screenSyncTracker.changes.first()
+                }
+            }
+        }
+        val remaining = timeoutMs - (System.currentTimeMillis() - started)
+        if (remaining <= 0L) return screenSyncTracker.isIdle(System.currentTimeMillis(), quietMs)
+        return waitForIdle(quietMs = quietMs, timeoutMs = remaining)
+    }
+
+    /** Monotonic count of every recorded change, anywhere — see [waitForSettle]. */
+    fun globalRevision(): Long = screenSyncTracker.revision()
 
     /**
      * Event-nudged wait for an element to appear or disappear (SPEC §3.3).
@@ -1544,7 +1441,11 @@ class AsterAccessibilityService : AccessibilityService() {
      * verify-before-act gate below is untouched, so a genuinely stale/changed node still fails
      * closed.
      */
-    fun resolveRef(ref: String, snapshotId: String?): ResolvedRef? {
+    fun resolveRef(
+        ref: String,
+        snapshotId: String?,
+        allowCoordinateFallback: Boolean = false,
+    ): ResolvedRef? {
         // P1 seam — re-read the cached POJO descriptor from the snapshot cache.
         // Fall back to the latest snapshot when no id was supplied; a missing snapshot
         // entirely (no observation yet) still yields null → stale_ref.
@@ -1559,8 +1460,11 @@ class AsterAccessibilityService : AccessibilityService() {
         )
 
         val rootNode = rootInActiveWindow ?: run {
-            // No tree at all → fall through to a coordinate center-tap of cached bounds.
-            return if (cachedBounds.width() > 0 && cachedBounds.height() > 0) {
+            // No tree at all. Only a caller that explicitly opted in may blind-tap the
+            // cached rect; everyone else fails closed (see the CENTER_TAP note below).
+            return if (allowCoordinateFallback &&
+                cachedBounds.width() > 0 && cachedBounds.height() > 0
+            ) {
                 ResolvedRef(null, ScreenActionResult.ResolvedBy.CENTER_TAP, cachedBounds)
             } else {
                 null
@@ -1607,6 +1511,29 @@ class AsterAccessibilityService : AccessibilityService() {
                 }
             }
 
+            // Strategy 2b: the aggregated LABEL of an anonymous row.
+            //
+            // A list row owns no viewId and no text, so strategies 1 and 2 have
+            // nothing to search on — yet the row is perfectly identifiable by the
+            // title in its child TextView. Find that descendant by its text, then
+            // climb to the nearest ancestor the descriptor gate accepts.
+            //
+            // This is the only strategy that survives SCROLLING: nearest-bounds
+            // below assumes the row is still roughly where it was, which is false
+            // the moment a feed moves. Replay scrolls constantly.
+            if (descriptor.text.isEmpty()) {
+                descriptor.label.takeIf { it.isNotEmpty() }?.let { label ->
+                    val title = LabelAggregator.primary(label)
+                    if (title.isNotEmpty()) {
+                        val matched = findAncestorMatchingDescriptor(rootNode, title, descriptor)
+                        if (matched != null) {
+                            val b = Rect(); matched.getBoundsInScreen(b)
+                            return ResolvedRef(matched, ScreenActionResult.ResolvedBy.TEXT_ROLE, b)
+                        }
+                    }
+                }
+            }
+
             // Strategy 3: nearest node to cached bounds center (BFS, min center-distance),
             // still gated by descriptorMatches so we never act on a wrong node.
             val nearest = findNearestMatchingNode(rootNode, descriptor, cachedBounds)
@@ -1619,8 +1546,20 @@ class AsterAccessibilityService : AccessibilityService() {
         }
 
         // Strategy 4: raw center-tap of cached bounds (no live node, no verify possible).
-        // Only meaningful if the cached bounds are non-empty.
-        if (cachedBounds.width() > 0 && cachedBounds.height() > 0) {
+        //
+        // OPT-IN ONLY. This branch is reached precisely when every verified strategy
+        // has FAILED — the descriptor no longer matches anything on screen — so
+        // taking it means acting blind on stale coordinates and, because `tapRef`
+        // returns non-null, reporting `{ok:true, resolved_by:"center_tap"}`. That
+        // made `tap`/`long_press` structurally incapable of returning `stale_ref`:
+        // the fail-closed contract the rest of this file documents was dead code for
+        // the two most common verbs, and a step whose target had genuinely moved
+        // silently tapped whatever now occupies the old rectangle.
+        //
+        // Defaulting to false converts those into honest `stale_ref` failures, which
+        // the kernel already knows how to escalate. A caller that truly wants a
+        // coordinate gesture should ask for one (`screen_gesture`) or pass the flag.
+        if (allowCoordinateFallback && cachedBounds.width() > 0 && cachedBounds.height() > 0) {
             return ResolvedRef(null, ScreenActionResult.ResolvedBy.CENTER_TAP, cachedBounds)
         }
         return null
@@ -1631,8 +1570,18 @@ class AsterAccessibilityService : AccessibilityService() {
         return ScreenActionResult.descriptorMatches(
             cachedViewId = d.viewId, nodeViewId = node.viewIdResourceName,
             cachedText = d.text, nodeText = node.text?.toString(),
+            cachedDesc = d.desc, nodeDesc = node.contentDescription?.toString(),
             cachedRole = d.role, nodeRole = roleOf(node),
-            cachedClassName = d.className, nodeClassName = node.className?.toString()
+            cachedClassName = d.className, nodeClassName = node.className?.toString(),
+            cachedTestTag = d.testTag,
+            nodeTestTag = runCatching {
+                node.extras?.getString("androidx.compose.ui.semantics.testTag")
+            }.getOrNull(),
+            cachedLabel = d.label,
+            // Lazy: the predicate only invokes this for a node that has already
+            // agreed on id, text, desc and role, so the subtree walk runs a
+            // handful of times per resolution rather than once per node.
+            nodeLabel = { LabelAggregator.aggregate(node) }
         )
     }
 
@@ -1687,12 +1636,59 @@ class AsterAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Find the actionable ancestor of a descendant that carries [title].
+     *
+     * The inverse of [LabelAggregator.aggregate]: aggregation walked DOWN from the
+     * row to name it, this walks UP from the named child to find the row again.
+     * Bounded by [LabelAggregator.LABEL_MAX_DEPTH] — the same depth aggregation was
+     * allowed to descend — so it can never climb out to the window root and return
+     * a container that merely happens to satisfy a vacuous descriptor.
+     *
+     * Every node obtained here is recycled except the one returned, which the
+     * caller owns.
+     */
+    private fun findAncestorMatchingDescriptor(
+        root: AccessibilityNodeInfo,
+        title: String,
+        descriptor: NodeDescriptor,
+    ): AccessibilityNodeInfo? {
+        val hits = root.findAccessibilityNodeInfosByText(title)
+        var result: AccessibilityNodeInfo? = null
+        for (hit in hits) {
+            if (result != null) { hit.recycle(); continue }
+            val sameWindow = descriptor.windowId < 0 || hit.windowId == descriptor.windowId
+            if (!sameWindow) { hit.recycle(); continue }
+            var cursor: AccessibilityNodeInfo? = hit.parent
+            var depth = 0
+            while (cursor != null && depth < LabelAggregator.LABEL_MAX_DEPTH) {
+                if (nodeMatchesDescriptor(cursor, descriptor)) {
+                    result = AccessibilityNodeInfo.obtain(cursor)
+                    cursor.recycle()
+                    cursor = null
+                    break
+                }
+                val parent = cursor.parent
+                cursor.recycle()
+                cursor = parent
+                depth++
+            }
+            cursor?.recycle()
+            hit.recycle()
+        }
+        return result
+    }
+
+    /**
      * Tap a node by ref. ACTION_CLICK if the resolved node is clickable; otherwise a gesture
      * tap on the bounds center (covers center_tap and non-clickable adapter rows).
      * Returns the strategy that resolved, or null → stale_ref.
      */
-    suspend fun tapRef(ref: String, snapshotId: String?): ScreenActionResult.ResolvedBy? {
-        val resolved = resolveRef(ref, snapshotId) ?: return null
+    suspend fun tapRef(
+        ref: String,
+        snapshotId: String?,
+        allowCoordinateFallback: Boolean = false,
+    ): ScreenActionResult.ResolvedBy? {
+        val resolved = resolveRef(ref, snapshotId, allowCoordinateFallback) ?: return null
         val node = resolved.node
         try {
             if (node != null && node.isClickable &&
@@ -1713,8 +1709,13 @@ class AsterAccessibilityService : AccessibilityService() {
      * Long-press a node by ref. ACTION_LONG_CLICK if supported; otherwise a long gesture on
      * the bounds center (duration coerced to ≥ 500ms).
      */
-    suspend fun longPressRef(ref: String, snapshotId: String?, duration: Long): ScreenActionResult.ResolvedBy? {
-        val resolved = resolveRef(ref, snapshotId) ?: return null
+    suspend fun longPressRef(
+        ref: String,
+        snapshotId: String?,
+        duration: Long,
+        allowCoordinateFallback: Boolean = false,
+    ): ScreenActionResult.ResolvedBy? {
+        val resolved = resolveRef(ref, snapshotId, allowCoordinateFallback) ?: return null
         val node = resolved.node
         val dur = duration.coerceAtLeast(500L)
         try {
@@ -1862,6 +1863,15 @@ class AsterAccessibilityService : AccessibilityService() {
      * (progress = signature of the scrollable's child bounds; NO fixed iteration sleeps — project
      * policy bans timer band-aids).
      *
+     * The search is BOUNDED three ways — a deadline, an iteration cap, and cooperative
+     * cancellation. The no-progress signature alone is not a termination condition: on an
+     * endlessly paginating feed (LinkedIn, X, YouTube — three of the preloaded flows target
+     * exactly these) the signature changes on every scroll, so the loop had no exit at all.
+     * It ran on a blocked Binder thread, so a runaway search also held a binder slot from a
+     * pool this process shares with system_server's accessibility-event delivery — degrading
+     * the very screen-control capability it depends on.
+     *
+     * @param timeoutMs absolute wall-clock budget for the whole scroll-to-find.
      * @return Pair(scrolled:Boolean, foundUntilText:Boolean?). foundUntilText is null when no
      *         untilText was requested.
      */
@@ -1870,7 +1880,8 @@ class AsterAccessibilityService : AccessibilityService() {
         snapshotId: String?,
         direction: String,
         amount: String?,
-        untilText: String?
+        untilText: String?,
+        timeoutMs: Long = SCROLL_FIND_TIMEOUT_MS,
     ): Pair<Boolean, Boolean?> {
         val axis = normalizeScrollDirection(direction) ?: return false to null
         val amt = normalizeScrollAmount(amount)
@@ -1881,12 +1892,20 @@ class AsterAccessibilityService : AccessibilityService() {
             return ok to null
         }
 
-        // Scroll-to-find: loop until found or no progress (signature unchanged after a scroll).
+        // Scroll-to-find: loop until found, until no progress, or until a bound trips.
         if (treeContainsText(untilText)) return false to true
+        val deadline = SystemClock.elapsedRealtime() +
+            timeoutMs.coerceIn(SCROLL_FIND_MIN_TIMEOUT_MS, SCROLL_FIND_MAX_TIMEOUT_MS)
         var lastSignature = scrollableSignature(ref, snapshotId)
+        var scrolls = 0
         while (true) {
+            // Unwind promptly when the caller's IPC call is cancelled or times out.
+            coroutineContext.ensureActive()
+            if (scrolls >= MAX_SCROLL_FIND_STEPS) return true to false
+            if (SystemClock.elapsedRealtime() >= deadline) return true to false
             val scrolled = scrollOnce(ref, snapshotId, axis, amt)
             if (!scrolled) return false to false
+            scrolls++
             if (treeContainsText(untilText)) return true to true
             val sig = scrollableSignature(ref, snapshotId)
             if (sig == lastSignature) return true to false // exhausted: no movement

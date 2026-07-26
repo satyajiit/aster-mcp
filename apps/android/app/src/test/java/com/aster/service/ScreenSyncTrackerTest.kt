@@ -84,4 +84,50 @@ class ScreenSyncTrackerTest {
         // long past the quiet window -> clamps to 0, never negative
         assertEquals(0L, t.remainingQuietMs(now = 99_999L, quietMs = 500L))
     }
+
+    @Test
+    fun changeInAnotherSurfaceDoesNotVouchForThisOne() {
+        // The bug this dimensioning exists to close. `changed` used to come from a
+        // single global counter, so an autoplay video or a live map elsewhere kept
+        // it moving and every action reported changed=true — a tap that hit
+        // nothing was indistinguishable from one that worked, and the engine's
+        // strongest post-condition quietly always passed.
+        val t = ScreenSyncTracker(baselineNow = 0L)
+        val mine = t.surfaceKey("com.ubercab", 7)
+        val elsewhere = t.surfaceKey("com.google.android.youtube", 3)
+
+        val before = t.revision(mine)
+        repeat(20) { t.recordChange(now = 100L, surfaceKey = elsewhere) }
+        assertEquals(
+            "another window's churn must not register as MY surface changing",
+            before,
+            t.revision(mine),
+        )
+
+        t.recordChange(now = 200L, surfaceKey = mine)
+        assertTrue(t.revision(mine) > before)
+    }
+
+    @Test
+    fun theGlobalCounterStillSeesEverything() {
+        // Quiescence is a different question from "did my tap do anything", and
+        // it genuinely wants "did ANYTHING move".
+        val t = ScreenSyncTracker(baselineNow = 0L)
+        val before = t.revision()
+        t.recordChange(now = 10L, surfaceKey = t.surfaceKey("com.a", 1))
+        t.recordChange(now = 20L, surfaceKey = t.surfaceKey("com.b", 2))
+        assertEquals(before + 2, t.revision())
+        // …and it still tracks idleness off the latest change, whichever surface.
+        assertTrue(t.isIdle(now = 1_000L, quietMs = 100L))
+        assertTrue(!t.isIdle(now = 25L, quietMs = 100L))
+    }
+
+    @Test
+    fun anUnknownSurfaceReadsAsZeroRatherThanThrowing() {
+        val t = ScreenSyncTracker(baselineNow = 0L)
+        assertEquals(0L, t.revision(t.surfaceKey("com.never.seen", 99)))
+        // A null package/window is a usable key too — a coordinate action has no
+        // element and therefore no window.
+        assertEquals(0L, t.revision(t.surfaceKey(null, null)))
+    }
 }
