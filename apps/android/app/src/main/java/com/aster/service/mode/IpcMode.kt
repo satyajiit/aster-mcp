@@ -54,8 +54,14 @@ class IpcMode(
          * Screen-control action names (Screen Control /goal P7). While the kill
          * switch is engaged, an executeCommand for any of these is fast-rejected
          * (the in-flight loop is aborted within one action).
+         *
+         * `internal` rather than private so a unit test can PIN its membership.
+         * This set and `PackagePolicyGuard.GATED_ACTIONS` are two independent
+         * lists of the same idea ("this verb drives the phone"), and a verb
+         * silently dropping out of either one disarms a safety rail without
+         * breaking a single compile.
          */
-        private val SCREEN_CONTROL_ACTIONS = setOf(
+        internal val SCREEN_CONTROL_ACTIONS = setOf(
             "tap", "set_text", "long_press", "set_toggle", "perform", "scroll",
             "input_gesture", "press_key", "global_action", "input_text",
             "click_by_text", "click_by_view_id", "launch_intent",

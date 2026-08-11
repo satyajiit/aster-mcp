@@ -448,7 +448,10 @@ class AccessibilityHandler : CommandHandler {
         }
     }
 
-    private fun globalAction(
+    // `suspend` because ENTER/SEARCH route through the input router (see
+    // AsterAccessibilityService.performImeAction). The cascade stops here: this is
+    // private and its only caller is [handle], which is already suspend.
+    private suspend fun globalAction(
         service: AsterAccessibilityService,
         command: Command
     ): CommandResult {
@@ -873,17 +876,38 @@ class AccessibilityHandler : CommandHandler {
         )
     }
 
-    private fun pressKey(
+    /**
+     * `press_key` — routed through the input router, and reported honestly.
+     *
+     * The failure message is the router's REAL reason. It used to be the fixed
+     * string "unknown key or input keyevent failed", which named two causes and
+     * was wrong about both: the shell path it described (`input keyevent`) needs
+     * the signature-level `INJECT_EVENTS`, so it failed for EVERY key — including
+     * keys that were perfectly well known. An agent reading that message would
+     * retry with a different key name forever.
+     *
+     * Deliberately does NOT add an action name: `supportedActions()` is unchanged,
+     * which is what keeps every entry keyed through
+     * [com.aster.service.safety.GuardedCommandHandler] and leaves `press_key`
+     * inside `PackagePolicyGuard.GATED_ACTIONS`.
+     */
+    private suspend fun pressKey(
         service: AsterAccessibilityService,
         command: Command
     ): CommandResult {
         val key = command.params?.get("key")?.jsonPrimitive?.contentOrNull
             ?: return CommandResult.failure("Missing 'key' parameter")
-        val ok = service.pressKey(key)
-        return if (ok) {
-            CommandResult.success(buildJsonObject { put("ok", true); put("key", key) })
+        val result = service.pressKey(key)
+        return if (result.ok) {
+            CommandResult.success(buildJsonObject {
+                put("ok", true)
+                put("key", key)
+                // Which mechanism actually delivered it. A caller that cannot see
+                // this cannot tell a real capability from a lucky path.
+                put("backend", result.backend?.name?.lowercase())
+            })
         } else {
-            CommandResult.failure("Failed to press key '$key' (unknown key or input keyevent failed)")
+            CommandResult.failure("Failed to press key '$key': ${result.reason ?: "no reason reported"}")
         }
     }
 

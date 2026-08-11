@@ -11,6 +11,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import com.aster.BuildConfig
+import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
@@ -27,6 +28,9 @@ import com.aster.service.accessibility.ScreenContext
 import com.aster.service.accessibility.ScreenObserver
 import com.aster.service.accessibility.SnapshotCache
 import com.aster.service.accessibility.WindowInfo
+import com.aster.service.input.InputResult
+import com.aster.service.input.InputRouter
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
@@ -35,6 +39,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*
 import java.io.File
 import java.io.FileOutputStream
+import javax.inject.Inject
 import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
 
@@ -48,6 +53,7 @@ import kotlin.coroutines.resume
  * - Text input into focused fields
  * - Screenshot capture (Android 11+)
  */
+@AndroidEntryPoint
 class AsterAccessibilityService : AccessibilityService() {
 
     companion object {
@@ -120,6 +126,22 @@ class AsterAccessibilityService : AccessibilityService() {
      */
     val snapshotCache = SnapshotCache()
 
+    /**
+     * The ordered key-press backend chain (see [com.aster.service.input.InputRouter]).
+     *
+     * Field-injected via `@AndroidEntryPoint`: Hilt injects in the generated
+     * `onCreate`, which the framework always runs before `onServiceConnected` and
+     * therefore before any command can reach this class — the service is only
+     * discoverable through [getInstance], which `onServiceConnected` sets.
+     *
+     * Single binding style, matching [com.aster.di.ModeModule]: the chain is
+     * assembled by exactly one `@Provides` in [com.aster.di.InputModule]. No
+     * backend carries an `@Inject` constructor (a second binding for the same
+     * type is a duplicate-binding error) and nothing injects a bare
+     * `List<InputBackend>` (Dagger has no binding for one).
+     */
+    @Inject
+    lateinit var inputRouter: InputRouter
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -772,8 +794,14 @@ class AsterAccessibilityService : AccessibilityService() {
 
     /**
      * Perform a global action.
+     *
+     * `suspend` because the IME branch below routes through
+     * [com.aster.service.input.InputRouter], whose backends may await the
+     * platform. The cascade terminates immediately: the only caller is
+     * `AccessibilityHandler.globalAction`, which is reached solely from the
+     * already-`suspend` `CommandHandler.handle`.
      */
-    fun performGlobalActionByName(actionName: String): Boolean {
+    suspend fun performGlobalActionByName(actionName: String): Boolean {
         val upper = actionName.uppercase()
 
         // IME actions — dispatch to focused input field
@@ -808,43 +836,75 @@ class AsterAccessibilityService : AccessibilityService() {
     /**
      * Perform an IME action (Enter, Search, Done, Go, Next, Previous)
      * on the currently focused editable node.
-     * Strategy 1: ACTION_IME_ENTER via accessibility (API 30+)
-     * Strategy 2: Inject KEYCODE_ENTER via shell input command
+     *
+     * Routed through [inputRouter] — the same path `press_key` takes — so this
+     * process has exactly ONE implementation of "deliver a key". The second
+     * strategy this used to carry, `ProcessBuilder("input","keyevent",…)`, could
+     * never succeed: `/system/bin/input` requires the signature-level
+     * `INJECT_EVENTS`, which this app neither declares nor can obtain.
+     *
+     * **RECURSION INVARIANT.** The router's accessibility backend must reach the
+     * IME action through [tryImeEnterAction], NEVER through this function. This
+     * function delegates INTO the router, and [performGlobalActionByName]
+     * delegates ENTER/SEARCH into this function, so a backend that called back
+     * here would loop until the stack died. [tryImeEnterAction] is the extracted
+     * primitive that exists precisely to break that cycle — it performs the one
+     * `ACTION_IME_ENTER` attempt and returns.
      */
-    private fun performImeAction(actionName: String): Boolean {
-        val rootNode = rootInActiveWindow
+    private suspend fun performImeAction(actionName: String): Boolean {
+        // SEARCH keeps its own keycode so a future backend can express the
+        // distinction. Every other IME action is an ENTER at the wire level, and
+        // ACTION_IME_ENTER already fires whichever action the focused field
+        // advertises (search, go, done, next) — which is why all six names
+        // resolved to the same accessibility attempt before this change too.
+        val keyCode = if (actionName == ACTION_SEARCH) KeyEvent.KEYCODE_SEARCH else KeyEvent.KEYCODE_ENTER
+        return inputRouter.pressKeyCode(keyCode).ok
+    }
 
-        // Strategy 1: ACTION_IME_ENTER on focused node (API 30+)
-        if (rootNode != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+    /**
+     * ONE attempt at `ACTION_IME_ENTER` on the focused editable node (API 30+).
+     *
+     * `internal` — not private — because the accessibility input backend lives in
+     * [com.aster.service.input] and a class in another package cannot call a
+     * private member. This is the precise widening that package needs: the
+     * primitive, not the routing.
+     *
+     * It has NO fallback of its own, by design. Choosing a fallback is the
+     * router's job, and a fallback here is exactly what would close the
+     * recursion described on [performImeAction].
+     */
+    internal fun tryImeEnterAction(): FocusedNodeOutcome {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return FocusedNodeOutcome.UNSUPPORTED_API
+        return performOnFocusedEditable(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
+    }
+
+    /**
+     * Perform [actionId] on whichever editable node currently holds focus.
+     *
+     * `internal` for the same reason as [tryImeEnterAction]: it is what the input
+     * backend needs to express CUT/COPY/PASTE as key presses. Node lifetime
+     * (obtain/recycle) stays in this class, where every other node walk keeps it,
+     * so the backend never handles a live `AccessibilityNodeInfo`.
+     *
+     * Never returns [FocusedNodeOutcome.UNSUPPORTED_API]: an API-level guard
+     * belongs to the caller, which is the only side that knows which action id it
+     * is asking for.
+     */
+    internal fun performOnFocusedEditable(actionId: Int): FocusedNodeOutcome {
+        val rootNode = rootInActiveWindow ?: return FocusedNodeOutcome.NO_FOCUSED_FIELD
+        try {
+            val focusedNode = findFocusedEditableNode(rootNode) ?: return FocusedNodeOutcome.NO_FOCUSED_FIELD
             try {
-                val focusedNode = findFocusedEditableNode(rootNode)
-                if (focusedNode != null) {
-                    try {
-                        val result = focusedNode.performAction(
-                            AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id
-                        )
-                        if (result) return true
-                    } finally {
-                        focusedNode.recycle()
-                    }
+                return if (focusedNode.performAction(actionId)) {
+                    FocusedNodeOutcome.PERFORMED
+                } else {
+                    FocusedNodeOutcome.REFUSED
                 }
             } finally {
-                rootNode.recycle()
+                focusedNode.recycle()
             }
-        }
-
-        // Strategy 2: Inject key event via shell (works across all apps and IME states)
-        return try {
-            val keyCode = when (actionName) {
-                ACTION_SEARCH -> "84"  // KEYCODE_SEARCH
-                else -> "66"           // KEYCODE_ENTER
-            }
-            val pb = ProcessBuilder("input", "keyevent", keyCode)
-            val process = pb.start()
-            process.waitFor() == 0
-        } catch (e: Exception) {
-            if (BuildConfig.DEBUG) Log.e(TAG, "Failed to inject key event for $actionName", e)
-            false
+        } finally {
+            rootNode.recycle()
         }
     }
 
@@ -1838,21 +1898,30 @@ class AsterAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Press an arbitrary key via `input keyevent` — the exact shell path performImeAction
-     * already uses, which works across all apps and IME states (SPEC §3.2: press_key uses
-     * "the path IME-enter already uses"). Returns false on unknown key or non-zero exit
-     * (fail honestly, no fixed sleeps — UI settle is P3's wait_for_idle).
+     * Press a key by name, through [inputRouter] (SPEC §3.2: press_key uses "the path
+     * IME-enter already uses" — which, after this change, is a path that can actually
+     * succeed).
+     *
+     * This used to shell out to `input keyevent`, which could never work from this
+     * process: `/system/bin/input` requires `INJECT_EVENTS`, a signature-level
+     * permission held by `shell`/`system` that `com.aster` does not declare and cannot
+     * be granted. Every call failed, and the handler reported it as "unknown key" —
+     * blaming the caller's key name for a permission wall.
+     *
+     * Returns the router's [InputResult] rather than a Boolean so the caller can report
+     * WHICH mechanism served the press and, on failure, the real reason: a key no
+     * backend can express reads differently from one a backend owned and could not
+     * deliver. No fixed sleeps — UI settle is P3's `wait_for_idle`.
      */
-    fun pressKey(key: String): Boolean {
-        val keyCode = keyNameToKeycode(key) ?: return false
-        return try {
-            val pb = ProcessBuilder("input", "keyevent", keyCode)
-            val process = pb.start()
-            process.waitFor() == 0
-        } catch (e: Exception) {
-            if (BuildConfig.DEBUG) Log.e(TAG, "Failed to inject key event for $key", e)
-            false
-        }
+    suspend fun pressKey(key: String): InputResult {
+        val resolved = keyNameToKeycode(key)
+            ?: return InputResult(ok = false, backend = null, reason = "unknown key name '$key'")
+        // keyNameToKeycode passes a bare numeric string through unchecked, so a caller
+        // can hand us something that is digits but not an Int. Say so instead of
+        // reporting it as a routing failure.
+        val keyCode = resolved.toIntOrNull()
+            ?: return InputResult(ok = false, backend = null, reason = "'$key' is not a valid Android keycode")
+        return inputRouter.pressKeyCode(keyCode)
     }
 
     /**
@@ -2021,14 +2090,43 @@ class AsterAccessibilityService : AccessibilityService() {
     }
 }
 
+/**
+ * Result of a node action aimed at the currently focused editable field
+ * ([AsterAccessibilityService.performOnFocusedEditable] and
+ * [AsterAccessibilityService.tryImeEnterAction]).
+ *
+ * Four states, because the caller must be able to tell "not expressible here, and
+ * nothing was attempted" ([UNSUPPORTED_API], [NO_FOCUSED_FIELD]) from "attempted,
+ * and the node said no" ([REFUSED]). That distinction is what decides whether
+ * another input backend may safely try the same press — collapsing it to a
+ * Boolean is how a permission wall came to be reported as an unknown key name.
+ */
+enum class FocusedNodeOutcome {
+    /** The action id does not exist on this Android version. Nothing attempted. */
+    UNSUPPORTED_API,
+
+    /** No editable node holds focus, so there was no target. Nothing attempted. */
+    NO_FOCUSED_FIELD,
+
+    /** The focused node performed the action. */
+    PERFORMED,
+
+    /** The focused node was asked and declined — it does not advertise the action. */
+    REFUSED,
+}
+
 // ----------------------------------------------------------------------
 // P2 — top-level pure helpers (testable without the Android runtime)
 // ----------------------------------------------------------------------
 
 /**
- * Map a key name → Android keycode string for `input keyevent`. Case-insensitive; a bare
- * numeric string passes through. null = unknown (caller fails honestly, no guess).
+ * Map a key name → Android keycode string. Case-insensitive; a bare numeric string
+ * passes through. null = unknown (caller fails honestly, no guess).
  * Values are stable Android KeyEvent constants.
+ *
+ * Name resolution ONLY. Whether a resolved keycode can actually be delivered is the
+ * input router's question, not this table's — a name here is not a promise that the
+ * press will work, and [AsterAccessibilityService.pressKey] reports the difference.
  */
 fun keyNameToKeycode(key: String): String? {
     val k = key.trim()
