@@ -9,15 +9,21 @@ import android.util.Log
 import android.widget.Toast
 
 /**
- * OverlayPermissionActivity — the door OpenAlly knocks on to get ASTER granted
+ * OverlayPermissionActivity — the door another app knocks on to get ASTER granted
  * "display over other apps".
  *
- * WHY IT EXISTS: OpenAlly hosts no overlay window and holds no SYSTEM_ALERT_WINDOW —
- * the ambient companion face is drawn by Aster
- * ([com.aster.service.overlay.CompanionFaceOverlay]). An app can only ever request
- * this permission for ITSELF, so OpenAlly cannot ask on Aster's behalf; it launches
- * this exported activity instead and Aster asks for its own grant, from its own
- * foreground.
+ * WHY IT EXISTS: an app can only ever request this permission for ITSELF, so a
+ * caller cannot ask on Aster's behalf; it launches this exported activity instead
+ * and Aster asks for its own grant, from its own foreground.
+ *
+ * IT CURRENTLY HAS NO EXTERNAL CALLER. It was written for OpenAlly's ambient
+ * companion face — the one Aster drew over other apps — and that face has been
+ * removed from both sides. It stays because the permission it grants is what
+ * Aster's OWN overlays need (the tool-execution border, the interactive prompt,
+ * the sign-in wait card), and because a shipped OpenAlly still fires
+ * `com.aster.action.REQUEST_OVERLAY_PERMISSION`: deleting this would turn that
+ * into an ActivityNotFoundException instead of a screen that grants something
+ * Aster genuinely uses.
  *
  * HONEST ABOUT THE PLATFORM: since Android 11, `ACTION_MANAGE_OVERLAY_PERMISSION`
  * ignores any `package:` data and always opens the TOP-LEVEL "Display over other

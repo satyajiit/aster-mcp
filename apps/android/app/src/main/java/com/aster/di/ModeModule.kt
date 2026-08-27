@@ -9,7 +9,6 @@ import com.aster.service.handlers.AlarmHandler
 import com.aster.service.handlers.CameraHandler
 import com.aster.service.handlers.CapabilityHandler
 import com.aster.service.handlers.ClipboardHandler
-import com.aster.service.handlers.CompanionOverlayHandler
 import com.aster.service.handlers.ContactHandler
 import com.aster.service.handlers.DeviceInfoHandler
 import com.aster.service.handlers.FileSystemHandler
@@ -31,7 +30,6 @@ import com.aster.service.handlers.VolumeHandler
 import com.aster.service.mode.IpcMode
 import com.aster.service.mode.McpMode
 import com.aster.service.mode.RemoteWsMode
-import com.aster.service.overlay.CompanionFaceOverlay
 import com.aster.service.overlay.InteractiveOverlayController
 import com.aster.service.overlay.SignInWaitOverlay
 import com.aster.service.overlay.ToolExecutionOverlay
@@ -60,8 +58,7 @@ object ModeModule {
         @ApplicationContext context: Context,
         packagePolicyGuard: PackagePolicyGuard,
         interactiveOverlayController: InteractiveOverlayController,
-        toolExecutionOverlay: ToolExecutionOverlay,
-        companionFaceOverlay: CompanionFaceOverlay
+        toolExecutionOverlay: ToolExecutionOverlay
     ): Map<String, @JvmSuppressWildcards CommandHandler> {
         val handlers = mutableMapOf<String, CommandHandler>()
 
@@ -87,12 +84,6 @@ object ModeModule {
             CameraHandler(context),
             InteractiveOverlayHandler(interactiveOverlayController),
             SignInWaitHandler(SignInWaitOverlay(context), toolExecutionOverlay),
-            // The ambient OpenAlly companion face. Only the LIFECYCLE verbs live in the
-            // handler map — the frames ride the dedicated `oneway` lane in IpcMode.
-            // Action names are `companion_overlay_*`, deliberately distinct from
-            // OverlayHandler's `*_overlay`: a duplicate key here would silently
-            // overwrite the earlier handler in the map built below.
-            CompanionOverlayHandler(companionFaceOverlay),
             CapabilityHandler(),
             // The kernel's owner allow/deny push. Without it `updatePolicy` had
             // no caller at all, so an owner override never reached the guard.
@@ -118,10 +109,9 @@ object ModeModule {
     @Singleton
     fun provideIpcMode(
         @CommandHandlerMap commandHandlers: Map<String, @JvmSuppressWildcards CommandHandler>,
-        toolCallLogger: ToolCallLogger,
-        companionFaceOverlay: CompanionFaceOverlay
+        toolCallLogger: ToolCallLogger
     ): IpcMode {
-        return IpcMode(commandHandlers, toolCallLogger, companionFaceOverlay)
+        return IpcMode(commandHandlers, toolCallLogger)
     }
 
     @Provides

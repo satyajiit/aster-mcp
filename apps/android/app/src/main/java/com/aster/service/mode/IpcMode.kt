@@ -8,7 +8,6 @@ import com.aster.data.model.Command
 import com.aster.ipc.IAsterCallback
 import com.aster.ipc.IAsterService
 import com.aster.service.CommandHandler
-import com.aster.service.overlay.CompanionFaceOverlay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,8 +28,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 class IpcMode(
     private val commandHandlers: Map<String, CommandHandler>,
-    private val toolCallLogger: ToolCallLogger,
-    private val companionFaceOverlay: CompanionFaceOverlay
+    private val toolCallLogger: ToolCallLogger
 ) : ConnectionMode {
 
     companion object {
@@ -38,17 +36,6 @@ class IpcMode(
         private const val TOKEN_LENGTH = 32
         /** Results above this byte size are offloaded to PFD pipe instead of Binder. */
         private const val LARGE_RESULT_THRESHOLD = 500_000 // ~500 KB
-        private const val MAX_COMPANION_STATUS_BYTES = 8 * 1024
-        private const val MAX_COMPANION_CONFIGURATION_BYTES = 2 * 1024
-        private const val MAX_COMPANION_STATE_BYTES = 4 * 1024
-
-        /** Ack for one drained companion face frame — lets the client bound its
-         *  in-flight frames instead of flooding this process's binder async pool. */
-        const val EVENT_COMPANION_FRAME_ACK = "companion_frame_ack"
-
-        /** "The companion face window went down, and here's why." The frame lane is
-         *  `oneway`, so this is the ONLY way the client can learn it went dead. */
-        const val EVENT_COMPANION_OVERLAY_STATE = "companion_overlay_state"
 
         /**
          * Screen-control action names (Screen Control /goal P7). While the kill
@@ -314,64 +301,8 @@ class IpcMode(
             val callingUid = Binder.getCallingUid()
             authenticatedUids.remove(callingUid)
             callbacks.remove(callingUid)
-            // The companion face is a PROJECTION of the client's face rig — with the
-            // client gone there is no frame source, and an attached window would just
-            // freeze on its last frame. Take it down with the session.
-            companionFaceOverlay.hide()
             Log.i(TAG, "UID=$callingUid disconnected")
             updateClientCount()
-        }
-
-        /**
-         * The ambient companion face's frame lane (see IAsterService.aidl). Deliberately
-         * NOT routed through [executeCommand]: that path takes a `runBlocking` and writes
-         * two audit rows per call, which at frame rate would be ruinous.
-         *
-         * This body must stay O(1). A `oneway` transaction holds its buffer in ASTER's
-         * async allocation pool — half of this process's ~1 MB binder mapping — until
-         * `onTransact` returns, and that same pool carries system_server's accessibility
-         * events into [com.aster.service.AsterAccessibilityService]. A slow handler here
-         * would not merely stutter the face; it could starve screen control. [
-         * com.aster.service.overlay.CompanionFaceOverlay.onFrame] parses on this binder
-         * thread, keeps only the newest frame, and returns.
-         *
-         * The ack closes the loop: `oneway` reports nothing to the caller (there is no
-         * reply parcel — even a thrown SecurityException is swallowed), so OpenAlly
-         * cannot otherwise tell a drained frame from a queued one. It uses this ack to
-         * bound how many frames it lets fly unacknowledged.
-         */
-        override fun pushCompanionFrame(frame: ByteArray?) {
-            val callingUid = Binder.getCallingUid()
-            if (!authenticatedUids.containsKey(callingUid)) return
-            if (frame == null || frame.isEmpty()) return
-            companionFaceOverlay.onFrame(frame)
-            // Ack the sender only (not broadcastEvent — that fans out to every client).
-            runCatching { callbacks[callingUid]?.onEvent(EVENT_COMPANION_FRAME_ACK, "{}") }
-        }
-
-        override fun pushCompanionStatus(status: ByteArray?) {
-            val callingUid = Binder.getCallingUid()
-            if (!authenticatedUids.containsKey(callingUid)) return
-            if (status == null || status.isEmpty() || status.size > MAX_COMPANION_STATUS_BYTES) return
-            companionFaceOverlay.onStatus(status)
-        }
-
-        override fun pushCompanionConfiguration(configuration: ByteArray?) {
-            val callingUid = Binder.getCallingUid()
-            if (!authenticatedUids.containsKey(callingUid)) return
-            if (
-                configuration == null ||
-                configuration.isEmpty() ||
-                configuration.size > MAX_COMPANION_CONFIGURATION_BYTES
-            ) return
-            companionFaceOverlay.onConfiguration(configuration)
-        }
-
-        override fun pushCompanionState(state: ByteArray?) {
-            val callingUid = Binder.getCallingUid()
-            if (!authenticatedUids.containsKey(callingUid)) return
-            if (state == null || state.isEmpty() || state.size > MAX_COMPANION_STATE_BYTES) return
-            companionFaceOverlay.onState(state)
         }
     }
 
@@ -392,33 +323,12 @@ class IpcMode(
 
     override suspend fun stop() {
         _statusFlow.value = ModeStatus(state = ModeState.STOPPING, message = "Stopping IPC...")
-        // Tell the client the face is going down BEFORE severing the callbacks that
-        // would carry the message. The frame lane is `oneway` and reports nothing, so
-        // without this the client would keep pushing frames into a closed session
-        // forever, with no way to learn it had gone dead.
-        takeDownCompanionFace("ipc_stopped")
         authenticatedUids.clear()
         callbacks.clear()
         largeResults.clear()
         scope.coroutineContext.cancelChildren()
         _statusFlow.value = ModeStatus(state = ModeState.IDLE)
         Log.i(TAG, "IPC mode stopped")
-    }
-
-    /** Detach the companion face window and tell the client why, while the callbacks
-     *  are still live. */
-    private fun takeDownCompanionFace(reason: String) {
-        companionFaceOverlay.hide()
-        broadcastEvent(
-            EVENT_COMPANION_OVERLAY_STATE,
-            Json.encodeToString(
-                JsonObject.serializer(),
-                buildJsonObject {
-                    put("attached", JsonPrimitive(false))
-                    put("reason", JsonPrimitive(reason))
-                },
-            ),
-        )
     }
 
     override fun getAvailableTools(): List<ToolInfo> {
@@ -452,11 +362,6 @@ class IpcMode(
     fun killActiveControl() {
         killed = true
         broadcastEvent("screen_stop", "{}")
-        // The kill switch severs `authenticatedUids`, which is exactly what gates the
-        // frame lane — so the ambient face stops being fed whether or not we take the
-        // window down. Take it down deliberately, and SAY so, rather than leaving a
-        // frozen face on screen with no explanation.
-        takeDownCompanionFace("killed")
         authenticatedUids.clear()
         Log.w(TAG, "Kill switch engaged — sessions severed, screen_stop broadcast")
         updateClientCount()
