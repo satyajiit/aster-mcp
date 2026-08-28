@@ -5,7 +5,7 @@
     "semantic_hash": ""
   },
   "apps/android/app/build.gradle.kts": {
-    "mtime": 1787828236.0570774,
+    "mtime": 1787936960.597909,
     "ast_hash": "2cbbe309a53b9fad42565ae1d76d4b26",
     "semantic_hash": ""
   },
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "apps/android/app/src/main/java/com/aster/di/ModeModule.kt": {
-    "mtime": 1787828092.6814508,
-    "ast_hash": "578581fdd17ce2b002bbfca1d8273f7e",
+    "mtime": 1787936951.3048446,
+    "ast_hash": "937a6205ee3a6c18632f2434ffce4e8a",
     "semantic_hash": ""
   },
   "apps/android/app/src/main/java/com/aster/receiver/BootReceiver.kt": {
@@ -110,8 +110,8 @@
     "semantic_hash": ""
   },
   "apps/android/app/src/main/java/com/aster/service/AsterService.kt": {
-    "mtime": 1787828112.1819837,
-    "ast_hash": "eba5096e362b991ff8b1bdac563e1c62",
+    "mtime": 1787936951.3067348,
+    "ast_hash": "c6a022a31ce9ac91bfec92492523dfb2",
     "semantic_hash": ""
   },
   "apps/android/app/src/main/java/com/aster/service/CommandHandler.kt": {
@@ -345,8 +345,8 @@
     "semantic_hash": ""
   },
   "apps/android/app/src/main/java/com/aster/service/mode/IpcMode.kt": {
-    "mtime": 1787828080.7157297,
-    "ast_hash": "1e0d74cc2012f5ec51802bf918654a93",
+    "mtime": 1787936951.3115308,
+    "ast_hash": "78cb24f7f0d599875364aac668490087",
     "semantic_hash": ""
   },
   "apps/android/app/src/main/java/com/aster/service/mode/McpMode.kt": {
@@ -365,8 +365,8 @@
     "semantic_hash": ""
   },
   "apps/android/app/src/main/java/com/aster/service/mode/ToolCatalog.kt": {
-    "mtime": 1787828099.5135574,
-    "ast_hash": "6b2d58506b9670d9d9642830d51c67d0",
+    "mtime": 1787936951.3128788,
+    "ast_hash": "f199a72651f10391d0f55fd2d510f9f0",
     "semantic_hash": ""
   },
   "apps/android/app/src/main/java/com/aster/service/mode/ToolInfo.kt": {
@@ -430,8 +430,8 @@
     "semantic_hash": ""
   },
   "apps/android/app/src/main/java/com/aster/ui/OverlayPermissionActivity.kt": {
-    "mtime": 1787828150.033648,
-    "ast_hash": "9cd85eec1cf4ad4812163fa0de4cb240",
+    "mtime": 1787936951.3221188,
+    "ast_hash": "cd002b795f2e056e96554858bd0afb61",
     "semantic_hash": ""
   },
   "apps/android/app/src/main/java/com/aster/ui/components/AnimatedEntrance.kt": {
@@ -1327,6 +1327,91 @@
   "mcp/dashboard/screenshots/mcp-tool-explorer.png": {
     "mtime": 1782213213.005585,
     "ast_hash": "7d630f736f60ab96bb387b34796ca0bf",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/main/java/com/aster/service/handlers/CompanionOverlayHandler.kt": {
+    "mtime": 1787936951.3074713,
+    "ast_hash": "719faad45699eb7e56a3d778119f00ce",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/main/java/com/aster/service/overlay/CompanionFaceOverlay.kt": {
+    "mtime": 1787936951.313809,
+    "ast_hash": "fa9cd192787576c8b919285c07f2a258",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/main/java/com/aster/service/overlay/CompanionFaceState.kt": {
+    "mtime": 1787936951.3148112,
+    "ast_hash": "2167a5cfbfd1e69c5ae639326aaa4551",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/main/java/com/aster/service/overlay/CompanionFaceView.kt": {
+    "mtime": 1787936951.3154945,
+    "ast_hash": "a4f0d8de887d2a85b370aa0fec96a18f",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/main/java/com/aster/service/overlay/CompanionNativeAnimator.kt": {
+    "mtime": 1787936951.3164384,
+    "ast_hash": "e33c69dcb852e25a79aa9a24c6654e62",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/main/java/com/aster/service/overlay/CompanionOverlayGeometry.kt": {
+    "mtime": 1787936951.3170347,
+    "ast_hash": "0f1073acc70f0801ae6af7876baf78cc",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/main/java/com/aster/service/overlay/CompanionPulseConfiguration.kt": {
+    "mtime": 1787936951.317983,
+    "ast_hash": "088b2a4f04978276bb6a89ba1af12e56",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/main/java/com/aster/service/overlay/CompanionStatusModel.kt": {
+    "mtime": 1787936951.3187308,
+    "ast_hash": "a59fdf640038fb9839f43d5c6f033791",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/main/java/com/aster/service/overlay/CompanionSystemPulseMonitor.kt": {
+    "mtime": 1787936951.319515,
+    "ast_hash": "26bde5433338e63346b95444390dd374",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/main/java/com/aster/service/overlay/SmartLiftClassifier.kt": {
+    "mtime": 1787936951.320213,
+    "ast_hash": "fe8cf684397b8102d9d6432291bd1470",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/main/java/com/aster/ui/CompanionApprovalActivity.kt": {
+    "mtime": 1787936951.320952,
+    "ast_hash": "8f3060e63bcd2ca9e358d55808c2fc60",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/test/java/com/aster/service/overlay/CompanionFaceStateTest.kt": {
+    "mtime": 1787936951.325023,
+    "ast_hash": "a0d85db5676581c1dbf803f3ebb77f09",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/test/java/com/aster/service/overlay/CompanionNativeAnimatorTest.kt": {
+    "mtime": 1787936951.3258188,
+    "ast_hash": "62898b4510442cf55a014803a4ca94bb",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/test/java/com/aster/service/overlay/CompanionOverlayGeometryTest.kt": {
+    "mtime": 1787936951.3265674,
+    "ast_hash": "445200a5b05d78a28b12b5f530d2d1d3",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/test/java/com/aster/service/overlay/CompanionPulseConfigurationTest.kt": {
+    "mtime": 1787936951.3274093,
+    "ast_hash": "b55951a54297fbc01f9229b3bff9f329",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/test/java/com/aster/service/overlay/CompanionStatusModelTest.kt": {
+    "mtime": 1787936951.3280315,
+    "ast_hash": "af24f2d1468d4a5c25d13a065cbccf2c",
+    "semantic_hash": ""
+  },
+  "apps/android/app/src/test/java/com/aster/service/overlay/SmartLiftClassifierTest.kt": {
+    "mtime": 1787936951.3288922,
+    "ast_hash": "7e58740d7052abb6981a385c51532fa1",
     "semantic_hash": ""
   }
 }

@@ -1,16 +1,16 @@
-# Graph Report - aster-mcp  (2026-08-27)
+# Graph Report - aster-mcp  (2026-08-28)
 
 ## Corpus Check
-- 220 files · ~1,010,503 words
+- 237 files · ~1,026,016 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1878 nodes · 4314 edges · 158 communities (118 shown, 40 thin omitted)
-- Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 334 edges (avg confidence: 0.8)
+- 2099 nodes · 4908 edges · 161 communities (128 shown, 33 thin omitted)
+- Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 381 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `10b8045d`
+- Built from commit: `706d604d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -122,23 +122,26 @@
 - [[_COMMUNITY_Community 108|Community 108]]
 - [[_COMMUNITY_Community 109|Community 109]]
 - [[_COMMUNITY_Community 110|Community 110]]
+- [[_COMMUNITY_Community 111|Community 111]]
 - [[_COMMUNITY_Community 112|Community 112]]
+- [[_COMMUNITY_Community 154|Community 154]]
+- [[_COMMUNITY_Community 158|Community 158]]
+- [[_COMMUNITY_Community 159|Community 159]]
+- [[_COMMUNITY_Community 160|Community 160]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `CommandResult` - 104 edges
+1. `CommandResult` - 105 edges
 2. `AsterAccessibilityService` - 94 edges
 3. `handleToolCall()` - 55 edges
 4. `sendCommand()` - 51 edges
 5. `jsonResult()` - 49 edges
-6. `AccessibilityHandler` - 39 edges
-7. `InteractiveOverlayController` - 38 edges
-8. `AsterWebSocketClient` - 34 edges
-9. `AsterService` - 33 edges
-10. `CommandHandler` - 32 edges
+6. `CompanionFaceOverlay` - 41 edges
+7. `AccessibilityHandler` - 39 edges
+8. `InteractiveOverlayController` - 38 edges
+9. `CompanionFaceView` - 36 edges
+10. `AsterWebSocketClient` - 34 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `PermissionRow()` --calls--> `AsterButton()`  [INFERRED]
-  apps/android/app/src/main/java/com/aster/ui/IpcApprovalActivity.kt → apps/android/app/src/main/java/com/aster/ui/components/AsterComponents.kt
 - `AsterNavHost()` --calls--> `HomeScreen()`  [INFERRED]
   apps/android/app/src/main/java/com/aster/ui/MainActivity.kt → apps/android/app/src/main/java/com/aster/ui/screens/home/HomeScreen.kt
 - `AsterNavHost()` --calls--> `IpcDashboardScreen()`  [INFERRED]
@@ -147,39 +150,41 @@
   apps/android/app/src/main/java/com/aster/ui/MainActivity.kt → apps/android/app/src/main/java/com/aster/ui/screens/mcp/McpDashboardScreen.kt
 - `AsterNavHost()` --calls--> `OnboardingScreen()`  [INFERRED]
   apps/android/app/src/main/java/com/aster/ui/MainActivity.kt → apps/android/app/src/main/java/com/aster/ui/screens/onboarding/OnboardingScreen.kt
+- `AsterNavHost()` --calls--> `PermissionAlertScreen()`  [INFERRED]
+  apps/android/app/src/main/java/com/aster/ui/MainActivity.kt → apps/android/app/src/main/java/com/aster/ui/screens/permissions/PermissionAlertScreen.kt
 
 ## Import Cycles
 - None detected.
 
-## Communities (158 total, 40 thin omitted)
+## Communities (161 total, 33 thin omitted)
 
 ### Community 0 - "Community 0"
-Cohesion: 0.06
+Cohesion: 0.05
 Nodes (22): CompletableDeferred, CoroutineScope, EditText, FrameLayout, GradientDrawable, LinearLayout, CappedScrollView, InteractiveOverlayController (+14 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.06
-Nodes (16): ElementFilter, NodeFacts, ObserveMode, ObserveBudget, ObserveBudgetTest, RoleMapper, Boolean, Context (+8 more)
+Cohesion: 0.19
+Nodes (5): Boolean, Context, PermissionCheckResult, PermissionType, PermissionUtils
 
 ### Community 2 - "Community 2"
 Cohesion: 0.06
-Nodes (21): Address, ByteArray, Double, ExifInterface, File, HostDirHandler, DirectoryInfo, FileInfo (+13 more)
+Nodes (15): Address, Double, DoubleArray, ExifInterface, CameraInfo, ImageDimensions, LocationInfo, PhotoMetadata (+7 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.06
-Nodes (15): Bounds, ElementState, fromLTRB(), ObservedElement, ObserveResult, ScreenContext, Scrollable, WindowInfo (+7 more)
+Nodes (14): Bounds, ElementState, fromLTRB(), ObservedElement, ObserveResult, ScreenContext, Scrollable, WindowInfo (+6 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.07
-Nodes (50): ToolResult, AnalyzeStorageSchema, ClickByIdSchema, ClickByTextSchema, DeleteAlarmSchema, DeleteContactsSchema, DeleteFileSchema, DismissAlarmSchema (+42 more)
+Cohesion: 0.08
+Nodes (49): ToolResult, AnalyzeStorageSchema, ClickByIdSchema, ClickByTextSchema, DeleteAlarmSchema, DeleteContactsSchema, DeleteFileSchema, DismissAlarmSchema (+41 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.12
-Nodes (6): AccessibilityEvent, AccessibilityService, AccessibilityHandler, PreAct, JsonElement, AsterAccessibilityService
+Cohesion: 0.09
+Nodes (11): AccessibilityEvent, AccessibilityService, android, Command, AccessibilityHandler, PreAct, AccessibilityHandlerActionsTest, JsonElement (+3 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.10
-Nodes (7): Command, AlarmHandler, FileSystemHandler, NotificationHandler, CommandResult, failure(), success()
+Cohesion: 0.13
+Nodes (6): AlarmHandler, DeviceInfoHandler, NotificationHandler, CommandResult, failure(), success()
 
 ### Community 7 - "Community 7"
 Cohesion: 0.12
@@ -198,32 +203,32 @@ Cohesion: 0.05
 Nodes (38): 1. Install the MCP Server, 2. Install the Android App, 3. Start the Server, 4. Connect Your Device, 5. Configure Your AI Client, Adding a new MCP tool, Android app, Android permissions — and why each one (+30 more)
 
 ### Community 11 - "Community 11"
-Cohesion: 0.09
+Cohesion: 0.08
 Nodes (8): LabelAggregator, Keys, ServerConfig, SettingsDataStore, EventDeduplicator, SettingsViewModel, String, WireParams
 
 ### Community 12 - "Community 12"
-Cohesion: 0.09
-Nodes (15): body, BroadcastReceiver, IBinder, Intent, BootReceiver, KillSwitchReceiver, NotificationActionReceiver, SmsBroadcastReceiver (+7 more)
+Cohesion: 0.12
+Nodes (8): body, BroadcastReceiver, BootReceiver, KillSwitchReceiver, NotificationActionReceiver, SmsBroadcastReceiver, sender, timestamp
 
 ### Community 13 - "Community 13"
 Cohesion: 0.09
 Nodes (11): DataStore, AsterDatabase, migrate(), ToolCallLog, ToolCallLogDao, AppModule, Flow, OkHttpClient (+3 more)
 
 ### Community 14 - "Community 14"
-Cohesion: 0.10
-Nodes (27): updateDeviceExtendedInfo(), AuthMessage, AuthMessageSchema, AuthResult, AuthResultSchema, Command, CommandResponse, CommandResponseSchema (+19 more)
+Cohesion: 0.11
+Nodes (25): updateDeviceExtendedInfo(), AuthMessage, AuthMessageSchema, AuthResult, AuthResultSchema, Command, CommandResponse, CommandResponseSchema (+17 more)
 
 ### Community 15 - "Community 15"
 Cohesion: 0.12
 Nodes (4): PackagePolicyGuard, targetPackageOf(), PackagePolicyGuardTest, Set
 
 ### Community 16 - "Community 16"
-Cohesion: 0.16
-Nodes (23): AsterButton(), AsterButtonVariant, AsterCard(), AsterStatCard(), AsterTextField(), AsterTopBar(), InfoRow(), ToolListItem() (+15 more)
+Cohesion: 0.23
+Nodes (11): AsterTextField(), AsterTopBar(), Composable, formatTimestamp(), LogEntry(), LogScreen(), NavHostController, PermissionDivider() (+3 more)
 
 ### Community 17 - "Community 17"
-Cohesion: 0.12
-Nodes (26): addLog(), closeDatabase(), DbDevice, DbLogEntry, deleteDevice(), getAllDevices(), getAllLogs(), getDatabase() (+18 more)
+Cohesion: 0.14
+Nodes (22): addLog(), closeDatabase(), DbDevice, DbLogEntry, deleteDevice(), getAllLogs(), getDatabase(), getDevice() (+14 more)
 
 ### Community 18 - "Community 18"
 Cohesion: 0.08
@@ -231,10 +236,10 @@ Nodes (23): dependencies, nuxt, @nuxt/fonts, @nuxt/icon, tailwindcss, @tailwindc
 
 ### Community 19 - "Community 19"
 Cohesion: 0.13
-Nodes (6): Closeable, com, OcrBlock, OcrEngine, ScreenObserveSupportTest, TextRecognizer
+Nodes (7): Bitmap, Closeable, com, OcrBlock, OcrEngine, ScreenObserveSupportTest, TextRecognizer
 
 ### Community 20 - "Community 20"
-Cohesion: 0.18
+Cohesion: 0.19
 Nodes (4): Notification, PowerManager, AsterService, WifiManager
 
 ### Community 21 - "Community 21"
@@ -246,32 +251,28 @@ Cohesion: 0.09
 Nodes (21): dependencies, nuxt, @nuxt/fonts, devDependencies, @iconify-json/lucide, @iconify-json/mdi, @iconify-json/ph, @nuxt/devtools (+13 more)
 
 ### Community 23 - "Community 23"
-Cohesion: 0.19
-Nodes (18): AgentEventForwardingConfig, buildEventText(), ConfigCandidate, DeviceContext, formatData(), getAgentEventForwardingConfig(), getSavedAgentEventForwardingToken(), isAgentEventForwardingEnabled() (+10 more)
+Cohesion: 0.15
+Nodes (24): AgentEventForwardingConfig, buildEventText(), ConfigCandidate, DeviceContext, formatData(), forwardAgentEvent(), getAgentEventForwardingConfig(), getSavedAgentEventForwardingToken() (+16 more)
 
 ### Community 24 - "Community 24"
-Cohesion: 0.16
-Nodes (19): initDatabase(), loadAgentEventForwardingConfig(), registerMcpHttpRoutes(), createMcpServer(), startMcpServer(), createApiServer(), startApiServer(), ASTER_DIR (+11 more)
+Cohesion: 0.18
+Nodes (16): initDatabase(), createMcpServer(), startMcpServer(), ASTER_DIR, currentFile, getLocalIP(), mainScript, startDashboardServer() (+8 more)
 
 ### Community 25 - "Community 25"
-Cohesion: 0.12
-Nodes (6): IpcDashboardViewModel, LogViewModel, McpDashboardViewModel, OnboardingViewModel, StateFlow, ViewModel
+Cohesion: 0.08
+Nodes (8): HomeViewModel, IpcDashboardViewModel, LogViewModel, McpDashboardViewModel, OnboardingViewModel, RemoteViewModel, StateFlow, ViewModel
 
 ### Community 26 - "Community 26"
-Cohesion: 0.14
-Nodes (9): A11yObservation, getInstance(), isServiceEnabled(), keyNameToKeycode(), normalizeScrollDirection(), pinchStrokePoints(), ScreenshotCapture, StrokePts (+1 more)
+Cohesion: 0.10
+Nodes (11): A11yObservation, getInstance(), isServiceEnabled(), keyNameToKeycode(), normalizeScrollAmount(), normalizeScrollDirection(), pinchStrokePoints(), ResolvedRef (+3 more)
 
 ### Community 27 - "Community 27"
 Cohesion: 0.11
 Nodes (11): ASTER_DIR, devicesCmd, __dirname, __filename, LOG_FILE, PID_FILE, program, PROGRESS_STEPS (+3 more)
 
 ### Community 28 - "Community 28"
-Cohesion: 0.15
-Nodes (6): Collection, List, ToolCatalog, ToolEntry, ToolInfo, RemoteViewModel
-
-### Community 29 - "Community 29"
-Cohesion: 0.16
-Nodes (6): IAsterService, Job, ModeStatus, IpcMode, RemoteWsMode, ConnectionState
+Cohesion: 0.23
+Nodes (5): Collection, List, ToolCatalog, ToolEntry, ToolInfo
 
 ### Community 30 - "Community 30"
 Cohesion: 0.11
@@ -281,6 +282,10 @@ Nodes (18): compilerOptions, declaration, declarationMap, esModuleInterop, force
 Cohesion: 0.11
 Nodes (18): Apps & System, Aster - Your AI CoPilot on Mobile, Available Tools, Commands, Device Features, Device & Screen, Event Format, Event Types (+10 more)
 
+### Community 32 - "Community 32"
+Cohesion: 0.14
+Nodes (4): ElementFilter, NodeFacts, ObserveMode, ElementFilterTest
+
 ### Community 33 - "Community 33"
 Cohesion: 0.18
 Nodes (6): CameraSelector, CameraHandler, ServiceLifecycleOwner, Lifecycle, LifecycleOwner, Recording
@@ -289,25 +294,29 @@ Nodes (6): CameraSelector, CameraHandler, ServiceLifecycleOwner, Lifecycle, Life
 Cohesion: 0.12
 Nodes (16): AgentEventForwardingConfig, AgentEventForwardingConfigResponse, AgentEventForwardingTestResult, Device, DeviceWithLiveInfo, ExtendedDeviceInfo, FileContentResult, FileEntry (+8 more)
 
+### Community 35 - "Community 35"
+Cohesion: 0.13
+Nodes (3): ContactHandler, MutableList, InteractiveOverlayModelTest
+
 ### Community 36 - "Community 36"
-Cohesion: 0.18
-Nodes (12): Color, StatusBadge(), GlowOrb(), TokenDisplay(), getCategoryIcon(), ToolRow(), ToolsSection(), Dp (+4 more)
+Cohesion: 0.14
+Nodes (23): Color, AsterButton(), AsterButtonVariant, AsterStatCard(), InfoRow(), StatusBadge(), ToolListItem(), GlowOrb() (+15 more)
 
 ### Community 37 - "Community 37"
 Cohesion: 0.12
-Nodes (16): author, bin, aster, description, exports, files, homepage, import (+8 more)
+Nodes (15): author, bin, aster, bugs, url, description, files, homepage (+7 more)
 
 ### Community 39 - "Community 39"
-Cohesion: 0.18
+Cohesion: 0.19
 Nodes (8): ActionMapper, AnimatedEntrance(), Int, AboutStep(), BottomNavigation(), FeatureItem(), OnboardingScreen(), PermissionsStep()
 
 ### Community 41 - "Community 41"
-Cohesion: 0.23
-Nodes (4): ExoPlayer, MediaHandler, MediaSession, TextToSpeech
+Cohesion: 0.24
+Nodes (3): ExoPlayer, MediaHandler, MediaSession
 
 ### Community 42 - "Community 42"
-Cohesion: 0.27
-Nodes (4): Float, GestureDescription, Pair, dragStrokePoints()
+Cohesion: 0.18
+Nodes (5): GestureDescription, ScrollAmount, ScrollAxis, ResolvedBy, ScreenActionResult
 
 ### Community 43 - "Community 43"
 Cohesion: 0.13
@@ -318,28 +327,24 @@ Cohesion: 0.23
 Nodes (4): AccessibilityPulseClassifier, Input, Pulse, AccessibilityPulseClassifierTest
 
 ### Community 45 - "Community 45"
-Cohesion: 0.22
-Nodes (9): Bundle, ComponentActivity, AsterColorScheme, AsterTheme(), ApprovalBody(), BrandHeader(), ChooserBody(), InteractivePromptActivity (+1 more)
+Cohesion: 0.23
+Nodes (8): ComponentActivity, AsterColorScheme, AsterTheme(), ApprovalBody(), BrandHeader(), ChooserBody(), InteractivePromptActivity, MainActivity
 
 ### Community 47 - "Community 47"
-Cohesion: 0.21
-Nodes (8): HomeViewModel, ConnectionMode, IpcConfig, McpConfig, ModeConfig, ModeState, ModeType, RemoteConfig
+Cohesion: 0.16
+Nodes (10): Job, ConnectionMode, IpcConfig, McpConfig, ModeConfig, ModeState, ModeStatus, RemoteConfig (+2 more)
 
 ### Community 51 - "Community 51"
-Cohesion: 0.19
-Nodes (5): CIOApplicationEngine, EmbeddedServer, McpMode, Server, StreamableHttpServerTransport
-
-### Community 52 - "Community 52"
-Cohesion: 0.26
-Nodes (4): Cand, Walk, Drawable, IpcApprovalActivity
+Cohesion: 0.21
+Nodes (4): CIOApplicationEngine, EmbeddedServer, McpMode, StreamableHttpServerTransport
 
 ### Community 53 - "Community 53"
-Cohesion: 0.30
-Nodes (10): AsterSectionHeader(), CodeBlock(), ConnectionMethodHint(), McpConfigSection(), McpDashboardScreen(), ServerEndpointsSection(), SetupGuideSection(), SetupStep() (+2 more)
+Cohesion: 0.40
+Nodes (9): AsterSectionHeader(), ConnectionMethodHint(), McpConfigSection(), McpDashboardScreen(), ServerEndpointsSection(), SetupGuideSection(), SetupStep(), StatusSection() (+1 more)
 
 ### Community 54 - "Community 54"
-Cohesion: 0.32
-Nodes (11): InstallationSection(), NumberedStep(), OpenClawSection(), OptionHeader(), PortInfoRow(), ProtocolChip(), RemoteConnectScreen(), ServerAddressCard() (+3 more)
+Cohesion: 0.25
+Nodes (14): AsterCard(), CodeBlock(), AboutRemoteSection(), InstallationSection(), NumberedStep(), OpenClawSection(), OptionHeader(), PortInfoRow() (+6 more)
 
 ### Community 55 - "Community 55"
 Cohesion: 0.32
@@ -349,17 +354,25 @@ Nodes (11): Home, IpcDashboard, Logs, McpDashboard, Onboarding, PermissionAlert,
 Cohesion: 0.32
 Nodes (11): execAsync, getTailscaleDNSName(), getTailscaleIP(), getTailscaleStatus(), isTailscaleInstalled(), serveTailscalePort(), startTailscaleServe(), startTailscaleServeHttps() (+3 more)
 
+### Community 57 - "Community 57"
+Cohesion: 0.35
+Nodes (4): Cand, ScreenObserver, Walk, AccessibilityNodeInfo
+
 ### Community 58 - "Community 58"
-Cohesion: 0.20
-Nodes (3): android, WindowDescriptor, Triple
+Cohesion: 0.06
+Nodes (29): Canvas, Choreographer, JSONArray, capOf(), CompanionFaceModel, CompanionFaceView, FaceBlush, FaceCircle (+21 more)
 
 ### Community 59 - "Community 59"
-Cohesion: 0.18
-Nodes (4): AudioManager, InteractiveOverlayHandler, ShellHandler, VolumeHandler
+Cohesion: 0.07
+Nodes (9): CapabilityHandler, ClipboardHandler, CompanionOverlayHandler, InteractiveOverlayHandler, PolicyHandler, ShellHandler, SignInWaitHandler, GuardedCommandHandler (+1 more)
 
 ### Community 60 - "Community 60"
 Cohesion: 0.27
-Nodes (5): Bitmap, Rect, ScreenshotFile, Mark, ScreenAnnotator
+Nodes (4): Rect, ScreenshotFile, Mark, ScreenAnnotator
+
+### Community 62 - "Community 62"
+Cohesion: 0.14
+Nodes (5): File, HostDirHandler, SmsHandler, InputStream, Uri
 
 ### Community 63 - "Community 63"
 Cohesion: 0.18
@@ -370,24 +383,36 @@ Cohesion: 0.18
 Nodes (11): scripts, build, build:all, dev, dev:all, dev:dashboard, lint, postinstall (+3 more)
 
 ### Community 65 - "Community 65"
-Cohesion: 0.25
-Nodes (3): normalizeScrollAmount(), ScrollAmount, ScrollAxis
+Cohesion: 0.15
+Nodes (4): DisplayManager, CompanionFaceOverlay, PowerSnapshot, ReceivedFaceState
+
+### Community 66 - "Community 66"
+Cohesion: 0.16
+Nodes (7): DirectoryInfo, FileInfo, FileTypeInfo, StorageHandler, LocationFilter, SearchFilters, SortOption
 
 ### Community 68 - "Community 68"
 Cohesion: 0.24
 Nodes (3): DescriptorBounds, fromLTRB(), NodeDescriptor
 
+### Community 69 - "Community 69"
+Cohesion: 0.14
+Nodes (5): Float, Long, CompanionViseme, Path, dragStrokePoints()
+
 ### Community 70 - "Community 70"
-Cohesion: 0.27
-Nodes (3): ResolvedRef, ResolvedBy, ScreenActionResult
+Cohesion: 0.24
+Nodes (5): CompanionOverlayGeometry, CutoutBounds, OverlayGeometry, SafeBounds, CompanionOverlayGeometryTest
+
+### Community 72 - "Community 72"
+Cohesion: 0.19
+Nodes (5): FloatArray, CompanionSystemPulseMonitor, Sensor, SensorEvent, SensorEventListener
 
 ### Community 74 - "Community 74"
-Cohesion: 0.43
-Nodes (5): Completed, Started, ToolCallLogger, ToolEvent, SharedFlow
+Cohesion: 0.26
+Nodes (6): Completed, Started, ToolCallLogger, ToolEvent, ModeModule, SharedFlow
 
 ### Community 75 - "Community 75"
-Cohesion: 0.43
-Nodes (3): ModeModule, Map, CommandHandler
+Cohesion: 0.50
+Nodes (3): Any, Map, CompanionStatusModel
 
 ### Community 76 - "Community 76"
 Cohesion: 0.39
@@ -397,53 +422,81 @@ Nodes (7): handleSearchMedia(), formatDate(), ParsedQuery, parseFileTypes(), par
 Cohesion: 0.25
 Nodes (8): devDependencies, concurrently, tsx, @types/better-sqlite3, @types/node, @types/ws, typescript, vitest
 
+### Community 78 - "Community 78"
+Cohesion: 0.21
+Nodes (8): IBinder, Intent, ModeType, Service, AsterIpcService, startService(), stopMode(), stopService()
+
 ### Community 82 - "Community 82"
 Cohesion: 0.53
 Nodes (4): BadgeItem, ModeCard(), HomeScreen(), toDisplayName()
 
+### Community 83 - "Community 83"
+Cohesion: 0.24
+Nodes (9): aggregateCompanionSpeech(), CompanionFaceStateSnapshot, CompanionSpeechAggregate, CompanionSpeechSource, CompanionSpeechStream, parseCompanionFaceState(), strictLong(), strictString() (+1 more)
+
 ### Community 84 - "Community 84"
-Cohesion: 0.60
-Nodes (5): ImageVector, AboutInfoRow(), ModeOption(), SettingsScreen(), ThemeChip()
+Cohesion: 0.70
+Nodes (4): AboutInfoRow(), ModeOption(), SettingsScreen(), ThemeChip()
 
 ### Community 85 - "Community 85"
-Cohesion: 0.33
-Nodes (6): errorResult(), handleGetDeviceInfo(), handleTakePhoto(), handleTakeScreenshot(), imageResult(), textResult()
+Cohesion: 0.29
+Nodes (7): errorResult(), handleGetDeviceInfo(), handleTakePhoto(), handleTakeScreenshot(), imageResult(), textResult(), isDeviceOnline()
 
 ### Community 87 - "Community 87"
 Cohesion: 0.47
 Nodes (5): analyzeMediaResults(), generateSuggestions(), generateSummary(), MediaInsights, MediaSearchResult
+
+### Community 90 - "Community 90"
+Cohesion: 0.28
+Nodes (4): Activity, Bundle, CompanionApprovalActivity, OverlayPermissionActivity
 
 ### Community 91 - "Community 91"
 Cohesion: 0.50
 Nodes (4): repository, directory, type, url
 
 ### Community 92 - "Community 92"
-Cohesion: 0.50
-Nodes (3): McpToolRegistry, PropDef, ToolDef
+Cohesion: 0.33
+Nodes (4): McpToolRegistry, PropDef, ToolDef, Server
 
 ### Community 93 - "Community 93"
 Cohesion: 0.50
 Nodes (3): AsterDarkColors, AsterLightColors, SemanticColors
 
+### Community 99 - "Community 99"
+Cohesion: 0.29
+Nodes (4): CompanionStatusParseResult, parseCompanionStatus(), string(), CompanionStatusModelTest
+
+### Community 108 - "Community 108"
+Cohesion: 0.31
+Nodes (3): CompanionPulseConfiguration, parseCompanionPulseConfiguration(), CompanionPulseConfigurationTest
+
+### Community 159 - "Community 159"
+Cohesion: 0.67
+Nodes (3): getAllDevices(), handleListDevices(), getConnectedDevices()
+
+### Community 160 - "Community 160"
+Cohesion: 0.67
+Nodes (3): exports, import, types
+
 ## Knowledge Gaps
-- **234 isolated node(s):** `aster`, `Keys`, `AuthMessage`, `CommandResponse`, `AuthResult` (+229 more)
+- **235 isolated node(s):** `aster`, `Keys`, `AuthMessage`, `CommandResponse`, `AuthResult` (+230 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **40 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **33 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `packageManager` connect `Community 105` to `Community 37`?**
-  _High betweenness centrality (0.047) - this node is a cross-community bridge._
-- **Why does `AsterAccessibilityService` connect `Community 5` to `Community 1`, `Community 65`, `Community 35`, `Community 58`, `Community 68`, `Community 69`, `Community 39`, `Community 8`, `Community 70`, `Community 42`, `Community 101`, `Community 57`, `Community 26`, `Community 60`?**
-  _High betweenness centrality (0.040) - this node is a cross-community bridge._
-- **Why does `AsterWebSocketClient` connect `Community 9` to `Community 6`, `Community 74`, `Community 75`, `Community 11`, `Community 13`, `Community 20`, `Community 25`, `Community 29`?**
-  _High betweenness centrality (0.025) - this node is a cross-community bridge._
+- **Why does `packageManager` connect `Community 97` to `Community 37`?**
+  _High betweenness centrality (0.064) - this node is a cross-community bridge._
+- **Why does `pathOf()` connect `Community 58` to `Community 11`, `Community 69`?**
+  _High betweenness centrality (0.064) - this node is a cross-community bridge._
+- **Why does `SettingsDataStore` connect `Community 11` to `Community 1`, `Community 39`, `Community 12`, `Community 13`, `Community 45`, `Community 20`?**
+  _High betweenness centrality (0.028) - this node is a cross-community bridge._
 - **What connects `aster`, `Keys`, `AuthMessage` to the rest of the system?**
-  _234 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _235 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.05554311310190369 - nodes in this community are weakly interconnected._
-- **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.055087719298245616 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.053289473684210525 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
-  _Cohesion score 0.05794556628621598 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.056338028169014086 - nodes in this community are weakly interconnected._
+- **Should `Community 3` be split into smaller, more focused modules?**
+  _Cohesion score 0.06265664160401002 - nodes in this community are weakly interconnected._
