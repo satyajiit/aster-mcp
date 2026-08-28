@@ -63,6 +63,14 @@
     <!-- System -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- OpenAlly. Aster launches it from the companion-face approval card. Package
+         visibility is already implied by QUERY_ALL_PACKAGES above, but declare the
+         dependency narrowly and explicitly so it survives that permission being
+         dropped. -->
+    <queries>
+        <package android:name="openally.ai" />
+    </queries>
+
     <application
         android:name=".AsterApplication"
         android:allowBackup="false"
@@ -126,15 +134,21 @@
             android:theme="@style/Theme.Aster.Transparent"
             android:excludeFromRecents="true" />
 
-        <!-- Draw-over-other-apps request, exported so another app can send the owner
-             here. An app may only ever request this permission for ITSELF, so a caller
-             cannot ask on Aster's behalf — it launches this and Aster asks for its own
-             grant. It backs Aster's OWN overlays (the tool-execution border, the
-             interactive prompt, the sign-in wait card); the companion face that first
-             drove OpenAlly to call it is gone, so this currently has no external
-             caller. Kept exported rather than deleted: a shipped OpenAlly still fires
-             the intent, and an ActivityNotFoundException is a worse answer than a
-             screen that grants a permission Aster genuinely needs. -->
+        <!-- Companion face approval card. The ambient OpenAlly face Aster draws over
+             other apps is strictly DECORATIVE: a bare tap on it performs nothing
+             privileged, it lands here — a normal, tap-jacking-protected activity.
+             Launched in-process by CompanionFaceOverlay. -->
+        <activity
+            android:name=".ui.CompanionApprovalActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.Aster.Transparent" />
+
+        <!-- Draw-over-other-apps request, exported so OpenAlly can knock. OpenAlly holds
+             no SYSTEM_ALERT_WINDOW and an app may only ever request this permission for
+             ITSELF, so OpenAlly cannot ask on Aster's behalf — it launches this and
+             Aster asks for its own grant. -->
         <activity
             android:name=".ui.OverlayPermissionActivity"
             android:exported="true"

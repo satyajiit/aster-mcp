@@ -139,6 +139,9 @@ class AsterService : Service() {
     lateinit var toolExecutionOverlay: ToolExecutionOverlay
 
     @Inject
+    lateinit var companionFaceOverlay: com.aster.service.overlay.CompanionFaceOverlay
+
+    @Inject
     lateinit var killSwitchController: com.aster.service.safety.KillSwitchController
 
     @Inject
@@ -281,6 +284,10 @@ class AsterService : Service() {
         smsBroadcastReceiver = null
 
         toolExecutionOverlay.detach()
+        // The companion face is a projection of a live OpenAlly session. This service
+        // going down means the process that feeds it is on its way out, so take the
+        // window with it rather than leaving a frozen face floating over the launcher.
+        companionFaceOverlay.hide()
         killSwitchController.detach()
         serviceScope.cancel()
         releaseWifiLock()
@@ -541,9 +548,14 @@ class AsterService : Service() {
                 "postTime" to JsonPrimitive(postTime)
             )
             forwardEvent("notification", data)
-            // The companion receives only app identity — never title or body. This
-            // lane outlived the companion FACE it was built for: OpenAlly's System
-            // Pulse power still reads it.
+            // Drive the notch in Aster's own foreground-service process first. The
+            // OpenAlly callback below is for app state/config UI; it may be suspended
+            // while the overlay must remain responsive.
+            companionFaceOverlay.onSystemPulse(
+                "notification",
+                mapOf("packageName" to packageName),
+            )
+            // The companion receives only app identity — never title or body.
             forwardEvent(
                 "companion_system_pulse",
                 mapOf(
@@ -554,6 +566,7 @@ class AsterService : Service() {
         }
 
         AsterAccessibilityService.onCompanionPulseEvent = { pulse ->
+            companionFaceOverlay.onSystemPulse(pulse.kind, pulse.values)
             val data = mutableMapOf<String, JsonElement>("kind" to JsonPrimitive(pulse.kind))
             pulse.values.forEach { (key, value) ->
                 data[key] = when (value) {
