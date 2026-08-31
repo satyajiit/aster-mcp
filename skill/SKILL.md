@@ -2,7 +2,7 @@
 name: aster
 version: 0.1.13
 description: Your AI CoPilot on Mobile — or give your AI its own phone. Make calls, send SMS, speak via TTS on speakerphone, automate UI, manage files, search media, and 40+ more tools via MCP. Open source, self-hosted, privacy-first.
-homepage: https://aster.theappstack.in
+homepage: https://aster.matterwardlabs.com
 metadata: {"aster":{"category":"device-control","requires":{"bins":["node"]},"mcp":{"type":"http","url":"http://localhost:5988/mcp"}}}
 ---
 
@@ -10,11 +10,11 @@ metadata: {"aster":{"category":"device-control","requires":{"bins":["node"]},"mc
 
 Your AI CoPilot for any Android device using MCP (Model Context Protocol) — or give your AI a dedicated phone and let it call, text, and act on its own. Fully open source and privacy-first — your data never leaves your network.
 
-**Website**: [aster.theappstack.in](https://aster.theappstack.in) | **GitHub**: [github.com/satyajiit/aster-mcp](https://github.com/satyajiit/aster-mcp)
+**Website**: [aster.matterwardlabs.com](https://aster.matterwardlabs.com) | **GitHub**: [github.com/satyajiit/aster-mcp](https://github.com/satyajiit/aster-mcp)
 
 ---
 
-For screenshots of the Android app and web dashboard, visit [aster.theappstack.in](https://aster.theappstack.in).
+For screenshots of the Android app and web dashboard, visit [aster.matterwardlabs.com](https://aster.matterwardlabs.com).
 
 ---
 
@@ -300,4 +300,4 @@ aster set-openclaw-callbacks  # Configure event forwarding to OpenClaw
 
 ---
 
-**Website**: [aster.theappstack.in](https://aster.theappstack.in) | **GitHub**: [github.com/satyajiit/aster-mcp](https://github.com/satyajiit/aster-mcp)
+**Website**: [aster.matterwardlabs.com](https://aster.matterwardlabs.com) | **GitHub**: [github.com/satyajiit/aster-mcp](https://github.com/satyajiit/aster-mcp)

@@ -36,7 +36,7 @@
 </p>
 
 <p align="center">
-  <a href="https://aster.theappstack.in">Website</a> &bull;
+  <a href="https://aster.matterwardlabs.com">Website</a> &bull;
   <a href="#installation">Installation</a> &bull;
   <a href="#connect-your-ai-assistant">Connect AI</a> &bull;
   <a href="#what-can-it-do">Features</a> &bull;
@@ -214,6 +214,6 @@ MIT
 ---
 
 <p align="center">
-  <a href="https://aster.theappstack.in">Website</a> &bull;
+  <a href="https://aster.matterwardlabs.com">Website</a> &bull;
   <a href="https://github.com/satyajiit/aster-mcp">GitHub</a>
 </p>
