@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -77,12 +78,30 @@ fun PermissionsScreen(
     // Permission states
     var permissionResult by remember { mutableStateOf(PermissionUtils.checkAllPermissions(context)) }
 
+    // Runtime permission launcher
+    val guidedFlowRef = remember { mutableStateOf<GuidedPermissionFlow?>(null) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        permissionResult = PermissionUtils.checkAllPermissions(context)
+        guidedFlowRef.value?.onRuntimeResult(context)
+    }
+
+    // "Ask all together" guided flow
+    val guidedFlow = remember {
+        GuidedPermissionFlow(
+            launchRuntime = { permissionLauncher.launch(it) },
+            launchSettings = { context.startActivity(it) }
+        ).also { guidedFlowRef.value = it }
+    }
+
     // Refresh when returning from system settings
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 permissionResult = PermissionUtils.checkAllPermissions(context)
+                guidedFlow.onResume(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -91,13 +110,6 @@ fun PermissionsScreen(
 
     // Check permissions on initial composition
     LaunchedEffect(Unit) {
-        permissionResult = PermissionUtils.checkAllPermissions(context)
-    }
-
-    // Runtime permission launcher
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { _ ->
         permissionResult = PermissionUtils.checkAllPermissions(context)
     }
 
@@ -129,6 +141,46 @@ fun PermissionsScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            if (!permissionResult.allGranted) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(colors.bg)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(colors.border.copy(alpha = 0.5f))
+                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        AsterButton(
+                            onClick = { guidedFlow.start(context) },
+                            text = if (guidedFlow.isRunning) "Continue in Settings…" else "Ask all together",
+                            variant = AsterButtonVariant.PRIMARY,
+                            enabled = !guidedFlow.isRunning,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            text = guidedFlow.currentStepLabel?.let { label ->
+                                val step = (guidedFlow.stepsDone + 1).coerceAtMost(guidedFlow.stepsTotal)
+                                "Step $step of ${guidedFlow.stepsTotal} — $label"
+                            } ?: "Grant everything in one guided flow instead of tapping each row.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textSubtle
+                        )
+                    }
+                }
+            }
         }
     ) { innerPadding ->
         Column(
@@ -412,7 +464,7 @@ fun PermissionsScreen(
                     modifier = Modifier.size(18.dp)
                 )
                 Text(
-                    text = "Tap each permission to grant access. Some permissions require manual enabling in system settings and cannot be requested directly.",
+                    text = "Tap each permission to grant access, or use “Ask all together” below to walk through everything in one go. Some permissions require manual enabling in system settings and cannot be requested directly.",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSubtle,
                     modifier = Modifier.weight(1f)

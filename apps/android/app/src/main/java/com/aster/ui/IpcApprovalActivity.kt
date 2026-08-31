@@ -50,6 +50,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -71,6 +72,7 @@ import com.aster.service.mode.ModeType
 import com.aster.ui.components.AsterButton
 import com.aster.ui.components.AsterButtonVariant
 import com.aster.ui.components.StatusBadge
+import com.aster.ui.screens.permissions.GuidedPermissionFlow
 import com.aster.ui.theme.AsterTheme
 import com.aster.util.PermissionCheckResult
 import com.aster.util.PermissionType
@@ -124,11 +126,13 @@ class IpcApprovalActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
 
                 // Refresh permissions when returning from system settings
+                val guidedFlowRef = remember { mutableStateOf<GuidedPermissionFlow?>(null) }
                 val lifecycleOwner = LocalLifecycleOwner.current
                 DisposableEffect(lifecycleOwner) {
                     val observer = LifecycleEventObserver { _, event ->
                         if (event == Lifecycle.Event.ON_RESUME) {
                             permissionResult = PermissionUtils.checkAllPermissions(this@IpcApprovalActivity)
+                            guidedFlowRef.value?.onResume(this@IpcApprovalActivity)
                         }
                     }
                     lifecycleOwner.lifecycle.addObserver(observer)
@@ -139,6 +143,14 @@ class IpcApprovalActivity : ComponentActivity() {
                     ActivityResultContracts.RequestMultiplePermissions()
                 ) { _ ->
                     permissionResult = PermissionUtils.checkAllPermissions(this@IpcApprovalActivity)
+                    guidedFlowRef.value?.onRuntimeResult(this@IpcApprovalActivity)
+                }
+
+                val guidedFlow = remember {
+                    GuidedPermissionFlow(
+                        launchRuntime = { runtimePermissionLauncher.launch(it) },
+                        launchSettings = { startActivity(it) }
+                    ).also { guidedFlowRef.value = it }
                 }
 
                 // Approval sheet
@@ -456,6 +468,34 @@ class IpcApprovalActivity : ComponentActivity() {
                                 Spacer(Modifier.height(20.dp))
 
                                 // Fixed footer
+                                if (currentResult?.allGranted != true) {
+                                    Button(
+                                        onClick = { guidedFlow.start(this@IpcApprovalActivity) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        enabled = !guidedFlow.isRunning,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    ) {
+                                        Text(
+                                            text = if (guidedFlow.isRunning) "Continue in Settings…" else "Ask all together",
+                                            modifier = Modifier.padding(vertical = 4.dp)
+                                        )
+                                    }
+
+                                    guidedFlow.currentStepLabel?.let { label ->
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(
+                                            text = "Step ${(guidedFlow.stepsDone + 1).coerceAtMost(guidedFlow.stepsTotal)} of ${guidedFlow.stepsTotal} — $label",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = colors.textSubtle
+                                        )
+                                    }
+
+                                    Spacer(Modifier.height(8.dp))
+                                }
+
                                 Button(
                                     onClick = {
                                         val result = PermissionUtils.checkAllPermissions(this@IpcApprovalActivity)
