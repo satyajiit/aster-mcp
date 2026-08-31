@@ -44,3 +44,6 @@ output.json
 *.db-shm
 *.db-wal
 .worktrees/
+
+# Local planning docs (not shipped)
+/planning/
