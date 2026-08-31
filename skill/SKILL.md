@@ -1,7 +1,7 @@
 ---
 name: aster
-version: 0.1.13
-description: Your AI CoPilot on Mobile — or give your AI its own phone. Make calls, send SMS, speak via TTS on speakerphone, automate UI, manage files, search media, and 40+ more tools via MCP. Open source, self-hosted, privacy-first.
+version: 0.1.14
+description: Your AI CoPilot on Mobile — or give your AI its own phone. Make calls, send SMS, speak via TTS on speakerphone, automate UI, manage files, search media — 49 tools via MCP. Open source, self-hosted, privacy-first.
 homepage: https://aster.matterwardlabs.com
 metadata: {"aster":{"category":"device-control","requires":{"bins":["node"]},"mcp":{"type":"http","url":"http://localhost:5988/mcp"}}}
 ---
@@ -300,4 +300,6 @@ aster set-openclaw-callbacks  # Configure event forwarding to OpenClaw
 
 ---
 
-**Website**: [aster.matterwardlabs.com](https://aster.matterwardlabs.com) | **GitHub**: [github.com/satyajiit/aster-mcp](https://github.com/satyajiit/aster-mcp)
+Aster is part of the [**OpenAlly**](https://openally.ai) platform — the OpenAlly app drives Aster fully on-device over IPC (Binder) mode.
+
+**Website**: [aster.matterwardlabs.com](https://aster.matterwardlabs.com) | **GitHub**: [github.com/satyajiit/aster-mcp](https://github.com/satyajiit/aster-mcp) | **OpenAlly**: [openally.ai](https://openally.ai)

@@ -19,7 +19,7 @@
         </p>
       </div>
 
-      <!-- Top row: 3 key pillars -->
+      <!-- Key pillars -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
         <div
           v-for="pillar in pillars"
@@ -179,6 +179,30 @@ const pillars = [
     iconBg: 'bg-amber-500/10',
     iconColor: 'text-amber-400',
     hoverBg: 'bg-gradient-to-br from-amber-500/[0.03] to-transparent',
+  },
+  {
+    icon: 'lucide:octagon-x',
+    title: 'Kill Switch',
+    description: 'While the AI controls the screen, a persistent STOP notification aborts the session with one tap.',
+    iconBg: 'bg-rose-500/10',
+    iconColor: 'text-rose-400',
+    hoverBg: 'bg-gradient-to-br from-rose-500/[0.03] to-transparent',
+  },
+  {
+    icon: 'lucide:shield-ban',
+    title: 'Fail-Closed App Policy',
+    description: 'Banking and payment apps are blocked from screen control by default. Unknown foreground app? Control is refused.',
+    iconBg: 'bg-red-500/10',
+    iconColor: 'text-red-400',
+    hoverBg: 'bg-gradient-to-br from-red-500/[0.03] to-transparent',
+  },
+  {
+    icon: 'lucide:folder-lock',
+    title: 'Owner-Approved Folders',
+    description: 'File access outside public storage is limited to directories you\'ve explicitly shared.',
+    iconBg: 'bg-lime-500/10',
+    iconColor: 'text-lime-400',
+    hoverBg: 'bg-gradient-to-br from-lime-500/[0.03] to-transparent',
   },
 ]
 

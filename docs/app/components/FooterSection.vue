@@ -49,15 +49,32 @@
             <Icon name="mdi:youtube" />
             YouTube
           </a>
+          <a
+            href="https://openally.ai"
+            target="_blank"
+            rel="noopener"
+            class="hover:text-aster transition-colors flex items-center gap-1.5"
+          >
+            <img src="/openally-mark.svg" alt="OpenAlly" class="w-4 h-4" />
+            OpenAlly
+          </a>
         </div>
       </div>
 
       <!-- Bottom -->
       <div class="mt-10 pt-6 border-t border-border-dim flex flex-col sm:flex-row items-center justify-between gap-4">
         <p class="text-xs text-text-tertiary">
-          MIT License &middot; Built with Nuxt, Vue & Tailwind CSS
+          MIT License &middot; A <a href="https://matterwardlabs.com" target="_blank" rel="noopener" class="hover:text-aster transition-colors">Matterward Labs</a> project &middot; Built with Nuxt, Vue & Tailwind CSS
         </p>
         <div class="flex items-center gap-4">
+          <a
+            href="https://openally.ai"
+            target="_blank"
+            rel="noopener"
+            class="text-xs text-text-tertiary hover:text-aster transition-colors"
+          >
+            OpenAlly.ai
+          </a>
           <a
             href="https://www.npmjs.com/package/aster-mcp"
             target="_blank"

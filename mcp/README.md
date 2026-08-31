@@ -16,7 +16,7 @@
   <a href="https://clawhub.ai/satyajit/aster"><img src="https://img.shields.io/badge/ClawHub-skill-purple?style=flat-square" alt="ClawHub" /></a>
   <a href="https://openclaw.ai"><img src="https://img.shields.io/badge/OpenClaw-compatible-orange?style=flat-square" alt="OpenClaw" /></a>
   <a href="https://github.com/satyajiit/aster-mcp"><img src="https://img.shields.io/github/stars/satyajiit/aster-mcp?style=flat-square" alt="GitHub stars" /></a>
-  <img src="https://img.shields.io/badge/40%2B-MCP_tools-2dd4bf?style=flat-square" alt="40+ MCP tools" />
+  <img src="https://img.shields.io/badge/49-MCP_tools-2dd4bf?style=flat-square" alt="49 MCP tools" />
   <img src="https://img.shields.io/badge/Android_7%2B-supported-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android 7+" />
   <img src="https://img.shields.io/badge/no_root-required-ff6b6b?style=flat-square" alt="No root required" />
   <img src="https://img.shields.io/badge/self--hosted-privacy_first-gold?style=flat-square" alt="Self-hosted" />
@@ -45,14 +45,16 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/aster_poster.png" alt="Aster — Your AI CoPilot on Mobile" width="100%" />
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/aster_poster.jpg" alt="Aster — Your AI CoPilot on Mobile" width="100%" />
 </p>
 
 ---
 
-Aster is an MCP server that bridges any Android device to AI assistants. Use it as your AI CoPilot on mobile &mdash; or give your AI a dedicated device and let it call you, text you, and act autonomously. Screenshots, UI automation, file management, notifications, media search, and 40+ tools &mdash; all through natural language. Fully open source and privacy-first.
+Aster is an MCP server that bridges any Android device to AI assistants. Use it as your AI CoPilot on mobile &mdash; or give your AI a dedicated device and let it call you, text you, and act autonomously. Screenshots, UI automation, file management, notifications, media search, and 49 tools &mdash; all through natural language. Fully open source and privacy-first.
 
 > **Built for [OpenClaw](https://openclaw.ai)** &mdash; works natively as a skill on OpenClaw, Moltbot, and Clawbot. Also supports Claude and any MCP-compatible client.
+
+**New in v1.3 → v1.7:** an animated **companion face overlay** (speech articulation + music reactivity), **App Automations** with an on-device recorder (taps *and* scrolls), a screen-control **kill switch** and fail-closed banking-app policy, an **on-device MCP server** and **IPC (Binder)** mode for same-device agents like [OpenAlly](https://openally.ai), owner-approved folder access, full contacts/installed-apps data, SMS date-window reads, and an **"Ask all together"** guided permission flow in the app.
 
 ## Web Dashboard
 
@@ -156,7 +158,8 @@ aster devices approve    # Approve a pending device
 aster devices reject     # Reject a device
 aster devices remove     # Remove a device
 
-aster set-openclaw-callbacks  # Configure proactive event forwarding
+aster set-event-forwarding    # Configure proactive event forwarding
+                              # (alias: aster set-openclaw-callbacks)
 ```
 
 ## Proactive Event Forwarding
@@ -167,13 +170,15 @@ Aster can push real-time events from the phone to your AI agent via webhook — 
 - **App notifications** — flight delays, delivery updates, ride arrivals — your AI knows instantly
 - **Device events** — device online/offline, new device pairing requests
 
-Works out of the box with **OpenClaw**, **ClawdBot**, and **MoltBot**. Configure via the dashboard at `/settings/openclaw` or CLI:
+Works out of the box with **OpenClaw**, **ClawdBot**, and **MoltBot**. Configure via the dashboard at `/settings/event-forwarding` or CLI:
 
 ```bash
-aster set-openclaw-callbacks
+aster set-event-forwarding
 ```
 
 ## Available MCP Tools
+
+**49 tools**, grouped by category:
 
 | Category | Tools |
 |----------|-------|
@@ -181,13 +186,17 @@ aster set-openclaw-callbacks
 | **Input** | `input_gesture`, `input_text`, `click_by_text`, `click_by_id` |
 | **Navigation** | `global_action`, `launch_intent` |
 | **Device** | `list_devices`, `get_device_info`, `get_battery`, `get_location` |
-| **Notifications** | `read_notifications`, `read_sms`, `send_sms`, `post_notification` |
-| **Files** | `list_files`, `read_file`, `write_file`, `delete_file` |
-| **Storage** | `analyze_storage`, `find_large_files`, `search_media` |
-| **Clipboard** | `get_clipboard`, `set_clipboard` |
+| **Notifications & SMS** | `read_notifications`, `read_sms`, `send_sms`, `post_notification` |
 | **Calls** | `make_call`, `make_call_with_voice` |
-| **Audio** | `speak_tts`, `play_audio`, `vibrate` |
-| **Apps** | `list_packages`, `execute_shell` (sandboxed, no root) |
+| **Contacts** | `search_contacts`, `list_contacts_full`, `delete_contacts` |
+| **Files** | `list_files`, `read_file`, `write_file`, `delete_file` |
+| **Storage & Media** | `analyze_storage`, `find_large_files`, `index_media_metadata`, `search_media` |
+| **Camera** | `take_photo`, `record_video` |
+| **Audio** | `speak_tts`, `play_audio`, `stop_audio`, `vibrate`, `get_volume`, `set_volume` |
+| **Clipboard** | `get_clipboard`, `set_clipboard` |
+| **Alarms** | `get_alarms`, `set_alarm`, `dismiss_alarm`, `delete_alarm` |
+| **UI overlay** | `show_overlay`, `show_toast` |
+| **Apps & shell** | `list_packages`, `list_installed_apps`, `execute_shell` (sandboxed, no root) |
 
 ## Security & Privacy
 
@@ -207,6 +216,14 @@ Aster is built with a security-first, privacy-first architecture:
 - Any Android device with Aster app installed (your phone or a dedicated AI device)
 - Device and server on same network (or [Tailscale](https://tailscale.com) for secure remote access)
 
+## OpenAlly
+
+<p align="center">
+  <a href="https://openally.ai"><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/openally-mark.svg" width="56" alt="OpenAlly" /></a>
+</p>
+
+Aster is the end-to-end device companion for [**OpenAlly.ai**](https://openally.ai) — the cross-platform AI agent platform. OpenAlly drives the phone fully on-device over Aster's IPC (Binder) mode: no server, no network, the complete 49-tool surface locally.
+
 ## License
 
 MIT
@@ -215,5 +232,6 @@ MIT
 
 <p align="center">
   <a href="https://aster.matterwardlabs.com">Website</a> &bull;
-  <a href="https://github.com/satyajiit/aster-mcp">GitHub</a>
+  <a href="https://github.com/satyajiit/aster-mcp">GitHub</a> &bull;
+  <a href="https://openally.ai">OpenAlly</a>
 </p>

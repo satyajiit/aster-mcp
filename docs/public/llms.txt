@@ -1,0 +1,54 @@
+# Aster
+
+> Aster connects any Android device to AI assistants via the Model Context Protocol (MCP). Use it as your AI CoPilot on mobile — or dedicate a spare Android phone to your AI and let it call, text, monitor notifications, and act on its own. 49 MCP tools. Open source (MIT), self-hosted, privacy-first: no telemetry, data stays on your network.
+
+Aster is two pieces: a self-hosted Node.js MCP server (npm: `aster-mcp`) and an Android companion app (no root required, Android 7+). The phone connects to the server over WebSocket; AI clients speak MCP over HTTP to the server. The app can also run fully standalone via an on-device MCP server (Ktor) or Android Binder IPC for same-device agents. Built by Matterward Labs; part of the OpenAlly platform.
+
+## Links
+
+- Website: https://aster.matterwardlabs.com
+- GitHub: https://github.com/satyajiit/aster-mcp
+- npm package: https://www.npmjs.com/package/aster-mcp
+- Android APK releases: https://github.com/satyajiit/aster-mcp/releases
+- ClawHub skill (OpenClaw / Moltbot / Clawbot): https://clawhub.ai/satyajit/aster
+- OpenAlly (the chat-with-your-agent app that drives Aster on-device): https://openally.ai
+
+## Install
+
+- Server: `npm install -g aster-mcp`, then `aster start`
+- Android app: install the APK from GitHub Releases, open it, enter the server address (ws://<server-ip>:5987)
+- MCP clients (Claude Code/Desktop, AnythingLLM, any MCP client): streamable HTTP endpoint at `http://<server-ip>:5988/mcp`
+- OpenClaw / Moltbot / Clawbot: `clawhub install aster`
+
+## Tools (49 total)
+
+- Screen: take_screenshot, get_screen_hierarchy, find_element
+- Input: input_gesture, input_text, click_by_text, click_by_id
+- Navigation: global_action, launch_intent
+- Device: list_devices, get_device_info, get_battery, get_location
+- Notifications & SMS: read_notifications, read_sms, send_sms, post_notification
+- Calls: make_call, make_call_with_voice (dial + speak TTS on speakerphone)
+- Contacts: search_contacts, list_contacts_full, delete_contacts
+- Files: list_files, read_file, write_file, delete_file
+- Storage & media: analyze_storage, find_large_files, index_media_metadata, search_media
+- Camera: take_photo, record_video
+- Audio: speak_tts, play_audio, stop_audio, vibrate, get_volume, set_volume
+- Clipboard: get_clipboard, set_clipboard
+- Alarms: get_alarms, set_alarm, dismiss_alarm, delete_alarm
+- UI overlay: show_overlay, show_toast
+- Apps & shell: list_packages, list_installed_apps, execute_shell (sandboxed, no root)
+
+## Key facts
+
+- Proactive event forwarding: pushes incoming SMS, app notifications, and device events to your agent via webhook (off by default; `aster set-event-forwarding`)
+- Connection modes: Remote WebSocket (default), on-device Local MCP server (Ktor, default port 8080), IPC/Binder for same-device agents
+- Safety: device approval gate (pending → approved), on-screen kill switch during AI control, fail-closed package policy that blocks control of banking apps by default
+- Security: plain ws:// on trusted LAN; use Tailscale (auto-detected, `tailscale serve` TLS) for remote access; no telemetry, local SQLite storage
+- Ports: 5987 device WebSocket, 5988 API + MCP HTTP, 5989 web dashboard
+- Requirements: Node.js >= 20 (server), Android 7.0+ (app)
+
+## Machine-readable endpoints
+
+- Python runtime manifest: https://aster.matterwardlabs.com/runtimes/python/index.json
+- Whisper models manifest: https://aster.matterwardlabs.com/runtimes/whisper/index.json
+- Sitemap: https://aster.matterwardlabs.com/sitemap.xml

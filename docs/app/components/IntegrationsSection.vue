@@ -14,7 +14,7 @@
       </div>
 
       <!-- Client cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div
           v-for="client in clients"
           :key="client.name"
@@ -27,6 +27,23 @@
           <p class="text-xs text-text-tertiary leading-relaxed">{{ client.description }}</p>
         </div>
       </div>
+
+      <!-- OpenAlly highlight -->
+      <a
+        href="https://openally.ai"
+        target="_blank"
+        rel="noopener"
+        class="group flex flex-col sm:flex-row items-center gap-4 p-5 rounded-2xl bg-surface-raised border border-aster/20 hover:border-aster/40 transition-all mb-12"
+      >
+        <img src="/openally-mark.svg" alt="OpenAlly" class="w-10 h-10 flex-shrink-0" />
+        <div class="text-center sm:text-left">
+          <h3 class="text-sm font-semibold text-text-primary mb-1">OpenAlly — zero-setup, fully on-device</h3>
+          <p class="text-xs text-text-tertiary leading-relaxed">
+            The <span class="text-aster">OpenAlly.ai</span> app drives Aster directly over Android Binder IPC: no server, no network, the full 49-tool surface locally. Install both, approve the handshake once, done.
+          </p>
+        </div>
+        <Icon name="lucide:arrow-up-right" class="text-aster/60 group-hover:text-aster transition-colors ml-auto hidden sm:block" />
+      </a>
 
       <!-- Install methods -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://aster.matterwardlabs.com"><img src="https://img.shields.io/badge/website-aster.matterwardlabs.com-2dd4bf?style=flat-square" alt="Website" /></a>
   <a href="https://www.npmjs.com/package/aster-mcp"><img src="https://img.shields.io/npm/v/aster-mcp?style=flat-square&color=blue" alt="npm version" /></a>
   <a href="https://www.npmjs.com/package/aster-mcp"><img src="https://img.shields.io/npm/dm/aster-mcp?style=flat-square&color=green" alt="npm downloads" /></a>
   <a href="https://github.com/satyajiit/aster-mcp/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" /></a>
@@ -34,6 +35,7 @@
 </p>
 
 <p align="center">
+  <a href="https://aster.matterwardlabs.com">Website</a> •
   <a href="#features">Features</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#usage">Usage</a> •
@@ -41,8 +43,11 @@
   <a href="#mcp-tools">MCP Tools</a>
 </p>
 
+<!-- TODO: record a 20-30s demo (dashboard + an AI prompt driving the phone) and embed it here as assets/demo.gif -->
+
+
 <p align="center">
-  <img src="./assets/aster_poster.png" alt="Aster — Your AI CoPilot on Mobile" width="100%" />
+  <img src="./assets/aster_poster.jpg" alt="Aster — Your AI CoPilot on Mobile" width="100%" />
 </p>
 
 ---
@@ -60,7 +65,17 @@
 </p>
 
 <p align="center">
-  <sub>Connection Setup &nbsp;&bull;&nbsp; Device Dashboard &nbsp;&bull;&nbsp; Services & Activity Log &nbsp;&bull;&nbsp; Permissions</sub>
+  <sub>Connection Setup &nbsp;&bull;&nbsp; Device Dashboard &nbsp;&bull;&nbsp; Tool Call Logs &nbsp;&bull;&nbsp; Permissions ("Ask all together")</sub>
+</p>
+
+<p align="center">
+  <img src="./apps/android/screenshots/companion-overlay.jpg" width="200" alt="Companion Face Overlay" />
+  &nbsp;&nbsp;
+  <img src="./apps/android/screenshots/on-device-mcp.jpg" width="200" alt="On-device MCP Server" />
+</p>
+
+<p align="center">
+  <sub>Companion Face Overlay &nbsp;&bull;&nbsp; On-device MCP Server (Local MCP mode)</sub>
 </p>
 
 ## Features
@@ -75,6 +90,22 @@
 - **Camera & Video** — Take photos or record video remotely — pet cam, baby monitor, security checks
 - **Proactive Events** — Your AI reacts to incoming SMS, notifications, and device events in real-time via webhooks
 - **AI's Own Phone** — Dedicate a spare Android to your AI. It monitors, calls, texts, and acts on its own
+- **App Automations** — Record a flow on-device (taps, text, scrolls) with the recording overlay, replay it as an automation
+- **Companion Face** — An animated on-screen companion that talks along with TTS and reacts to your music, built on a privacy-focused event classifier
+- **Safety Rails** — A persistent kill-switch notification while the AI controls the screen, and a fail-closed package policy that blocks control of banking apps by default
+
+## What's new
+
+The last few releases (v1.3 → v1.7) added a lot:
+
+- **Companion face overlay** — an animated companion with speech articulation and music reactivity (`get_now_playing`), driven by a pulse classifier that keeps raw accessibility events on-device
+- **App Automations** — interactive overlay support plus an on-device recorder that captures taps *and scroll steps* for replay
+- **Screen-control kill switch** + **PackagePolicyGuard** — a STOP notification during control sessions and a fail-closed denylist for financial apps
+- **Two connection modes beyond the server**: on-device **MCP server** (Ktor, Streamable HTTP) and **IPC (Binder)** for same-device agents like [OpenAlly](https://openally.ai)
+- **Owner-approved folders** — the AI can read/list only directories you've explicitly shared
+- **Deeper device data** — full contacts paging, installed apps with icons, SMS date-window reads and `count_sms`
+- **Multi-window observation** — a two-bucket element budget so dialogs and split-screen apps are seen correctly, with a guaranteed reading order
+- **"Ask all together"** — one tap on the Permissions screen walks every remaining grant in a guided flow
 
 ## Web Dashboard
 
@@ -154,7 +185,8 @@ aster devices approve    # Approve a pending device
 aster devices reject     # Reject a device
 aster devices remove     # Remove a device
 
-aster set-openclaw-callbacks  # Configure proactive event forwarding
+aster set-event-forwarding    # Configure proactive event forwarding
+                              # (alias: aster set-openclaw-callbacks)
 ```
 
 ### Status & Health Checks
@@ -206,7 +238,7 @@ Aster can push real-time events from the phone to your AI agent via webhook. You
 Works out of the box with **OpenClaw**, **ClawdBot**, and **MoltBot**. Configure via dashboard or CLI:
 
 ```bash
-aster set-openclaw-callbacks
+aster set-event-forwarding
 ```
 
 ## Integrations
@@ -239,6 +271,19 @@ Or add manually to your OpenClaw/Moltbot/Clawbot skills directory and configure 
 ### Any MCP-Compatible Client
 
 Aster exposes a standard MCP HTTP endpoint at `http://localhost:5988/mcp` that works with any MCP-compatible AI client.
+
+### Which URL goes where (topologies)
+
+The most common setup mistake is pasting the wrong port into the wrong app. Rule of thumb: **`:5987` is for the phone, `:5988/mcp` is for your AI client, `:5989` is the dashboard in your browser.**
+
+| Topology | `aster` server runs on | Android app connects to | MCP client connects to |
+|---|---|---|---|
+| Same machine *(recommended)* | your PC / Mac / NAS | `ws://<pc-ip>:5987` | `http://localhost:5988/mcp` |
+| LAN, separate machines | PC / Mac / NAS | `ws://<server-lan-ip>:5987` | `http://<server-lan-ip>:5988/mcp` |
+| Tailscale | any tailnet box | `wss://<magicdns>` (via `tailscale serve`) or `ws://<ts-ip>:5987` | `http://<ts-ip>:5988/mcp` |
+| Everything on the phone | — none needed | n/a | Use the app's **Local MCP Server** mode (see [Connection Modes](#connection-modes)) and point the client at `http://<phone-ip>:8080/mcp` |
+
+Running the npm server itself inside Termux on the phone is untested and unsupported — the Local MCP mode exists precisely so you don't have to.
 
 ## MCP Tools
 
@@ -321,7 +366,7 @@ Because there's no shared secret, **any client on the network that knows the por
 - **No telemetry, no analytics, no tracking.** None. (Grep the source if you don't believe us.)
 - Devices, logs, and the registry live in a **local SQLite file** (`./aster.db`).
 - The AI/MCP client pulls data over the **local** MCP HTTP endpoint — the server and device are on your network.
-- The **only** outbound call is the *optional* event-forwarding webhook, which is **off** unless you run `aster set-openclaw-callbacks`. Even then it POSTs to **an endpoint you specify** (default `http://localhost:18789`) — never a vendor server.
+- The **only** outbound call is the *optional* event-forwarding webhook, which is **off** unless you run `aster set-event-forwarding`. Even then it POSTs to **an endpoint you specify** (default `http://localhost:18789`) — never a vendor server.
 
 ### Android permissions — and why each one
 
@@ -423,6 +468,12 @@ The device needs <code>5987</code>; your AI client needs <code>5988</code>. Allo
 </details>
 
 <details>
+<summary><strong>Why doesn't Aster have a chat screen?</strong></summary>
+<br>
+On purpose. Aster is the device-side <em>companion</em> that holds the sensitive permissions, so it stays small and auditable — no LLM providers, API keys, or conversation storage inside the permission-holder app. The chat-with-your-agent app is <a href="https://openally.ai">OpenAlly</a>, which drives Aster on-device over <a href="#connection-modes">IPC (Binder) mode</a> — no app-switching in practice: you chat in OpenAlly, Aster does the device work. Any other MCP client (Claude, AnythingLLM, OpenClaw...) reaches the same tools via the server or the Local MCP mode.
+</details>
+
+<details>
 <summary><strong>How do I check the server is reachable programmatically?</strong></summary>
 <br>
 Hit the health endpoint: <code>curl http://localhost:5988/api/health</code> -> <code>{ "status": "ok", "timestamp": ... }</code>. For device counts, <code>GET /api/stats</code>; for a human-readable snapshot, <code>aster status</code>. See <a href="#status--health-checks">Status &amp; Health Checks</a>.
@@ -478,6 +529,13 @@ A tool is a **server-side triad + one device handler**:
 Aster automatically detects Tailscale and displays your Tailscale IP for easy remote connections without port forwarding. Perfect for a dedicated AI phone that stays plugged in at home while you're away.
 
 ## OpenAlly.ai
+
+<p align="center">
+  <a href="https://openally.ai"><img src="./assets/openally-mark.svg" width="64" alt="OpenAlly" /></a>
+</p>
+<p align="center">
+  <a href="https://openally.ai"><strong>OpenAlly.ai</strong></a> — the cross-platform AI agent platform Aster was built alongside.
+</p>
 
 Aster also ships as the **end-to-end companion** for the [**OpenAlly.ai**](https://openally.ai) app. OpenAlly drives the phone entirely on-device through Aster's [IPC (Binder) mode](#connection-modes) — no server, no network, nothing leaves the device. It works **out of the box**: install both, approve the on-device handshake once, and OpenAlly has the full 49-tool surface locally.
 

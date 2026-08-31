@@ -90,8 +90,10 @@ const tabs = [
 const appScreenshots = [
   { src: '/screenshots/app/connection-setup.jpg', label: 'Connection Setup' },
   { src: '/screenshots/app/device-dashboard.jpg', label: 'Device Dashboard' },
-  { src: '/screenshots/app/services-logs.jpg', label: 'Services & Logs' },
+  { src: '/screenshots/app/services-logs.jpg', label: 'Tool Call Logs' },
   { src: '/screenshots/app/permissions.jpg', label: 'Permissions' },
+  { src: '/screenshots/app/companion-overlay.jpg', label: 'Companion Face' },
+  { src: '/screenshots/app/on-device-mcp.jpg', label: 'On-device MCP' },
 ]
 
 const dashboardScreenshots = [

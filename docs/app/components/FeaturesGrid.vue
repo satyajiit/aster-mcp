@@ -5,7 +5,7 @@
       <div class="text-center mb-16">
         <span class="text-xs font-semibold uppercase tracking-[0.2em] text-aster mb-4 block">Capabilities</span>
         <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-primary">
-          40+ tools. Your phone or theirs.
+          49 tools. Your phone or theirs.
         </h2>
         <p class="mt-4 text-text-secondary max-w-xl mx-auto">
           Screen control, file management, media intelligence, calls, SMS, and device automation &mdash; whether it's your CoPilot on mobile or your AI is running its own phone.
@@ -85,6 +85,42 @@ const features = [
     title: 'Camera & Video',
     description: 'Take photos or record video remotely. Pet cam, home security, package delivery — your AI\'s eyes are always on.',
     accent: 'from-orange-400 to-red-400',
+  },
+  {
+    icon: 'lucide:smile',
+    title: 'Companion Face',
+    description: 'An animated on-screen companion that talks along with TTS and reacts to your music — built on a privacy-focused pulse classifier.',
+    accent: 'from-pink-400 to-rose-400',
+  },
+  {
+    icon: 'lucide:clapperboard',
+    title: 'App Automations',
+    description: 'Record a flow on-device — taps, text, even scrolls — with the recording overlay, then let your AI replay it as an automation.',
+    accent: 'from-cyan-400 to-sky-400',
+  },
+  {
+    icon: 'lucide:shield-alert',
+    title: 'Safety Rails',
+    description: 'A persistent kill-switch notification while the AI controls the screen, and a fail-closed policy that blocks banking apps by default.',
+    accent: 'from-red-400 to-rose-400',
+  },
+  {
+    icon: 'lucide:folder-lock',
+    title: 'Owner-Approved Folders',
+    description: 'Share exactly the directories you choose — the AI reads and lists only folders you\'ve explicitly approved.',
+    accent: 'from-lime-400 to-green-400',
+  },
+  {
+    icon: 'lucide:cable',
+    title: 'Three Connection Modes',
+    description: 'Remote WebSocket server, on-device MCP server (Ktor), or zero-network Binder IPC for same-device agents like OpenAlly.',
+    accent: 'from-indigo-400 to-violet-400',
+  },
+  {
+    icon: 'lucide:hand-metal',
+    title: '"Ask All Together"',
+    description: 'One tap on the Permissions screen batches every runtime permission and walks each special-access grant in a guided flow.',
+    accent: 'from-yellow-400 to-amber-400',
   },
 ]
 </script>

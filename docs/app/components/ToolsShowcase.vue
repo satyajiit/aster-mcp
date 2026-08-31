@@ -6,7 +6,7 @@
       <div class="text-center mb-16">
         <span class="text-xs font-semibold uppercase tracking-[0.2em] text-aster mb-4 block">MCP Tools</span>
         <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-primary">
-          40+ tools at your AI's fingertips
+          49 tools at your AI's fingertips
         </h2>
         <p class="mt-4 text-text-secondary max-w-xl mx-auto">
           Every tool is exposed via the Model Context Protocol &mdash; compatible with Claude, OpenClaw, and any MCP client.
@@ -56,11 +56,10 @@ const categories = [
       'input_text',
       'click_by_text',
       'click_by_id',
-      'scroll',
     ],
   },
   {
-    name: 'Navigation & System',
+    name: 'Navigation & Apps',
     icon: 'lucide:compass',
     bg: 'bg-violet-500/10',
     color: 'text-violet-400',
@@ -68,8 +67,8 @@ const categories = [
       'global_action',
       'launch_intent',
       'list_packages',
+      'list_installed_apps',
       'execute_shell',
-      'get_device_info',
     ],
   },
   {
@@ -87,13 +86,15 @@ const categories = [
     ],
   },
   {
-    name: 'Media & Search',
+    name: 'Media & Camera',
     icon: 'lucide:image',
     bg: 'bg-rose-500/10',
     color: 'text-rose-400',
     tools: [
       'search_media',
       'index_media_metadata',
+      'take_photo',
+      'record_video',
     ],
   },
   {
@@ -108,23 +109,51 @@ const categories = [
       'post_notification',
       'make_call',
       'make_call_with_voice',
-      'show_toast',
     ],
   },
   {
-    name: 'Device Sensors',
-    icon: 'lucide:cpu',
+    name: 'Contacts',
+    icon: 'lucide:users',
+    bg: 'bg-teal-500/10',
+    color: 'text-teal-400',
+    tools: [
+      'search_contacts',
+      'list_contacts_full',
+      'delete_contacts',
+    ],
+  },
+  {
+    name: 'Audio & Alarms',
+    icon: 'lucide:volume-2',
     bg: 'bg-green-500/10',
     color: 'text-green-400',
     tools: [
+      'speak_tts',
+      'play_audio',
+      'stop_audio',
+      'vibrate',
+      'get_volume',
+      'set_volume',
+      'get_alarms',
+      'set_alarm',
+      'dismiss_alarm',
+      'delete_alarm',
+    ],
+  },
+  {
+    name: 'Device & UI',
+    icon: 'lucide:cpu',
+    bg: 'bg-cyan-500/10',
+    color: 'text-cyan-400',
+    tools: [
+      'list_devices',
+      'get_device_info',
       'get_battery',
       'get_location',
       'get_clipboard',
       'set_clipboard',
-      'speak_tts',
-      'play_audio',
-      'vibrate',
       'show_overlay',
+      'show_toast',
     ],
   },
 ]

@@ -20,7 +20,7 @@ export default defineNuxtConfig({
       htmlAttrs: { lang: 'en' },
       meta: [
         // Primary meta
-        { name: 'description', content: 'Aster connects any Android device to AI assistants via MCP. Your AI CoPilot on mobile — or give your AI a dedicated device and let it call, text, and act on its own. 40+ tools, open source, self-hosted.' },
+        { name: 'description', content: 'Aster connects any Android device to AI assistants via MCP. Your AI CoPilot on mobile — or give your AI a dedicated device and let it call, text, and act on its own. 49 tools, open source, self-hosted.' },
         { name: 'keywords', content: 'aster, android ai copilot, mcp server, model context protocol, ai phone, ai assistant android, claude android, openclaw, clawdbot, moltbot, clawbot, clawhub, ai automation, ai copilot mobile, give ai a phone, ai own phone, natural language android, ai calls you, ai own device' },
         { name: 'author', content: 'Satyajit Pradhan' },
         { name: 'robots', content: 'index, follow' },
@@ -30,16 +30,16 @@ export default defineNuxtConfig({
         { property: 'og:type', content: 'website' },
         { property: 'og:site_name', content: 'Aster' },
         { property: 'og:title', content: 'Aster — Your AI CoPilot on Mobile or Give Your AI Its Own Phone' },
-        { property: 'og:description', content: 'Connect any Android to AI assistants like Claude, OpenClaw, or MoltBot. Your AI CoPilot on mobile — or give your AI a dedicated device that calls, texts, and acts for you. Open source, self-hosted, 40+ MCP tools.' },
-        { property: 'og:image', content: 'https://aster.matterwardlabs.com/logo.png' },
+        { property: 'og:description', content: 'Connect any Android to AI assistants like Claude, OpenClaw, or MoltBot. Your AI CoPilot on mobile — or give your AI a dedicated device that calls, texts, and acts for you. Open source, self-hosted, 49 MCP tools.' },
+        { property: 'og:image', content: 'https://aster.matterwardlabs.com/og-card.png' },
         { property: 'og:url', content: 'https://aster.matterwardlabs.com' },
         { property: 'og:locale', content: 'en_US' },
 
         // Twitter Card
         { name: 'twitter:card', content: 'summary_large_image' },
         { name: 'twitter:title', content: 'Aster — Your AI CoPilot on Mobile or Give Your AI Its Own Phone' },
-        { name: 'twitter:description', content: 'Connect any Android to AI assistants. Your AI CoPilot on mobile — or give your AI a dedicated device. 40+ tools, open source, self-hosted.' },
-        { name: 'twitter:image', content: 'https://aster.matterwardlabs.com/logo.png' },
+        { name: 'twitter:description', content: 'Connect any Android to AI assistants. Your AI CoPilot on mobile — or give your AI a dedicated device. 49 tools, open source, self-hosted.' },
+        { name: 'twitter:image', content: 'https://aster.matterwardlabs.com/og-card.png' },
       ],
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
@@ -62,9 +62,8 @@ export default defineNuxtConfig({
             offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
             author: { '@type': 'Person', name: 'Satyajit Pradhan', url: 'https://github.com/satyajiit' },
             license: 'https://opensource.org/licenses/MIT',
-            softwareVersion: '0.1.10',
             downloadUrl: 'https://www.npmjs.com/package/aster-mcp',
-            screenshot: 'https://aster.matterwardlabs.com/logo.png',
+            screenshot: 'https://aster.matterwardlabs.com/screenshots/app/device-dashboard.jpg',
           }),
         },
       ],
