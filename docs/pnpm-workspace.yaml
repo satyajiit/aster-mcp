@@ -1,0 +1,9 @@
+packages:
+  - .
+
+overrides:
+  confbox: 0.2.1
+
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true

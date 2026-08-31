@@ -25,6 +25,10 @@
   "pnpm": {
     "overrides": {
       "confbox": "0.2.1"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "esbuild"
+    ]
   }
 }
