@@ -55,23 +55,41 @@
 **Aster** bridges any Android device to AI assistants like Claude through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). Use it as your AI CoPilot on mobile — or plug a spare Android into a charger, install Aster, and give your AI its own device. It can call you, text you, monitor notifications, and act on its own. Screenshots, UI automation, file management, media search, and 49 tools — all through natural language.
 
 <p align="center">
-  <img src="./apps/android/screenshots/connection-setup.jpg" width="200" alt="Connection Setup" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./apps/android/screenshots/light/connection-setup.jpg">
+    <img src="./apps/android/screenshots/connection-setup.jpg" width="200" alt="Connection Setup" />
+  </picture>
   &nbsp;&nbsp;
-  <img src="./apps/android/screenshots/device-dashboard.jpg" width="200" alt="Device Dashboard" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./apps/android/screenshots/light/device-dashboard.jpg">
+    <img src="./apps/android/screenshots/device-dashboard.jpg" width="200" alt="Device Dashboard" />
+  </picture>
   &nbsp;&nbsp;
-  <img src="./apps/android/screenshots/services-logs.jpg" width="200" alt="Services & Logs" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./apps/android/screenshots/light/services-logs.jpg">
+    <img src="./apps/android/screenshots/services-logs.jpg" width="200" alt="Services & Logs" />
+  </picture>
   &nbsp;&nbsp;
-  <img src="./apps/android/screenshots/permissions.jpg" width="200" alt="Permissions" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./apps/android/screenshots/light/permissions.jpg">
+    <img src="./apps/android/screenshots/permissions.jpg" width="200" alt="Permissions" />
+  </picture>
 </p>
 
 <p align="center">
-  <sub>Connection Setup &nbsp;&bull;&nbsp; Device Dashboard &nbsp;&bull;&nbsp; Tool Call Logs &nbsp;&bull;&nbsp; Permissions ("Ask all together")</sub>
+  <sub>Connection Setup &nbsp;&bull;&nbsp; Device Dashboard &nbsp;&bull;&nbsp; Tool Call Logs &nbsp;&bull;&nbsp; Permissions ("Ask all together") &nbsp;&bull;&nbsp; <em>screenshots follow your GitHub theme — the app ships both</em></sub>
 </p>
 
 <p align="center">
-  <img src="./apps/android/screenshots/companion-overlay.jpg" width="200" alt="Companion Face Overlay" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./apps/android/screenshots/light/companion-overlay.jpg">
+    <img src="./apps/android/screenshots/companion-overlay.jpg" width="200" alt="Companion Face Overlay" />
+  </picture>
   &nbsp;&nbsp;
-  <img src="./apps/android/screenshots/on-device-mcp.jpg" width="200" alt="On-device MCP Server" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./apps/android/screenshots/light/on-device-mcp.jpg">
+    <img src="./apps/android/screenshots/on-device-mcp.jpg" width="200" alt="On-device MCP Server" />
+  </picture>
 </p>
 
 <p align="center">

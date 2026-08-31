@@ -34,15 +34,30 @@
       <!-- Android App Screenshots -->
       <Transition name="tab" mode="out-in">
         <div v-if="activeTab === 'app'" key="app">
+          <!-- Theme switcher -->
+          <div class="flex items-center justify-center gap-2 mb-8">
+            <button
+              v-for="theme in themes"
+              :key="theme.id"
+              class="px-4 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-[0.1em] border transition-all duration-300"
+              :class="appTheme === theme.id
+                ? 'bg-aster/10 border-aster/30 text-aster'
+                : 'border-border-dim text-text-tertiary hover:text-text-secondary hover:border-border-subtle'"
+              @click="appTheme = theme.id"
+            >
+              <Icon :name="theme.icon" class="inline mr-1 text-xs" />
+              {{ theme.label }}
+            </button>
+          </div>
           <div class="flex justify-start sm:justify-center gap-4 sm:gap-6 overflow-x-auto pb-4 sm:pb-0 sm:overflow-x-visible snap-x snap-mandatory">
             <div
               v-for="shot in appScreenshots"
-              :key="shot.src"
+              :key="appTheme + shot.src"
               class="screenshot-card group relative rounded-2xl overflow-hidden border border-border-dim bg-surface-raised/60 backdrop-blur-sm hover:border-aster/20 transition-all duration-500 flex-shrink-0 snap-center"
               style="width: 180px;"
             >
               <img
-                :src="shot.src"
+                :src="appTheme === 'light' ? shot.src.replace('/app/', '/app/light/') : shot.src"
                 :alt="shot.label"
                 class="w-full h-auto block transition-transform duration-500 group-hover:scale-[1.02]"
                 loading="lazy"
@@ -81,10 +96,16 @@
 
 <script setup lang="ts">
 const activeTab = ref('app')
+const appTheme = ref('dark')
 
 const tabs = [
   { id: 'app', label: 'Android App', icon: 'lucide:smartphone' },
   { id: 'dashboard', label: 'Web Dashboard', icon: 'lucide:monitor' },
+]
+
+const themes = [
+  { id: 'dark', label: 'Dark', icon: 'lucide:moon' },
+  { id: 'light', label: 'Light', icon: 'lucide:sun' },
 ]
 
 const appScreenshots = [
