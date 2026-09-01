@@ -1,0 +1,81 @@
+name: Release APK
+
+# Manual only: releases are cut deliberately, never by a versionCode push.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version_name: ${{ steps.check.outputs.version_name }}
+      version_code: ${{ steps.check.outputs.version_code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: check
+        run: |
+          CURRENT=$(grep 'versionCode' apps/android/app/build.gradle.kts | grep -oP '\d+')
+          VERSION_NAME=$(grep 'versionName' apps/android/app/build.gradle.kts | grep -oP '"[^"]+"' | tr -d '"')
+
+          echo "versionCode: $CURRENT"
+          echo "versionName: $VERSION_NAME"
+
+          if git rev-parse "v$VERSION_NAME" >/dev/null 2>&1; then
+            echo "Tag v$VERSION_NAME already exists — refusing to re-release." >&2
+            exit 1
+          fi
+
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$CURRENT" >> "$GITHUB_OUTPUT"
+
+  build-and-release:
+    needs: check-version
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    env:
+      VERSION_NAME: ${{ needs.check-version.outputs.version_name }}
+      VERSION_CODE: ${{ needs.check-version.outputs.version_code }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode keystore
+        run: echo "$KEYSTORE_B64" | base64 -d > apps/android/aster-release.jks
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+
+      - name: Build release APK
+        working-directory: apps/android
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/apps/android/aster-release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check-version.outputs.version_name }}
+          name: Aster v${{ needs.check-version.outputs.version_name }}
+          files: apps/android/app/build/outputs/apk/release/app-release.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
