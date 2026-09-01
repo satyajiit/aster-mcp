@@ -10,21 +10,28 @@ const isEditing = ref(false);
 const hasExistingConfig = ref(false);
 
 // Form fields
+const defaultEvents = {
+  notifications: true,
+  sms: true,
+  deviceConnected: true,
+  deviceDisconnected: true,
+  pairingRequired: true,
+  incomingCalls: true,
+};
+
 const form = reactive({
   enabled: true,
   endpoint: 'http://localhost:18789',
   webhookPath: '/hooks/agent',
   token: '',
+  channelType: 'openclaw' as 'openclaw' | 'mattermost',
   channel: 'whatsapp',
   deliverTo: '',
-  events: {
-    notifications: true,
-    sms: true,
-    deviceConnected: true,
-    deviceDisconnected: true,
-    pairingRequired: true,
-  },
+  events: { ...defaultEvents },
 });
+
+const isMattermost = computed(() => form.channelType === 'mattermost');
+const webhookDisplay = computed(() => `${form.endpoint}${form.webhookPath || ''}`);
 
 const configuredAt = ref<string | null>(null);
 const hasSourceToken = ref(false);
@@ -44,14 +51,22 @@ async function loadConfig() {
     if (data.config) {
       hasExistingConfig.value = true;
       form.enabled = data.config.enabled;
+      form.channelType = data.config.channelType === 'mattermost' ? 'mattermost' : 'openclaw';
       form.endpoint = data.config.endpoint;
       form.webhookPath = data.config.webhookPath;
-      form.channel = data.config.channel || 'whatsapp';
+      form.channel = form.channelType === 'mattermost'
+        ? (data.config.channel || '')
+        : (data.config.channel || 'whatsapp');
       form.deliverTo = data.config.deliverTo || '';
-      form.events = data.config.events;
+      // Merge so older JSON without incomingCalls does not leave the checkbox undefined.
+      form.events = { ...defaultEvents, ...data.config.events };
       configuredAt.value = data.config.configuredAt;
       // Token is masked from server — keep field empty unless editing
       form.token = '';
+      if (form.channelType === 'mattermost' && form.webhookPath) {
+        form.endpoint = `${form.endpoint}${form.webhookPath}`;
+        form.webhookPath = '';
+      }
     } else {
       isEditing.value = true;
       // Pre-fill token from source if available
@@ -82,8 +97,14 @@ async function handleTest() {
   testing.value = true;
   testResult.value = null;
   try {
-    // Server falls back to saved token when empty
-    testResult.value = await api.testAgentEventForwardingConnection(form.endpoint, form.webhookPath, form.token || undefined);
+    // Server falls back to saved token when empty; probe follows the active channel.
+    testResult.value = await api.testAgentEventForwardingConnection(
+      form.endpoint,
+      form.webhookPath,
+      form.token || undefined,
+      form.channelType,
+      form.channel,
+    );
   } catch (err: any) {
     testResult.value = { success: false, error: err.message };
   } finally {
@@ -99,8 +120,9 @@ async function handleSave() {
     await api.saveAgentEventForwardingConfig({
       enabled: form.enabled,
       endpoint: form.endpoint,
-      webhookPath: form.webhookPath,
+      webhookPath: form.channelType === 'mattermost' ? (form.webhookPath || '') : form.webhookPath,
       token: form.token,
+      channelType: form.channelType,
       channel: form.channel,
       deliverTo: form.deliverTo,
       events: form.events,
@@ -118,6 +140,22 @@ async function handleSave() {
     testResult.value = { success: false, error: `Save failed: ${err.message}` };
   } finally {
     saving.value = false;
+  }
+}
+
+function onChannelTypeChange() {
+  if (form.channelType === 'mattermost') {
+    if (form.webhookPath) {
+      form.endpoint = `${form.endpoint}${form.webhookPath}`;
+      form.webhookPath = '';
+    }
+    if (form.channel === 'whatsapp' || form.channel === 'telegram') {
+      form.channel = '';
+    }
+  } else {
+    if (!form.channel) form.channel = 'whatsapp';
+    if (!form.webhookPath) form.webhookPath = '/hooks/agent';
+    if (!form.endpoint) form.endpoint = 'http://localhost:18789';
   }
 }
 
@@ -174,9 +212,9 @@ function formatDate(iso: string): string {
           <div class="flex items-start gap-3">
             <span class="text-primary text-lg mt-0.5">&#9432;</span>
             <div class="text-[12px] text-terminal-muted leading-relaxed">
-              Forward device events (notifications, SMS) to an OpenClaw webhook in real-time.
-              When your phone receives a notification or SMS, Aster will POST it to OpenClaw
-              so Claude can react proactively.
+              Forward device events (notifications, SMS, incoming calls) to OpenClaw or a
+              Mattermost incoming webhook in real-time. When your phone receives an event,
+              Aster POSTs it so your agent can react proactively.
             </div>
           </div>
         </div>
@@ -200,29 +238,45 @@ function formatDate(iso: string): string {
             <!-- Config Details -->
             <div class="grid grid-cols-2 gap-4">
               <div class="config-field">
-                <div class="config-label">Endpoint</div>
-                <div class="config-value">{{ form.endpoint }}</div>
-              </div>
-              <div class="config-field">
-                <div class="config-label">Webhook Path</div>
-                <div class="config-value">{{ form.webhookPath }}</div>
-              </div>
-              <div class="config-field">
-                <div class="config-label">Token</div>
-                <div class="config-value text-terminal-dim">Configured</div>
+                <div class="config-label">Channel Type</div>
+                <div class="config-value">{{ isMattermost ? 'Mattermost' : 'OpenClaw' }}</div>
               </div>
               <div class="config-field">
                 <div class="config-label">Configured At</div>
                 <div class="config-value">{{ configuredAt ? formatDate(configuredAt) : '-' }}</div>
               </div>
-              <div class="config-field">
-                <div class="config-label">Delivery Channel</div>
-                <div class="config-value">{{ form.channel || '-' }}</div>
-              </div>
-              <div class="config-field">
-                <div class="config-label">Deliver To</div>
-                <div class="config-value">{{ form.deliverTo || 'Not set' }}</div>
-              </div>
+              <template v-if="!isMattermost">
+                <div class="config-field">
+                  <div class="config-label">Endpoint</div>
+                  <div class="config-value">{{ form.endpoint }}</div>
+                </div>
+                <div class="config-field">
+                  <div class="config-label">Webhook Path</div>
+                  <div class="config-value">{{ form.webhookPath }}</div>
+                </div>
+                <div class="config-field">
+                  <div class="config-label">Token</div>
+                  <div class="config-value text-terminal-dim">Configured</div>
+                </div>
+                <div class="config-field">
+                  <div class="config-label">OpenClaw Delivery Channel</div>
+                  <div class="config-value">{{ form.channel || '-' }}</div>
+                </div>
+                <div class="config-field">
+                  <div class="config-label">Deliver To</div>
+                  <div class="config-value">{{ form.deliverTo || 'Not set' }}</div>
+                </div>
+              </template>
+              <template v-else>
+                <div class="config-field">
+                  <div class="config-label">Incoming Webhook</div>
+                  <div class="config-value">{{ webhookDisplay }}</div>
+                </div>
+                <div class="config-field">
+                  <div class="config-label">Mattermost Channel</div>
+                  <div class="config-value">{{ form.channel || 'Webhook default' }}</div>
+                </div>
+              </template>
             </div>
 
             <!-- Events -->
@@ -244,6 +298,9 @@ function formatDate(iso: string): string {
                 <span class="badge" :class="form.events.pairingRequired ? 'badge-emerald' : 'badge-muted'">
                   Pairing Required {{ form.events.pairingRequired ? 'ON' : 'OFF' }}
                 </span>
+                <span class="badge" :class="form.events.incomingCalls ? 'badge-emerald' : 'badge-muted'">
+                  Incoming Calls {{ form.events.incomingCalls ? 'ON' : 'OFF' }}
+                </span>
               </div>
             </div>
           </div>
@@ -253,7 +310,7 @@ function formatDate(iso: string): string {
         <TerminalWindow v-if="isEditing" title="configure event forwarding" class="animate-fade-in">
           <div class="space-y-5">
             <!-- Token Pre-fill Notice -->
-            <div v-if="hasSourceToken && !form.token && !hasExistingConfig" class="flex items-center gap-3 p-3 rounded-sm" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2);">
+            <div v-if="hasSourceToken && !form.token && !hasExistingConfig && !isMattermost" class="flex items-center gap-3 p-3 rounded-sm" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2);">
               <span class="text-emerald text-sm">&#10003;</span>
               <span class="text-[11px] text-emerald">OpenClaw token detected from ~/.openclaw/openclaw.json</span>
               <button class="btn-terminal btn-terminal-success btn-terminal-sm ml-auto" @click="prefillToken">
@@ -265,7 +322,7 @@ function formatDate(iso: string): string {
             <div class="flex items-center justify-between">
               <div>
                 <div class="text-[12px] text-terminal-text font-semibold">Enable Event Forwarding</div>
-                <div class="text-[11px] text-terminal-dim mt-1">Forward notifications and SMS to OpenClaw</div>
+                <div class="text-[11px] text-terminal-dim mt-1">Forward notifications, SMS, and incoming calls to the selected channel</div>
               </div>
               <button
                 class="toggle-btn"
@@ -276,71 +333,106 @@ function formatDate(iso: string): string {
               </button>
             </div>
 
-            <div class="border-t border-terminal-border"></div>
-
-            <!-- Endpoint -->
             <div class="form-group">
-              <label class="form-label">Endpoint URL</label>
-              <input
-                v-model="form.endpoint"
-                type="text"
-                class="input-terminal"
-                placeholder="http://localhost:18789"
-              />
-            </div>
-
-            <!-- Webhook Path -->
-            <div class="form-group">
-              <label class="form-label">Webhook Path</label>
-              <input
-                v-model="form.webhookPath"
-                type="text"
-                class="input-terminal"
-                placeholder="/hooks/agent"
-              />
-            </div>
-
-            <!-- Token -->
-            <div class="form-group">
-              <label class="form-label">
-                Auth Token
-                <span v-if="hasExistingConfig" class="text-terminal-dim font-normal ml-2">(leave empty to keep current)</span>
-              </label>
-              <input
-                v-model="form.token"
-                type="password"
-                class="input-terminal"
-                :placeholder="hasExistingConfig ? 'Leave empty to keep existing token' : 'Paste your OpenClaw token'"
-              />
-              <div v-if="hasSourceToken && !form.token" class="mt-2">
-                <button class="text-[11px] text-primary hover:text-primary-bright transition-colors" @click="prefillToken">
-                  Auto-fill from ~/.openclaw/openclaw.json
-                </button>
-              </div>
-            </div>
-
-            <div class="border-t border-terminal-border"></div>
-
-            <!-- Delivery Settings -->
-            <div class="form-group">
-              <label class="form-label">Delivery Channel</label>
-              <select v-model="form.channel" class="input-terminal">
-                <option value="whatsapp">WhatsApp</option>
-                <option value="telegram">Telegram</option>
+              <label class="form-label">Channel Type</label>
+              <select v-model="form.channelType" class="input-terminal" @change="onChannelTypeChange">
+                <option value="openclaw">OpenClaw</option>
+                <option value="mattermost">Mattermost</option>
               </select>
-              <div class="text-[10px] text-terminal-dim mt-1">Channel used by OpenClaw to deliver event alerts to you</div>
+              <div class="text-[10px] text-terminal-dim mt-1">Where Aster POSTs device events</div>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Deliver To</label>
-              <input
-                v-model="form.deliverTo"
-                type="text"
-                class="input-terminal"
-                placeholder="+919876543210"
-              />
-              <div class="text-[10px] text-terminal-dim mt-1">Your phone number with country code (e.g. +91 for India, +1 for US) or email/username for the selected channel</div>
-            </div>
+            <div class="border-t border-terminal-border"></div>
+
+            <template v-if="!isMattermost">
+              <!-- Endpoint -->
+              <div class="form-group">
+                <label class="form-label">Endpoint URL</label>
+                <input
+                  v-model="form.endpoint"
+                  type="text"
+                  class="input-terminal"
+                  placeholder="http://localhost:18789"
+                />
+              </div>
+
+              <!-- Webhook Path -->
+              <div class="form-group">
+                <label class="form-label">Webhook Path</label>
+                <input
+                  v-model="form.webhookPath"
+                  type="text"
+                  class="input-terminal"
+                  placeholder="/hooks/agent"
+                />
+              </div>
+
+              <!-- Token -->
+              <div class="form-group">
+                <label class="form-label">
+                  Auth Token
+                  <span v-if="hasExistingConfig" class="text-terminal-dim font-normal ml-2">(leave empty to keep current)</span>
+                </label>
+                <input
+                  v-model="form.token"
+                  type="password"
+                  class="input-terminal"
+                  :placeholder="hasExistingConfig ? 'Leave empty to keep existing token' : 'Paste your OpenClaw token'"
+                />
+                <div v-if="hasSourceToken && !form.token" class="mt-2">
+                  <button class="text-[11px] text-primary hover:text-primary-bright transition-colors" @click="prefillToken">
+                    Auto-fill from ~/.openclaw/openclaw.json
+                  </button>
+                </div>
+              </div>
+
+              <div class="border-t border-terminal-border"></div>
+
+              <!-- Delivery Settings -->
+              <div class="form-group">
+                <label class="form-label">OpenClaw Delivery Channel</label>
+                <select v-model="form.channel" class="input-terminal">
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="telegram">Telegram</option>
+                </select>
+                <div class="text-[10px] text-terminal-dim mt-1">Channel used by OpenClaw to deliver event alerts to you</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Deliver To</label>
+                <input
+                  v-model="form.deliverTo"
+                  type="text"
+                  class="input-terminal"
+                  placeholder="+919876543210"
+                />
+                <div class="text-[10px] text-terminal-dim mt-1">Your phone number with country code (e.g. +91 for India, +1 for US) or email/username for the selected channel</div>
+              </div>
+            </template>
+
+            <template v-else>
+              <div class="form-group">
+                <label class="form-label">Incoming Webhook URL</label>
+                <input
+                  v-model="form.endpoint"
+                  type="text"
+                  class="input-terminal"
+                  placeholder="https://mattermost.example.com/hooks/xxxxxxxx"
+                />
+                <div class="text-[10px] text-terminal-dim mt-1">Mattermost incoming webhook URL. Token and OpenClaw delivery fields are not used.</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Mattermost Channel</label>
+                <input
+                  v-model="form.channel"
+                  type="text"
+                  class="input-terminal"
+                  placeholder="town-square"
+                />
+                <div class="text-[10px] text-terminal-dim mt-1">Optional override. Leave empty to use the webhook's default channel. WhatsApp/Telegram values are ignored.</div>
+              </div>
+            </template>
 
             <div class="border-t border-terminal-border"></div>
 
@@ -403,6 +495,17 @@ function formatDate(iso: string): string {
                     <div class="text-[10px] text-terminal-dim">Notify when a new device needs approval</div>
                   </div>
                 </label>
+                <label class="flex items-center gap-3 cursor-pointer group">
+                  <input
+                    v-model="form.events.incomingCalls"
+                    type="checkbox"
+                    class="checkbox-terminal"
+                  />
+                  <div>
+                    <div class="text-[12px] text-terminal-text group-hover:text-primary-bright transition-colors">Incoming Calls</div>
+                    <div class="text-[10px] text-terminal-dim">Forward RINGING events (caller ID is best-effort; often empty on Android 12+)</div>
+                  </div>
+                </label>
               </div>
             </div>
 
@@ -462,7 +565,7 @@ function formatDate(iso: string): string {
           <div class="space-y-4 text-[12px] text-terminal-muted leading-relaxed">
             <div class="flex items-start gap-3">
               <span class="text-primary font-bold shrink-0">1.</span>
-              <span>Your phone receives a notification or SMS</span>
+              <span>Your phone receives a notification, SMS, or incoming call</span>
             </div>
             <div class="flex items-start gap-3">
               <span class="text-primary font-bold shrink-0">2.</span>
@@ -470,7 +573,7 @@ function formatDate(iso: string): string {
             </div>
             <div class="flex items-start gap-3">
               <span class="text-primary font-bold shrink-0">3.</span>
-              <span>The MCP server receives the event and HTTP POSTs it to OpenClaw</span>
+              <span>The MCP server receives the event and HTTP POSTs it to OpenClaw or Mattermost</span>
             </div>
             <div class="flex items-start gap-3">
               <span class="text-primary font-bold shrink-0">4.</span>

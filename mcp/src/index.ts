@@ -133,12 +133,15 @@ export async function startServer(overrides: Partial<ServerConfig> = {}): Promis
   // Display startup info
   const localIP = getLocalIP();
 
+  const mcpUrl = `http://${localIP}:${serverConfig.dashboardPort}/mcp`;
+
   consola.box({
     title: 'Aster MCP Server',
     message: [
       '',
       `  WebSocket:   ws://${localIP}:${serverConfig.wsPort}`,
       `  API:         http://${localIP}:${serverConfig.dashboardPort}`,
+      `  MCP:         ${mcpUrl}  (paste into your MCP client)`,
       nuxtProcess ? `  Dashboard:   http://${localIP}:${DASHBOARD_SERVER_PORT}` : '',
       '',
       `  Database:    ${serverConfig.dbPath}`,
@@ -158,6 +161,7 @@ export async function startServer(overrides: Partial<ServerConfig> = {}): Promis
       wsPort: serverConfig.wsPort,
       wsUrl: tailscaleResult.wsUrl,
       dashboardUrl: tailscaleResult.dashboardUrl,
+      apiPort: serverConfig.dashboardPort,
     });
   }
 
@@ -169,6 +173,7 @@ export async function startServer(overrides: Partial<ServerConfig> = {}): Promis
     wsUrl: `ws://${localIP}:${serverConfig.wsPort}`,
     apiPort: serverConfig.dashboardPort,
     apiUrl: `http://${localIP}:${serverConfig.dashboardPort}`,
+    mcpUrl,
     dashboardPort: nuxtProcess ? DASHBOARD_SERVER_PORT : null,
     dashboardUrl: nuxtProcess ? `http://${localIP}:${DASHBOARD_SERVER_PORT}` : null,
     dbPath: serverConfig.dbPath,
@@ -177,6 +182,9 @@ export async function startServer(overrides: Partial<ServerConfig> = {}): Promis
       dns: tailscaleResult.tailscaleDns,
       wsUrl: tailscaleResult.wsUrl,
       dashboardUrl: tailscaleResult.dashboardUrl,
+      mcpUrl: tailscaleResult.tailscaleIp
+        ? `http://${tailscaleResult.tailscaleIp}:${serverConfig.dashboardPort}/mcp`
+        : undefined,
     } : null,
   });
 

@@ -2,8 +2,10 @@ package com.aster.service.handlers
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
@@ -13,6 +15,7 @@ import android.widget.Toast
 import com.aster.data.model.Command
 import com.aster.service.CommandHandler
 import com.aster.service.CommandResult
+import com.aster.service.telephony.CallStateMonitor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -22,7 +25,8 @@ import java.util.*
 import kotlin.coroutines.resume
 
 class IntentHandler(
-    private val context: Context
+    private val context: Context,
+    private val callStateMonitor: CallStateMonitor
 ) : CommandHandler {
 
     private var tts: TextToSpeech? = null
@@ -149,8 +153,8 @@ class IntentHandler(
     }
 
     /**
-     * Makes a phone call, enables speakerphone, waits for the call to connect,
-     * then uses TTS to speak the provided text into the call.
+     * Places a call, waits for OFFHOOK, then speaks TTS on STREAM_MUSIC.
+     * Audio is acoustic coupling (loudspeaker → call mic), not uplink injection.
      */
     private suspend fun makeCallWithVoice(command: Command): CommandResult {
         val number = command.params?.get("number")?.jsonPrimitive?.contentOrNull
@@ -173,7 +177,6 @@ class IntentHandler(
             }
         }
 
-        // Step 1: Make the call
         val callIntent = Intent(Intent.ACTION_CALL).apply {
             data = Uri.parse("tel:$cleanNumber")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -187,38 +190,95 @@ class IntentHandler(
             return CommandResult.failure("Failed to make call: ${e.message}")
         }
 
-        // Step 2: Wait for the call to connect, then enable speaker
-        delay(2000) // Wait for dialer to start
-
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        audioManager.mode = AudioManager.MODE_IN_CALL
-        audioManager.isSpeakerphoneOn = true
-        delay(500) // Allow audio routing to stabilize
+        enableSpeaker(audioManager)
 
-        // Step 3: Wait for the call to be answered
+        callStateMonitor.waitForOffhook(15_000)
         delay(delaySeconds.toLong() * 1000)
 
-        // Step 4: Speak the text using TTS
-        val ttsResult = speakText(text)
+        val savedVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        try {
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume, 0)
+            val route = reassertSpeaker(audioManager)
+            val volume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+            val speakerphone = isSpeakerRoute(route)
+            val ttsResult = speakText(text)
 
-        // Step 5: Restore audio (speakerphone stays on during the call, user can end manually)
-        return if (ttsResult) {
-            CommandResult.success(buildJsonObject {
-                put("success", true)
-                put("number", cleanNumber)
-                put("textSpoken", text)
-                put("speakerphone", true)
-                put("waitSeconds", delaySeconds)
-            })
-        } else {
-            CommandResult.success(buildJsonObject {
-                put("callMade", true)
-                put("number", cleanNumber)
-                put("ttsError", "TTS failed to speak, but call is active on speakerphone")
-                put("speakerphone", true)
-            })
+            return if (ttsResult) {
+                CommandResult.success(buildJsonObject {
+                    put("success", true)
+                    put("number", cleanNumber)
+                    put("textSpoken", text)
+                    put("speakerphone", speakerphone)
+                    put("route", route)
+                    put("volume", volume)
+                    put("waitSeconds", delaySeconds)
+                })
+            } else {
+                CommandResult.success(buildJsonObject {
+                    put("callMade", true)
+                    put("number", cleanNumber)
+                    put("ttsError", "TTS failed to speak; call may still be active")
+                    put("speakerphone", speakerphone)
+                    put("route", route)
+                    put("volume", volume)
+                })
+            }
+        } finally {
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, savedVolume, 0)
         }
     }
+
+    private suspend fun reassertSpeaker(audioManager: AudioManager): String {
+        var route = currentRoute(audioManager)
+        for (i in 0 until 3) {
+            enableSpeaker(audioManager)
+            delay(300)
+            route = currentRoute(audioManager)
+            if (isSpeakerRoute(route)) break
+        }
+        return route
+    }
+
+    private fun enableSpeaker(audioManager: AudioManager) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val speaker = audioManager.availableCommunicationDevices
+                .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+            if (speaker != null) {
+                audioManager.setCommunicationDevice(speaker)
+                return
+            }
+        }
+        @Suppress("DEPRECATION")
+        audioManager.isSpeakerphoneOn = true
+    }
+
+    private fun currentRoute(audioManager: AudioManager): String {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            return when (audioManager.communicationDevice?.type) {
+                AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "builtin_speaker"
+                AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "earpiece"
+                AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "bluetooth"
+                AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "wired_headset"
+                AudioDeviceInfo.TYPE_USB_HEADSET -> "usb_headset"
+                null -> "unknown"
+                else -> "type_${audioManager.communicationDevice?.type}"
+            }
+        }
+        @Suppress("DEPRECATION")
+        return when {
+            audioManager.isSpeakerphoneOn -> "speakerphone"
+            audioManager.isBluetoothScoOn -> "bluetooth"
+            audioManager.isWiredHeadsetOn -> "wired_headset"
+            else -> "earpiece"
+        }
+    }
+
+    private fun isSpeakerRoute(route: String): Boolean =
+        route == "builtin_speaker" || route == "speakerphone"
 
     private suspend fun initTts(): Boolean = suspendCancellableCoroutine { continuation ->
         tts = TextToSpeech(context) { status ->
@@ -258,9 +318,8 @@ class IntentHandler(
             }
         })
 
-        // Use STREAM_VOICE_CALL to route TTS audio through the call audio path
         val params = android.os.Bundle().apply {
-            putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_VOICE_CALL)
+            putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
         }
 
         val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, utteranceId)

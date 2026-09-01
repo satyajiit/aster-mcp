@@ -1,6 +1,9 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { consola } from 'consola';
 import { randomUUID } from 'crypto';
+import { existsSync, readFileSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
 import {
   type AuthMessage,
   AuthMessageSchema,
@@ -24,6 +27,79 @@ import {
 import { forwardAgentEvent, type DeviceContext } from '../event-forwarding/index.js';
 import type { ExtendedDeviceInfo } from '../types/index.js';
 
+function statusFilePath(): string {
+  return join(homedir(), '.aster', 'status.json');
+}
+
+function pidFilePath(): string {
+  return join(homedir(), '.aster', 'aster.pid');
+}
+
+function readStatusFile(): Record<string, unknown> | null {
+  try {
+    const statusFile = statusFilePath();
+    if (!existsSync(statusFile)) return null;
+    const parsed = JSON.parse(readFileSync(statusFile, 'utf-8'));
+    if (parsed && typeof parsed === 'object') {
+      return parsed as Record<string, unknown>;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function parsePid(raw: unknown): number | null {
+  const pid = typeof raw === 'number' ? raw : typeof raw === 'string' ? parseInt(raw, 10) : NaN;
+  return Number.isInteger(pid) && pid > 0 ? pid : null;
+}
+
+function readPidFile(): number | null {
+  try {
+    const pidFile = pidFilePath();
+    if (!existsSync(pidFile)) return null;
+    return parsePid(readFileSync(pidFile, 'utf-8').trim());
+  } catch {
+    return null;
+  }
+}
+
+// status.json first, then aster.pid
+function occupyingPid(): number | null {
+  const status = readStatusFile();
+  return parsePid(status?.pid) ?? readPidFile();
+}
+
+function daemonMcpUrl(): string | null {
+  const status = readStatusFile();
+  const apiUrl = typeof status?.apiUrl === 'string' ? status.apiUrl.replace(/\/$/, '') : '';
+  return apiUrl ? `${apiUrl}/mcp` : null;
+}
+
+// `aster mcp` (stdio). process.exit here would kill Claude Desktop.
+function isStdioMcp(): boolean {
+  return process.argv.slice(2)[0] === 'mcp';
+}
+
+function noLiveSocketError(deviceId: string): Error {
+  const device = getDevice(deviceId);
+  if (!device) {
+    return new Error(`Unknown device ${deviceId}`);
+  }
+
+  const lastSeen = new Date(device.lastSeen).toISOString();
+  const mcpUrl = daemonMcpUrl();
+  const hint = mcpUrl
+    ? `connect your MCP client to ${mcpUrl}`
+    : 'connect your MCP client to the daemon /mcp URL (run `aster status`)';
+  const dbPath = process.env.DB_PATH || './aster.db';
+  return new Error(
+    `Device ${deviceId} is registered (last seen ${lastSeen}) but this process has no live WebSocket for it. ` +
+      `If an Aster daemon is already running, ${hint} instead of starting a second instance. ` +
+      `cwd=${process.cwd()} DB_PATH=${dbPath}`
+  );
+}
+
 // Store for connected devices
 const connectedDevices = new Map<string, ConnectedDevice>();
 
@@ -44,7 +120,7 @@ export async function sendCommand(
   const connected = connectedDevices.get(deviceId);
 
   if (!connected) {
-    throw new Error(`Device ${deviceId} is not connected`);
+    throw noLiveSocketError(deviceId);
   }
 
   if (connected.device.status !== 'approved') {
@@ -84,6 +160,20 @@ export async function sendCommand(
 
 export function createWebSocketServer(config: ServerConfig): WebSocketServer {
   const wss = new WebSocketServer({ port: config.wsPort });
+
+  wss.on('error', (err: Error) => {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'EADDRINUSE') {
+      const pid = occupyingPid();
+      const byPid = pid != null ? ` by PID ${pid}` : '';
+      console.error(`WebSocket port ${config.wsPort} already in use${byPid} — run \`aster status\``);
+      if (!isStdioMcp()) {
+        process.exit(1);
+      }
+      return;
+    }
+    consola.error('WebSocket server error:', err);
+  });
 
   consola.info(`WebSocket server listening on port ${config.wsPort}`);
 

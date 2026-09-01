@@ -252,11 +252,49 @@ Aster can push real-time events from the phone to your AI agent via webhook. You
 | **SMS** | Auto-reply while driving, forward messages, extract info |
 | **Notifications** | Flight delays, delivery updates, ride arrivals — instant alerts |
 | **Device status** | Device online/offline, new pairing requests |
+| **Incoming call** | Phone rings — log it, ping you, or wait for pickup |
 
 Works out of the box with **OpenClaw**, **ClawdBot**, and **MoltBot**. Configure via dashboard or CLI:
 
 ```bash
 aster set-event-forwarding
+```
+
+### Mattermost incoming webhooks
+
+Aster can POST the same tagged event text to a Mattermost incoming webhook (`{ "text": "..." }`, no Bearer token).
+
+1. In Mattermost go to **Integrations → Incoming Webhooks** and add a webhook for the channel that should receive Aster events.
+2. Copy the webhook URL (`https://<your-mattermost>/hooks/<id>`).
+3. In the Aster dashboard **Event Forwarding** settings, set **Channel type** to Mattermost and paste the webhook URL. OpenClaw endpoint, token, and WhatsApp/Telegram delivery fields stay hidden.
+4. Optional: set a Mattermost channel name to override the webhook default. Leave it empty to use the webhook's channel. Do not reuse `whatsapp` / `telegram` here — those values are ignored for Mattermost.
+
+`events.incomingCalls` defaults to on. A missing key does **not** drop RINGING events; only an explicit off does.
+
+### Sample OpenClaw hooks
+
+Aster POSTs to `{endpoint}{webhookPath}` (default `http://localhost:18789/hooks/agent`) with `Authorization: Bearer <token>`:
+
+```json
+{
+  "message": "[skill] aster\n[event] incoming_call\n[device_id] …\n[model] …\n[data-number] +15551212\n[data-contact] Jane",
+  "wakeMode": "now",
+  "deliver": true,
+  "channel": "whatsapp",
+  "to": "+15550001111"
+}
+```
+
+Enable the matching hook on the OpenClaw gateway (token must match the one saved in Aster):
+
+```json
+{
+  "hooks": {
+    "enabled": true,
+    "token": "<same token as Aster event forwarding>",
+    "path": "/hooks"
+  }
+}
 ```
 
 ## Integrations
@@ -360,14 +398,14 @@ All three share the same **49 tools** and the same `CommandHandler` registry —
 
 Aster is **self-hosted and local-first**. The server, the device, and your data stay on hardware you own. Here's exactly how the link is secured — and where it isn't.
 
-### The wire is plain `ws://` — secure the network, not just the socket
+### The Node `ws` server does not terminate TLS
 
-The device <-> server link is an **unencrypted WebSocket** (`ws://`, port `5987`). The Node `ws` server does **not** terminate TLS. So:
+On a trusted LAN the device ↔ server link is an **unencrypted WebSocket** (`ws://`, port `5987`). The Node `ws` server does **not** speak TLS itself — pointing `wss://` at `:5987` without something in front fails with a TLS parse error. That is not the whole story:
 
-- **On a trusted LAN**, treat it like any other LAN service — fine behind your router, not exposed to the internet.
-- **For remote access, use [Tailscale](#tailscale-support)** (WireGuard). The mesh encrypts the link end-to-end. This — not the socket — is where "encrypted remote control" actually comes from. Don't port-forward `5987`/`5988` to the open internet.
+- **Trusted LAN** — `ws://<lan-ip>:5987` in the app is expected. Fine behind your router; do not port-forward `5987`/`5988` to the open internet.
+- **Remote** — put TLS in front of the socket: [Tailscale Serve](#tailscale-support) (`wss://` for the **app**) or a reverse proxy. See [Securing the connection](#securing-the-connection).
 
-We'd rather tell you this plainly than slap a padlock emoji on a plaintext socket.
+Encryption for remote control comes from **Tailscale (WireGuard)** or **your TLS terminator**, not from a padlock on the Node socket.
 
 ### Device approval gate (status-based, no shared secret)
 
@@ -410,6 +448,88 @@ Two Android-side guards run regardless of what the AI asks:
 
 - **Kill Switch** — while a screen-control session is active, a persistent high-priority *"AI is controlling your phone — STOP"* notification is shown. Tapping **STOP** aborts the control loop immediately and clears the overlay.
 - **PackagePolicyGuard** — a **fail-closed** denylist. If the foreground app can't be identified, control is **refused**. A bundled banking/payments denylist (PhonePe, Paytm, PayPal, Venmo, Binance, ...) blocks screen control over financial apps by default unless you explicitly allow it. Read-only actions (`observe` / screenshot / hierarchy / `find_element`) are always permitted.
+
+## Securing the connection
+
+Three sanctioned setups. Pick one; mixing `wss://` with a port that only speaks `ws://` is the usual failure.
+
+### Trusted LAN — `ws://`
+
+Same Wi-Fi / ethernet. In the Aster app:
+
+```
+ws://<server-lan-ip>:5987
+```
+
+MCP client (Claude, AnythingLLM, OpenClaw, …):
+
+```
+http://<server-lan-ip>:5988/mcp
+```
+
+`aster status` prints this as `MCP: http://<ip>:5988/mcp  (paste into your MCP client)`. Do not expose these ports on the public internet.
+
+On-device **Local MCP** (no npm server) listens on **`:8080`**, not `:5988`.
+
+### Tailscale Serve — `wss://` for the app
+
+If Tailscale is running, Aster runs `tailscale serve` for the device WebSocket (`https://:443` → local `:5987`) and the Nuxt dashboard (`:8443` → local `:5989`). Copy the **`wss://<magicdns>`** URL printed by `aster status` into the **Android app**. That is automatic TLS for the device link.
+
+**Serve does not terminate Fastify.** The MCP HTTP endpoint stays on the API port. Paste this into your MCP client, not the Serve dashboard URL:
+
+```
+http://<tailscale-ip>:5988/mcp
+```
+
+Never `https://<magicdns>:8443/mcp`.
+
+### Reverse proxy (Traefik / Caddy)
+
+Terminate TLS in front of `:5987` and point the app at `wss://your.domain`. The Node process still speaks plaintext locally.
+
+**Caddy** (`Caddyfile`):
+
+```
+aster.example.com {
+    reverse_proxy localhost:5987
+}
+```
+
+App URL: `wss://aster.example.com`
+
+Optional MCP + dashboard:
+
+```
+mcp.aster.example.com {
+    reverse_proxy localhost:5988
+}
+
+dash.aster.example.com {
+    reverse_proxy localhost:5989
+}
+```
+
+MCP client: `https://mcp.aster.example.com/mcp`
+
+**Traefik** (file-provider sketch; HTTP routers already upgrade WebSockets):
+
+```yaml
+http:
+  routers:
+    aster-ws:
+      rule: Host(`aster.example.com`)
+      entryPoints: [websecure]
+      tls:
+        certResolver: letsencrypt
+      service: aster-ws
+  services:
+    aster-ws:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:5987
+```
+
+Same idea as Caddy: TLS at the proxy, `ws://` on localhost. Don't put `wss://<lan-ip>:5987` in the app — that port does not speak TLS.
 
 ## Why not just scrcpy / ADB?
 
@@ -458,13 +578,13 @@ The device is probably still <code>pending</code>. A connected device can't be c
 <details>
 <summary><strong>Is the connection encrypted? Do I need SSL?</strong></summary>
 <br>
-The WebSocket itself is plain <code>ws://</code> — no TLS at the socket. On a trusted LAN that's expected. For remote/encrypted access, run it over <a href="#tailscale-support">Tailscale</a> (WireGuard), which encrypts the link end-to-end. Don't expose ports <code>5987</code>/<code>5988</code> to the public internet. See <a href="#security--privacy">Security &amp; Privacy</a>.
+Not by default. On a trusted LAN the device link is plain <code>ws://</code> — the Node <code>ws</code> server does not terminate TLS. For remote/encrypted access, use <a href="#tailscale-support">Tailscale Serve</a> (<code>wss://&lt;magicdns&gt;</code> in the <em>app</em>; MCP stays <code>http://&lt;ts-ip&gt;:5988/mcp</code>) or put Traefik/Caddy in front. Don't expose ports <code>5987</code>/<code>5988</code> to the public internet. See <a href="#securing-the-connection">Securing the connection</a>.
 </details>
 
 <details>
 <summary><strong>Device disconnects when I switch Wi-Fi / mobile networks</strong></summary>
 <br>
-The server advertises a specific IP (<code>ws://&lt;ip&gt;:5987</code>). Switching networks changes the device's route to that IP and drops the socket. Keep both ends on the same network, or use a stable <a href="#tailscale-support">Tailscale</a> IP so the address survives network changes.
+The companion now reconnects automatically after a Wi-Fi / mobile switch (backoff, "Reconnecting…" in the app) instead of staying dead on a dropped socket. If it still never comes back, the advertised address itself changed — <code>aster status</code> prints a LAN IP that is only valid on that network. Keep both ends on the same network, or use a stable <a href="#tailscale-support">Tailscale</a> IP so the address survives network changes.
 </details>
 
 <details>
@@ -544,7 +664,7 @@ A tool is a **server-side triad + one device handler**:
 
 ## Tailscale Support
 
-Aster automatically detects Tailscale and displays your Tailscale IP for easy remote connections without port forwarding. Perfect for a dedicated AI phone that stays plugged in at home while you're away.
+Aster automatically detects Tailscale and prints a `wss://<magicdns>` URL for the **app**, plus `http://<ts-ip>:5988/mcp` for your MCP client. Serve TLS-terminates the device WebSocket and the dashboard; it does **not** expose `/mcp`. See [Securing the connection](#securing-the-connection). Perfect for a dedicated AI phone that stays plugged in at home while you're away.
 
 ## OpenAlly.ai
 

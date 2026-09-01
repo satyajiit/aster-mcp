@@ -1,5 +1,6 @@
 package com.aster.service
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,15 +9,20 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.provider.ContactsContract
 import android.provider.Telephony
+import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import com.aster.BuildConfig
 import com.aster.R
 import com.aster.data.local.SettingsDataStore
@@ -30,6 +36,7 @@ import com.aster.service.mode.ModeState
 import com.aster.service.mode.ModeType
 import com.aster.service.mode.RemoteWsMode
 import com.aster.service.overlay.ToolExecutionOverlay
+import com.aster.service.telephony.CallStateMonitor
 import com.aster.ui.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -41,7 +48,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import javax.inject.Inject
 
@@ -146,6 +155,9 @@ class AsterService : Service() {
 
     @Inject
     lateinit var interactiveOverlayController: com.aster.service.overlay.InteractiveOverlayController
+
+    @Inject
+    lateinit var callStateMonitor: CallStateMonitor
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var wakeLock: PowerManager.WakeLock? = null
@@ -277,6 +289,7 @@ class AsterService : Service() {
 
         AsterNotificationListenerService.onNotificationEvent = null
         AsterAccessibilityService.onCompanionPulseEvent = null
+        callStateMonitor.stop()
         EventDeduplicator.stopCleanup()
         smsBroadcastReceiver?.let {
             try { unregisterReceiver(it) } catch (_: Exception) {}
@@ -390,6 +403,11 @@ class AsterService : Service() {
             val otherRunning = activeModes.size - 1
             val suffix = if (otherRunning > 0) " (+$otherRunning active)" else ""
             return "Aster" to "Error: ${errorMode.value.statusFlow.value.message}$suffix"
+        }
+
+        val remoteStatus = activeModes[ModeType.REMOTE_WS]?.statusFlow?.value
+        if (remoteStatus != null && remoteStatus.message.startsWith("Reconnecting")) {
+            return "Aster" to "Reconnecting…"
         }
 
         // Build status text showing all active modes
@@ -591,7 +609,62 @@ class AsterService : Service() {
         registerReceiver(receiver, filter)
         smsBroadcastReceiver = receiver
 
+        callStateMonitor.start()
+        serviceScope.launch {
+            callStateMonitor.callState.collect { snapshot ->
+                if (snapshot.state != TelephonyManager.CALL_STATE_RINGING) return@collect
+                handleIncomingCall(snapshot.number)
+            }
+        }
+
         Log.i(TAG, "Event forwarding set up")
+    }
+
+    private suspend fun handleIncomingCall(rawNumber: String?) {
+        val number = rawNumber?.takeIf { it.isNotBlank() }
+        if (EventDeduplicator.isDuplicateIncomingCall(number)) return
+
+        val contactName = number?.let { n ->
+            withContext(Dispatchers.IO) { lookupContactName(n) }
+        }
+        val data = mutableMapOf<String, JsonElement>(
+            "number" to (number?.let { JsonPrimitive(it) } ?: JsonNull),
+            "timestamp" to JsonPrimitive(System.currentTimeMillis()),
+        )
+        if (contactName != null) {
+            data["contactName"] = JsonPrimitive(contactName)
+        }
+        if (BuildConfig.DEBUG) Log.d(TAG, "incoming_call number=$number")
+        forwardEvent("incoming_call", data)
+    }
+
+    private fun lookupContactName(number: String): String? {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return null
+        }
+        return try {
+            val uri = Uri.withAppendedPath(
+                ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+                Uri.encode(number),
+            )
+            contentResolver.query(
+                uri,
+                arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                val index = cursor.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME)
+                if (index < 0) null else cursor.getString(index)?.takeIf { it.isNotBlank() }
+            }
+        } catch (_: SecurityException) {
+            null
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /** Forward events to ALL active modes that support it. */

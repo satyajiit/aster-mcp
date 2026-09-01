@@ -253,8 +253,11 @@ export function displayTailscaleInfo(info: {
   wsPort: number;
   wsUrl?: string;
   dashboardUrl?: string;
+  apiPort?: number;
 }): void {
-  const { tailscaleIp, tailscaleDns, wsPort, wsUrl, dashboardUrl } = info;
+  const { tailscaleIp, tailscaleDns, wsPort, wsUrl, dashboardUrl, apiPort = 5988 } = info;
+  // Serve TLS-terminates the app WS (:443) and Nuxt dashboard (:8443). Fastify /mcp is not on Serve.
+  const mcpUrl = tailscaleIp ? `http://${tailscaleIp}:${apiPort}/mcp` : undefined;
 
   if (tailscaleIp || tailscaleDns) {
     const displayUrl = wsUrl || (tailscaleDns ? `wss://${tailscaleDns}` : `ws://${tailscaleIp}:${wsPort}`);
@@ -269,12 +272,16 @@ export function displayTailscaleInfo(info: {
         '',
         `  WebSocket URL:  ${displayUrl}`,
         dashboardUrl ? `  Dashboard URL:  ${dashboardUrl}` : '',
+        mcpUrl ? `  MCP:            ${mcpUrl}  (paste into your MCP client)` : '',
         '',
         isSecure
           ? '  Secure WebSocket (wss://) via Tailscale Serve'
           : '  Plain WebSocket (ws://) via Tailscale IP',
         dashboardUrl
           ? '  Dashboard accessible via HTTPS on your Tailnet.'
+          : '',
+        mcpUrl
+          ? '  Serve does not expose /mcp — use the Tailscale IP URL, not :8443.'
           : '',
         '  Accessible from devices on your Tailnet.',
         '',

@@ -452,7 +452,7 @@ async function handleMakeCall(args: Record<string, unknown>): Promise<ToolResult
 
 async function handleMakeCallWithVoice(args: Record<string, unknown>): Promise<ToolResult> {
   const { deviceId, number, text, waitSeconds } = MakeCallWithVoiceSchema.parse(args);
-  const timeout = ((waitSeconds || 8) + 2 + 60) * 1000; // 2s dialer + wait + 60s for TTS and overhead
+  const timeout = (15 + (waitSeconds || 8) + 60) * 1000; // 15s offhook wait + waitSeconds + 60s for TTS and overhead
   const response = await sendCommand(deviceId, 'make_call_with_voice', { number, text, waitSeconds }, timeout);
   return jsonResult(response.data);
 }

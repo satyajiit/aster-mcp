@@ -37,6 +37,7 @@ import com.aster.service.overlay.SignInWaitOverlay
 import com.aster.service.overlay.ToolExecutionOverlay
 import com.aster.service.safety.GuardedCommandHandler
 import com.aster.service.safety.PackagePolicyGuard
+import com.aster.service.telephony.CallStateMonitor
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -61,7 +62,8 @@ object ModeModule {
         packagePolicyGuard: PackagePolicyGuard,
         interactiveOverlayController: InteractiveOverlayController,
         toolExecutionOverlay: ToolExecutionOverlay,
-        companionFaceOverlay: CompanionFaceOverlay
+        companionFaceOverlay: CompanionFaceOverlay,
+        callStateMonitor: CallStateMonitor
     ): Map<String, @JvmSuppressWildcards CommandHandler> {
         val handlers = mutableMapOf<String, CommandHandler>()
 
@@ -75,7 +77,7 @@ object ModeModule {
             MediaHandler(context),
             NowPlayingHandler(context),
             ShellHandler(),
-            IntentHandler(context),
+            IntentHandler(context, callStateMonitor),
             AccessibilityHandler(),
             NotificationHandler(),
             SmsHandler(context),

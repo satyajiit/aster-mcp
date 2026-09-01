@@ -63,6 +63,29 @@ function readStatus(): Record<string, any> | null {
   }
 }
 
+function lanMcpUrl(status: Record<string, any>): string | null {
+  if (typeof status.mcpUrl === 'string' && status.mcpUrl) {
+    return status.mcpUrl.replace(/\/$/, '');
+  }
+  if (typeof status.apiUrl === 'string' && status.apiUrl) {
+    return `${status.apiUrl.replace(/\/$/, '')}/mcp`;
+  }
+  return null;
+}
+
+function tailscaleMcpUrl(status: Record<string, any>): string | null {
+  const ts = status.tailscale;
+  if (!ts || typeof ts !== 'object') return null;
+  if (typeof ts.mcpUrl === 'string' && ts.mcpUrl) {
+    return ts.mcpUrl.replace(/\/$/, '');
+  }
+  if (typeof ts.ip === 'string' && ts.ip) {
+    const port = status.apiPort || 5988;
+    return `http://${ts.ip}:${port}/mcp`;
+  }
+  return null;
+}
+
 function displayStatus(status: Record<string, any>, pid?: number): void {
   console.log(chalk.cyan.bold(`
 ╔═══════════════════════════════════════╗
@@ -73,6 +96,10 @@ function displayStatus(status: Record<string, any>, pid?: number): void {
   console.log(chalk.green(`  Status:     Running (PID ${pid || status.pid})`));
   console.log(chalk.white(`  WebSocket:  ${status.wsUrl}`));
   console.log(chalk.white(`  API:        ${status.apiUrl}`));
+  const mcpUrl = lanMcpUrl(status);
+  if (mcpUrl) {
+    console.log(chalk.white(`  MCP:        ${mcpUrl}`) + chalk.gray('  (paste into your MCP client)'));
+  }
   if (status.dashboardUrl) {
     console.log(chalk.white(`  Dashboard:  ${status.dashboardUrl}`));
   }
@@ -81,6 +108,10 @@ function displayStatus(status: Record<string, any>, pid?: number): void {
     console.log(chalk.magenta(`  Tailscale:`));
     if (status.tailscale.wsUrl) {
       console.log(chalk.white(`    WSS:        ${status.tailscale.wsUrl}`) + chalk.gray('  (Use in Companion App)'));
+    }
+    const tsMcp = tailscaleMcpUrl(status);
+    if (tsMcp) {
+      console.log(chalk.white(`    MCP:        ${tsMcp}`) + chalk.gray('  (paste into your MCP client)'));
     }
     if (status.tailscale.dashboardUrl) {
       console.log(chalk.white(`    Dashboard:  ${status.tailscale.dashboardUrl}`));
@@ -228,6 +259,7 @@ program
         console.log(chalk.gray(`
   WebSocket:  ws://0.0.0.0:${options.wsPort}
   API:        http://0.0.0.0:${options.apiPort}
+  MCP:        http://0.0.0.0:${options.apiPort}/mcp  (paste into your MCP client)
 
   Logs:       ${LOG_FILE}
 `));
@@ -423,10 +455,11 @@ program
       endpoint,
       webhookPath,
       token,
+      channelType: 'openclaw' as const,
       channel: 'whatsapp',
       deliverTo: '',
       configuredAt: new Date().toISOString(),
-      events: { notifications: true, sms: true, deviceConnected: true, deviceDisconnected: true, pairingRequired: true },
+      events: { notifications: true, sms: true, deviceConnected: true, deviceDisconnected: true, pairingRequired: true, incomingCalls: true },
     };
 
     saveAgentEventForwardingConfig(eventForwardingConfig);
@@ -443,6 +476,26 @@ program
   .action(async (options) => {
     process.env.WS_PORT = options.wsPort;
     process.env.DB_PATH = options.db;
+
+    if (existsSync(PID_FILE)) {
+      const pid = parseInt(readFileSync(PID_FILE, 'utf-8').trim(), 10);
+      if (Number.isFinite(pid) && isProcessRunning(pid)) {
+        const status = readStatus();
+        const apiUrl = typeof status?.apiUrl === 'string' ? status.apiUrl.replace(/\/$/, '') : '';
+        const mcpUrl = apiUrl ? `${apiUrl}/mcp` : null;
+        if (mcpUrl) {
+          console.error(
+            `Aster daemon is already running (PID ${pid}). ` +
+              `Connect your MCP client to ${mcpUrl} instead of starting a second stdio instance.`,
+          );
+        } else {
+          console.error(
+            `Aster daemon is already running (PID ${pid}). ` +
+              `Connect your MCP client to the daemon /mcp URL (run \`aster status\`) instead of starting a second stdio instance.`,
+          );
+        }
+      }
+    }
 
     const { startMcp } = await import('../src/index.js');
     await startMcp();

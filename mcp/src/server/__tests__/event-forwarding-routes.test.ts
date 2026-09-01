@@ -26,6 +26,8 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await app.close();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   rmSync(home, { recursive: true, force: true });
   if (originalHome === undefined) delete process.env.HOME;
   else process.env.HOME = originalHome;
@@ -75,5 +77,126 @@ describe('event-forwarding REST compatibility', () => {
       token: 'route-pa...',
       hasToken: true,
     });
+  });
+
+  it('persists channelType and incomingCalls without defaulting Mattermost channel to whatsapp', async () => {
+    const payload = {
+      enabled: true,
+      endpoint: 'https://mm.example.test/hooks/abc',
+      webhookPath: '',
+      token: '',
+      channelType: 'mattermost',
+      channel: '',
+      deliverTo: '',
+      events: {
+        notifications: true,
+        sms: true,
+        deviceConnected: true,
+        deviceDisconnected: true,
+        pairingRequired: true,
+        incomingCalls: false,
+      },
+    };
+
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/event-forwarding/config',
+      payload,
+    });
+    expect(post.statusCode).toBe(200);
+
+    const get = await app.inject({ method: 'GET', url: '/api/event-forwarding/config' });
+    expect(get.json().config).toMatchObject({
+      channelType: 'mattermost',
+      channel: '',
+      endpoint: 'https://mm.example.test/hooks/abc',
+      webhookPath: '',
+      events: {
+        incomingCalls: false,
+      },
+    });
+    expect(get.json().config.channel).not.toBe('whatsapp');
+  });
+
+  it('defaults missing channelType to openclaw and missing incomingCalls to true on save', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/event-forwarding/config',
+      payload: {
+        enabled: true,
+        endpoint: 'http://localhost:18789',
+        webhookPath: '/hooks/agent',
+        token: 'save-default-token',
+        channel: 'telegram',
+        deliverTo: '',
+        events: {
+          notifications: true,
+          sms: true,
+          deviceConnected: true,
+          deviceDisconnected: true,
+          pairingRequired: true,
+        },
+      },
+    });
+    expect(post.statusCode).toBe(200);
+
+    const get = await app.inject({ method: 'GET', url: '/api/event-forwarding/config' });
+    expect(get.json().config).toMatchObject({
+      channelType: 'openclaw',
+      channel: 'telegram',
+      events: { incomingCalls: true },
+    });
+  });
+
+  it('dispatches the connection probe by channel type', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '',
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const openclaw = await app.inject({
+      method: 'POST',
+      url: '/api/event-forwarding/test',
+      payload: {
+        endpoint: 'http://localhost:18789',
+        webhookPath: '/hooks/agent',
+        token: 'probe-token',
+      },
+    });
+    expect(openclaw.statusCode).toBe(200);
+    expect(openclaw.json()).toMatchObject({ success: true, status: 200 });
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:18789/hooks/agent');
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer probe-token',
+      },
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      message: '[skill] aster\n[event] test\n[data]\nstatus: connection test from dashboard',
+      wakeMode: 'now',
+      deliver: false,
+    });
+
+    fetchMock.mockClear();
+    const mattermost = await app.inject({
+      method: 'POST',
+      url: '/api/event-forwarding/test',
+      payload: {
+        endpoint: 'https://mm.example.test/hooks/abc',
+        webhookPath: '',
+        token: 'should-not-be-sent',
+        channelType: 'mattermost',
+        channel: 'whatsapp',
+      },
+    });
+    expect(mattermost.statusCode).toBe(200);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://mm.example.test/hooks/abc');
+    expect(fetchMock.mock.calls[0][1].headers).toEqual({ 'Content-Type': 'application/json' });
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ text: 'Aster connection test' });
   });
 });

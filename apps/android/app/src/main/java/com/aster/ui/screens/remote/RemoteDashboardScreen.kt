@@ -145,6 +145,7 @@ fun RemoteDashboardScreen(
                             text = when (connectionState) {
                                 ConnectionState.APPROVED -> "Connected"
                                 ConnectionState.CONNECTING -> "Connecting..."
+                                ConnectionState.RECONNECTING -> "Reconnecting..."
                                 ConnectionState.PENDING_APPROVAL -> "Pending Approval"
                                 ConnectionState.ERROR -> "Connection Error"
                                 else -> "Disconnected"
@@ -255,6 +256,7 @@ fun RemoteDashboardScreen(
                         value = when (connectionState) {
                             ConnectionState.APPROVED -> "Stable"
                             ConnectionState.CONNECTING -> "Establishing..."
+                            ConnectionState.RECONNECTING -> "Reconnecting..."
                             ConnectionState.PENDING_APPROVAL -> "Awaiting"
                             else -> "None"
                         }

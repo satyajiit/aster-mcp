@@ -148,6 +148,11 @@ class RemoteWsMode(
                 message = "Connecting..."
             )
 
+            ConnectionState.RECONNECTING -> ModeStatus(
+                state = ModeState.RUNNING,
+                message = "Reconnecting…"
+            )
+
             ConnectionState.CONNECTED -> ModeStatus(
                 state = ModeState.RUNNING,
                 message = "Connected to $serverUrl"

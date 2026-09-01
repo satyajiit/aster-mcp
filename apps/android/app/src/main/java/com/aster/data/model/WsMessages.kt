@@ -79,6 +79,7 @@ data class IncomingMessage(
 enum class ConnectionState {
     DISCONNECTED,
     CONNECTING,
+    RECONNECTING,
     CONNECTED,
     PENDING_APPROVAL,
     APPROVED,

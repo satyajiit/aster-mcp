@@ -149,7 +149,7 @@ Every event follows a standardized structure with 4 fixed headers and `[data-*]`
 ```
 
 - `[skill]` — always `aster`
-- `[event]` — event name: `sms`, `notification`, `device_online`, `device_offline`, `pairing`
+- `[event]` — event name: `sms`, `notification`, `device_online`, `device_offline`, `pairing`, `incoming_call`
 - `[device_id]` — UUID of the device (use this to target the device with Aster tools)
 - `[model]` — device manufacturer, model, and OS
 - `[data-*]` — event-specific fields, each prefixed with `data-` (e.g. `[data-app]`, `[data-sender]`)
@@ -206,6 +206,27 @@ Every event follows a standardized structure with 4 fixed headers and `[data-*]`
 [data-action] approve this device from the Aster dashboard or via aster devices approve
 ```
 
+**`incoming_call`** — Phone is ringing (caller ID is best-effort; `[data-number]` may be empty on Android 12+)
+```
+[skill] aster
+[event] incoming_call
+[device_id] a1b2c3d4-5678-90ab
+[model] samsung SM-S938B, Android 15
+[data-number] +1234567890
+[data-contact] Jane Doe
+```
+
+Example raw HTTP POST payload for an incoming-call event:
+```json
+{
+  "message": "[skill] aster\n[event] incoming_call\n[device_id] a1b2c3d4-5678-90ab\n[model] samsung SM-S938B, Android 15\n[data-number] +1234567890\n[data-contact] Jane Doe",
+  "wakeMode": "now",
+  "deliver": true,
+  "channel": "whatsapp",
+  "to": "+1234567890"
+}
+```
+
 ### How to React to Events
 
 When you receive a message with `[skill] aster`, parse the `[event]` and `[device_id]` to determine what happened and which device to act on.
@@ -242,6 +263,15 @@ When you receive a message with `[skill] aster`, parse the `[event]` and `[devic
 [event] pairing | [device_id] e5f6g7h8 | model: Samsung SM-S924B
 → If expected: approve device e5f6g7h8 via dashboard API
 → If unexpected: alert user "Unknown device SM-S924B trying to connect"
+```
+
+**Incoming call — log or notify (caller ID may be empty on Android 12+):**
+```
+[event] incoming_call | [device_id] a1b2c3d4 | number: +1234567890 | contact: Jane Doe
+→ aster_send_sms (deviceId: a1b2c3d4) to user: "Incoming call from Jane Doe"
+
+[event] incoming_call | [device_id] a1b2c3d4 | number: (empty)
+→ Note the ring; do not assume a number on Android 12+
 ```
 
 ---

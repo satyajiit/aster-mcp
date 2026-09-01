@@ -121,12 +121,14 @@ export interface AgentEventForwardingConfig {
   channel: string;
   deliverTo: string;
   configuredAt: string;
+  channelType?: 'openclaw' | 'mattermost';
   events: {
     notifications: boolean;
     sms: boolean;
     deviceConnected: boolean;
     deviceDisconnected: boolean;
     pairingRequired: boolean;
+    incomingCalls?: boolean;
   };
 }
 
@@ -181,6 +183,7 @@ export function useApi() {
     endpoint: string;
     webhookPath: string;
     token: string;
+    channelType: 'openclaw' | 'mattermost';
     channel: string;
     deliverTo: string;
     events: {
@@ -189,15 +192,28 @@ export function useApi() {
       deviceConnected: boolean;
       deviceDisconnected: boolean;
       pairingRequired: boolean;
+      incomingCalls: boolean;
     };
   }) => fetchJson<{ success: boolean }>('/api/event-forwarding/config', {
     method: 'POST',
     body: JSON.stringify(eventForwardingConfig),
   });
-  const testAgentEventForwardingConnection = (endpoint: string, webhookPath: string, token?: string) =>
+  const testAgentEventForwardingConnection = (
+    endpoint: string,
+    webhookPath: string,
+    token?: string,
+    channelType?: 'openclaw' | 'mattermost',
+    channel?: string,
+  ) =>
     fetchJson<AgentEventForwardingTestResult>('/api/event-forwarding/test', {
       method: 'POST',
-      body: JSON.stringify({ endpoint, webhookPath, token: token || '' }),
+      body: JSON.stringify({
+        endpoint,
+        webhookPath,
+        token: token || '',
+        channelType,
+        channel,
+      }),
     });
 
   return {

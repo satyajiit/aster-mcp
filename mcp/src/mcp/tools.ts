@@ -645,7 +645,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'aster_make_call_with_voice',
-    description: 'Make a phone call and speak AI-generated text via TTS on speakerphone. The call is placed, speakerphone is enabled, and after a configurable wait (for the recipient to answer), the provided text is spoken through TTS routed to the call audio.',
+    description: 'Make a phone call and speak text via TTS on the loudspeaker. Audio is acoustic coupling (device loudspeaker into the call microphone), not routed to the call audio. Works best in a quiet room; quality is device-dependent.',
     inputSchema: {
       type: 'object',
       properties: {

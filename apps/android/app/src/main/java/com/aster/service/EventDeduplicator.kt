@@ -10,17 +10,19 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Deduplicates event forwarding to prevent notification spam.
  *
- * Handles three dedup layers:
+ * Handles four dedup layers:
  * 1. SMS broadcast vs notification — SMS_RECEIVED broadcast is canonical, suppress duplicate
  *    notifications from known SMS apps within a 5s window.
  * 2. Notification content dedup — Same package + title + text within a 30s window is suppressed.
  * 3. Ongoing notification tracking — Ongoing (sticky) notifications only forwarded once per key;
  *    subsequent updates are suppressed until the notification is removed and reposted.
+ * 4. Incoming-call RINGING — same number (or withheld) in the same minute is suppressed.
  */
 object EventDeduplicator {
 
     private const val SMS_DEDUP_WINDOW_MS = 5000L
     private const val NOTIFICATION_DEDUP_WINDOW_MS = 30000L
+    private const val INCOMING_CALL_DEDUP_WINDOW_MS = 60_000L
     private const val CLEANUP_INTERVAL_MS = 5000L
 
     // SMS broadcast -> notification dedup
@@ -31,6 +33,9 @@ object EventDeduplicator {
 
     // Ongoing notification tracking: sbn.key -> true (forwarded once)
     private val ongoingNotificationKeys = ConcurrentHashMap<String, Boolean>()
+
+    // Incoming-call RINGING: number|"withheld" -> timestamp
+    private val incomingCallEntries = ConcurrentHashMap<String, Long>()
 
     private var cleanupJob: Job? = null
 
@@ -98,6 +103,22 @@ object EventDeduplicator {
     }
 
     /**
+     * Check if a RINGING incoming-call was already forwarded this minute.
+     * Null / blank numbers share the "withheld" key.
+     */
+    fun isDuplicateIncomingCall(number: String?): Boolean {
+        val key = number?.takeIf { it.isNotBlank() } ?: "withheld"
+        val now = System.currentTimeMillis()
+        val bucket = now / INCOMING_CALL_DEDUP_WINDOW_MS
+        val lastSeen = incomingCallEntries[key]
+        if (lastSeen != null && lastSeen / INCOMING_CALL_DEDUP_WINDOW_MS == bucket) {
+            return true
+        }
+        incomingCallEntries[key] = now
+        return false
+    }
+
+    /**
      * Start periodic cleanup of stale entries.
      */
     fun startCleanup(scope: CoroutineScope) {
@@ -112,6 +133,9 @@ object EventDeduplicator {
 
                 val notifCutoff = now - NOTIFICATION_DEDUP_WINDOW_MS
                 notificationEntries.entries.removeAll { it.value < notifCutoff }
+
+                val incomingCutoff = now - INCOMING_CALL_DEDUP_WINDOW_MS
+                incomingCallEntries.entries.removeAll { it.value < incomingCutoff }
             }
         }
     }
@@ -125,5 +149,6 @@ object EventDeduplicator {
         smsEntries.clear()
         notificationEntries.clear()
         ongoingNotificationKeys.clear()
+        incomingCallEntries.clear()
     }
 }

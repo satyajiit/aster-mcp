@@ -183,4 +183,144 @@ describe('event-forwarding webhook contract', () => {
       to: '+919876543210',
     });
   });
+
+  it('forwards incoming_call as tagged lines including withheld numbers', async () => {
+    eventForwarding.saveAgentEventForwardingConfig(fixtureConfig());
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 202 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await eventForwarding.forwardAgentEvent(
+      {
+        deviceId: 'pixel-1',
+        manufacturer: 'Google',
+        model: 'Pixel 9',
+        osVersion: '16',
+      },
+      'incoming_call',
+      {
+        number: '+15551212',
+        contactName: 'Jane',
+        timestamp: 1_720_742_400_000,
+      },
+      1_720_742_400_000,
+    );
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).message).toBe([
+      '[skill] aster',
+      '[event] incoming_call',
+      '[device_id] pixel-1',
+      '[model] Google Pixel 9, Android 16',
+      '[data-number] +15551212',
+      '[data-contact] Jane',
+    ].join('\n'));
+  });
+
+  it('forwards incoming_call when incomingCalls is missing, and drops only when it is false', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 202 });
+    vi.stubGlobal('fetch', fetchMock);
+    const device = {
+      deviceId: 'pixel-1',
+      manufacturer: 'Google',
+      model: 'Pixel 9',
+      osVersion: '16',
+    };
+
+    eventForwarding.saveAgentEventForwardingConfig(fixtureConfig());
+    await eventForwarding.forwardAgentEvent(device, 'incoming_call', { number: null }, 1);
+
+    const disabled = fixtureConfig();
+    disabled.events.incomingCalls = false;
+    eventForwarding.saveAgentEventForwardingConfig(disabled);
+    await eventForwarding.forwardAgentEvent(device, 'incoming_call', { number: '+1' }, 2);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).message).toContain('[data-number] ');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).message).not.toContain('[data-contact]');
+  });
+
+  it('does not rewrite saved JSON on load when incomingCalls is absent', () => {
+    const canonicalPath = join(home, '.aster', 'event-forwarding.json');
+    eventForwarding.saveAgentEventForwardingConfig(fixtureConfig());
+    const before = readFileSync(canonicalPath, 'utf-8');
+    expect(before).not.toContain('incomingCalls');
+
+    eventForwarding.loadAgentEventForwardingConfig();
+
+    expect(readFileSync(canonicalPath, 'utf-8')).toBe(before);
+    expect(readFileSync(join(home, '.aster', 'openclaw.json'), 'utf-8')).toBe(before);
+  });
+
+  it('posts Mattermost { text } with no Bearer and omits whatsapp/telegram channel', async () => {
+    const config = fixtureConfig();
+    config.channelType = 'mattermost';
+    config.endpoint = 'https://mm.example.test';
+    config.webhookPath = '/hooks/abc';
+    config.channel = 'whatsapp';
+    eventForwarding.saveAgentEventForwardingConfig(config);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await eventForwarding.forwardAgentEvent(
+      {
+        deviceId: 'pixel-1',
+        manufacturer: 'Google',
+        model: 'Pixel 9',
+        osVersion: '16',
+      },
+      'notification',
+      { packageName: 'com.example.mail', title: 'Hello', text: 'World' },
+      1,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, request] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://mm.example.test/hooks/abc');
+    expect(request.headers).toEqual({ 'Content-Type': 'application/json' });
+    expect(request.headers.Authorization).toBeUndefined();
+    expect(JSON.parse(request.body)).toEqual({
+      text: [
+        '[skill] aster',
+        '[event] notification',
+        '[device_id] pixel-1',
+        '[model] Google Pixel 9, Android 16',
+        '[data-app] mail',
+        '[data-package] com.example.mail',
+        '[data-title] Hello',
+        '[data-text] World',
+      ].join('\n'),
+    });
+  });
+
+  it('includes a Mattermost channel override only when it is not whatsapp or telegram', async () => {
+    const config = fixtureConfig();
+    config.channelType = 'mattermost';
+    config.channel = 'town-square';
+    eventForwarding.saveAgentEventForwardingConfig(config);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await eventForwarding.forwardAgentEvent(
+      {
+        deviceId: 'pixel-1',
+        manufacturer: 'Google',
+        model: 'Pixel 9',
+        osVersion: '16',
+      },
+      'sms_received',
+      { sender: '+1', body: 'hi' },
+      1,
+    );
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      text: [
+        '[skill] aster',
+        '[event] sms',
+        '[device_id] pixel-1',
+        '[model] Google Pixel 9, Android 16',
+        '[data-sender] +1',
+        '[data-body] hi',
+      ].join('\n'),
+      channel: 'town-square',
+    });
+  });
 });

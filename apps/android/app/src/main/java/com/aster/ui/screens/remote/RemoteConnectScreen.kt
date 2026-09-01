@@ -98,7 +98,8 @@ fun RemoteConnectScreen(
     }
 
     val isConnecting = connectionState == ConnectionState.CONNECTING ||
-            connectionState == ConnectionState.PENDING_APPROVAL
+            connectionState == ConnectionState.PENDING_APPROVAL ||
+            connectionState == ConnectionState.RECONNECTING
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -136,8 +137,7 @@ fun RemoteConnectScreen(
                         }
                     },
                     text = when {
-                        connectionState == ConnectionState.CONNECTING -> "Cancel"
-                        connectionState == ConnectionState.PENDING_APPROVAL -> "Cancel"
+                        isConnecting -> "Cancel"
                         else -> "Connect"
                     },
                     variant = if (isConnecting) AsterButtonVariant.DANGER else AsterButtonVariant.PRIMARY,
@@ -231,7 +231,8 @@ fun RemoteConnectScreen(
             }
 
             AnimatedVisibility(
-                visible = connectionState == ConnectionState.CONNECTING,
+                visible = connectionState == ConnectionState.CONNECTING ||
+                    connectionState == ConnectionState.RECONNECTING,
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
@@ -248,12 +249,20 @@ fun RemoteConnectScreen(
                         )
                         Column {
                             Text(
-                                text = "Connecting...",
+                                text = if (connectionState == ConnectionState.RECONNECTING) {
+                                    "Reconnecting..."
+                                } else {
+                                    "Connecting..."
+                                },
                                 style = MaterialTheme.typography.titleSmall,
                                 color = BlueAccent
                             )
                             Text(
-                                text = "Establishing WebSocket connection",
+                                text = if (connectionState == ConnectionState.RECONNECTING) {
+                                    "Restoring WebSocket connection"
+                                } else {
+                                    "Establishing WebSocket connection"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSubtle
                             )

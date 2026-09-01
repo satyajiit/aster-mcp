@@ -192,29 +192,48 @@ export function createApiServer(config: ServerConfig) {
       token = getSavedAgentEventForwardingToken() || '';
     }
 
+    const channelType = body.channelType === 'mattermost' ? 'mattermost' : 'openclaw';
     saveAgentEventForwardingConfig({
       enabled: body.enabled ?? true,
-      endpoint: body.endpoint || 'http://localhost:18789',
-      webhookPath: body.webhookPath || '/hooks/agent',
+      endpoint: body.endpoint || (channelType === 'mattermost' ? '' : 'http://localhost:18789'),
+      webhookPath: channelType === 'mattermost'
+        ? (body.webhookPath ?? '')
+        : (body.webhookPath || '/hooks/agent'),
       token,
-      channel: body.channel || 'whatsapp',
+      channelType,
+      // OpenClaw delivery defaults to whatsapp. Mattermost empty must not become whatsapp.
+      channel: channelType === 'openclaw' ? (body.channel || 'whatsapp') : (body.channel || ''),
       deliverTo: body.deliverTo || '',
       configuredAt: new Date().toISOString(),
-      events: body.events ?? { notifications: true, sms: true, deviceConnected: true, deviceDisconnected: true, pairingRequired: true },
+      events: {
+        notifications: true,
+        sms: true,
+        deviceConnected: true,
+        deviceDisconnected: true,
+        pairingRequired: true,
+        incomingCalls: true,
+        ...body.events,
+      },
     });
     return { success: true };
   };
 
   // Test connection — empty token uses saved token as fallback
   const testEventForwardingConnectionHandler = async (request: {
-    body: { endpoint: string; webhookPath: string; token?: string };
+    body: {
+      endpoint: string;
+      webhookPath: string;
+      token?: string;
+      channelType?: AgentEventForwardingConfig['channelType'];
+      channel?: string;
+    };
   }) => {
-    const { endpoint, webhookPath } = request.body;
+    const { endpoint, webhookPath, channelType, channel } = request.body;
     let token = request.body.token || '';
     if (!token) {
       token = getSavedAgentEventForwardingToken() || '';
     }
-    return testAgentEventForwardingConnection(endpoint, webhookPath, token);
+    return testAgentEventForwardingConnection(endpoint, webhookPath, token, channelType, channel);
   };
 
   // The legacy routes are registered against the exact same handlers. In
@@ -225,8 +244,8 @@ export function createApiServer(config: ServerConfig) {
   app.post<{ Body: Partial<AgentEventForwardingConfig> }>('/api/openclaw/config', saveEventForwardingConfigHandler);
   app.post('/api/event-forwarding/prefill-token', prefillEventForwardingTokenHandler);
   app.post('/api/openclaw/prefill-token', prefillEventForwardingTokenHandler);
-  app.post<{ Body: { endpoint: string; webhookPath: string; token?: string } }>('/api/event-forwarding/test', testEventForwardingConnectionHandler);
-  app.post<{ Body: { endpoint: string; webhookPath: string; token?: string } }>('/api/openclaw/test', testEventForwardingConnectionHandler);
+  app.post<{ Body: { endpoint: string; webhookPath: string; token?: string; channelType?: AgentEventForwardingConfig['channelType']; channel?: string } }>('/api/event-forwarding/test', testEventForwardingConnectionHandler);
+  app.post<{ Body: { endpoint: string; webhookPath: string; token?: string; channelType?: AgentEventForwardingConfig['channelType']; channel?: string } }>('/api/openclaw/test', testEventForwardingConnectionHandler);
 
   return app;
 }
