@@ -54,46 +54,44 @@
 
 **Aster** bridges any Android device to AI assistants like Claude through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). Use it as your AI CoPilot on mobile — or plug a spare Android into a charger, install Aster, and give your AI its own device. It can call you, text you, monitor notifications, and act on its own. Screenshots, UI automation, file management, media search, and 49 tools — all through natural language.
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./apps/android/screenshots/light/connection-setup.jpg">
-    <img src="./apps/android/screenshots/connection-setup.jpg" width="200" alt="Connection Setup" />
-  </picture>
-  &nbsp;&nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./apps/android/screenshots/light/device-dashboard.jpg">
-    <img src="./apps/android/screenshots/device-dashboard.jpg" width="200" alt="Device Dashboard" />
-  </picture>
-  &nbsp;&nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./apps/android/screenshots/light/services-logs.jpg">
-    <img src="./apps/android/screenshots/services-logs.jpg" width="200" alt="Services & Logs" />
-  </picture>
-  &nbsp;&nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./apps/android/screenshots/light/permissions.jpg">
-    <img src="./apps/android/screenshots/permissions.jpg" width="200" alt="Permissions" />
-  </picture>
-</p>
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>Connection Setup</b></sub></td>
+    <td align="center"><sub><b>Device Dashboard</b></sub></td>
+    <td align="center"><sub><b>Tool Call Logs</b></sub></td>
+    <td align="center"><sub><b>Permissions</b> &mdash; "Ask all together"</sub></td>
+  </tr>
+  <tr>
+    <td><img src="./apps/android/screenshots/connection-setup.jpg" width="190" alt="Connection Setup, dark theme" /></td>
+    <td><img src="./apps/android/screenshots/device-dashboard.jpg" width="190" alt="Device Dashboard, dark theme" /></td>
+    <td><img src="./apps/android/screenshots/services-logs.jpg" width="190" alt="Tool Call Logs, dark theme" /></td>
+    <td><img src="./apps/android/screenshots/permissions.jpg" width="190" alt="Permissions, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="./apps/android/screenshots/light/connection-setup.jpg" width="190" alt="Connection Setup, light theme" /></td>
+    <td><img src="./apps/android/screenshots/light/device-dashboard.jpg" width="190" alt="Device Dashboard, light theme" /></td>
+    <td><img src="./apps/android/screenshots/light/services-logs.jpg" width="190" alt="Tool Call Logs, light theme" /></td>
+    <td><img src="./apps/android/screenshots/light/permissions.jpg" width="190" alt="Permissions, light theme" /></td>
+  </tr>
+</table>
+
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>Companion Face Overlay</b></sub></td>
+    <td align="center"><sub><b>On-device MCP Server</b> &mdash; Local MCP mode</sub></td>
+  </tr>
+  <tr>
+    <td><img src="./apps/android/screenshots/companion-overlay.jpg" width="190" alt="Companion Face Overlay, dark theme" /></td>
+    <td><img src="./apps/android/screenshots/on-device-mcp.jpg" width="190" alt="On-device MCP Server, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="./apps/android/screenshots/light/companion-overlay.jpg" width="190" alt="Companion Face Overlay, light theme" /></td>
+    <td><img src="./apps/android/screenshots/light/on-device-mcp.jpg" width="190" alt="On-device MCP Server, light theme" /></td>
+  </tr>
+</table>
 
 <p align="center">
-  <sub>Connection Setup &nbsp;&bull;&nbsp; Device Dashboard &nbsp;&bull;&nbsp; Tool Call Logs &nbsp;&bull;&nbsp; Permissions ("Ask all together") &nbsp;&bull;&nbsp; <em>screenshots follow your GitHub theme — the app ships both</em></sub>
-</p>
-
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./apps/android/screenshots/light/companion-overlay.jpg">
-    <img src="./apps/android/screenshots/companion-overlay.jpg" width="200" alt="Companion Face Overlay" />
-  </picture>
-  &nbsp;&nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./apps/android/screenshots/light/on-device-mcp.jpg">
-    <img src="./apps/android/screenshots/on-device-mcp.jpg" width="200" alt="On-device MCP Server" />
-  </picture>
-</p>
-
-<p align="center">
-  <sub>Companion Face Overlay &nbsp;&bull;&nbsp; On-device MCP Server (Local MCP mode)</sub>
+  <sub><b>Every screen ships in both themes</b> &mdash; dark on the top row, light on the bottom. Aster follows your device setting.</sub>
 </p>
 
 ## Features
