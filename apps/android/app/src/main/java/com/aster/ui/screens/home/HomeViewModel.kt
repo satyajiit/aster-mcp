@@ -20,6 +20,16 @@ class HomeViewModel @Inject constructor(
     val lastUsedMode: StateFlow<String?> = settingsDataStore.lastMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    /**
+     * Whether the "star the repo" invitation has been acted on or dismissed.
+     *
+     * Starts `true` so the card is absent until DataStore says otherwise —
+     * seeded `false`, it would flash in for a frame on every launch after the
+     * user had already dismissed it.
+     */
+    val starPromptDismissed: StateFlow<Boolean> = settingsDataStore.starPromptDismissed
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     val isServiceRunning: Boolean
         get() = AsterService.isRunning
 
@@ -37,6 +47,12 @@ class HomeViewModel @Inject constructor(
     fun setLastMode(mode: String) {
         viewModelScope.launch {
             settingsDataStore.setLastMode(mode)
+        }
+    }
+
+    fun dismissStarPrompt() {
+        viewModelScope.launch {
+            settingsDataStore.setStarPromptDismissed(true)
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.aster.ui.screens.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,10 +33,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aster.R
+import com.aster.BuildConfig
 import com.aster.ui.components.AsterCard
 import com.aster.ui.components.AsterSectionHeader
 import com.aster.ui.components.AsterTopBar
@@ -232,12 +235,33 @@ fun SettingsScreen(
                         }
 
                         Column {
-                            Text(
-                                text = "Aster",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = colors.text,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "Aster",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = colors.text,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = stringResource(R.string.brand_by),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = colors.textSubtle
+                                )
+                                Image(
+                                    painter = painterResource(id = R.drawable.openally_mark),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = stringResource(R.string.brand_openally),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = colors.textSubtle,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                             Text(
                                 text = "Android Device Controller",
                                 style = MaterialTheme.typography.bodySmall,
@@ -253,11 +277,20 @@ fun SettingsScreen(
                             .background(colors.border)
                     )
 
-                    AboutInfoRow(label = "Version", value = "1.1.5")
-                    AboutInfoRow(label = "Build", value = "release")
+                    AboutInfoRow(label = "Version", value = BuildConfig.VERSION_NAME)
+                    AboutInfoRow(
+                        label = "Build",
+                        value = if (BuildConfig.DEBUG) "debug" else "release"
+                    )
                     AboutInfoRow(
                         label = "Platform",
                         value = "Android ${android.os.Build.VERSION.RELEASE}"
+                    )
+
+                    Text(
+                        text = stringResource(R.string.brand_trademark_notice),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.textMuted
                     )
                 }
             }

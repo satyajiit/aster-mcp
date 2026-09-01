@@ -34,6 +34,7 @@ class SettingsDataStore @Inject constructor(
         val IPC_TOKEN = stringPreferencesKey("ipc_token")
         val MCP_PORT = intPreferencesKey("mcp_port")
         val AUTO_START_MODE = stringPreferencesKey("auto_start_mode")
+        val STAR_PROMPT_DISMISSED = booleanPreferencesKey("star_prompt_dismissed")
     }
 
     val serverConfig: Flow<ServerConfig> = dataStore.data.map { prefs ->
@@ -66,6 +67,11 @@ class SettingsDataStore @Inject constructor(
 
     val themeMode: Flow<String> = dataStore.data.map { prefs ->
         prefs[Keys.THEME_MODE] ?: "system"
+    }
+
+    /** Whether the "star the repo" prompt has been acted on or dismissed. */
+    val starPromptDismissed: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[Keys.STAR_PROMPT_DISMISSED] ?: false
     }
 
     val ipcToken: Flow<String?> = dataStore.data.map { prefs ->
@@ -109,6 +115,12 @@ class SettingsDataStore @Inject constructor(
     suspend fun clearDeviceId() {
         dataStore.edit { prefs ->
             prefs.remove(Keys.DEVICE_ID)
+        }
+    }
+
+    suspend fun setStarPromptDismissed(dismissed: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[Keys.STAR_PROMPT_DISMISSED] = dismissed
         }
     }
 

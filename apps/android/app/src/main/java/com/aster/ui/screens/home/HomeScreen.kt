@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -42,11 +43,14 @@ import com.aster.ui.components.AnimatedEntrance
 import com.aster.ui.components.AsterButton
 import com.aster.ui.components.AsterButtonVariant
 import com.aster.ui.components.BadgeItem
+import com.aster.ui.components.BrandLockup
 import com.aster.ui.components.GlowOrb
 import com.aster.ui.components.ModeCard
+import com.aster.ui.components.StarRepoCard
 import com.aster.ui.theme.AsterTheme
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.Activity
+import compose.icons.feathericons.Star
 import compose.icons.feathericons.Youtube
 
 // Per-mode accent colors
@@ -75,6 +79,7 @@ fun HomeScreen(
     val lastUsedMode by viewModel.lastUsedMode.collectAsState()
     val isServiceRunning = viewModel.isServiceRunning
     val activeModes = viewModel.activeModeTypes
+    val starPromptDismissed by viewModel.starPromptDismissed.collectAsState()
 
     Column(
         modifier = Modifier
@@ -94,28 +99,10 @@ fun HomeScreen(
                 .padding(top = 8.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                painter = painterResource(id = R.drawable.bolt),
-                contentDescription = "Aster",
-                tint = colors.primary,
-                modifier = Modifier.size(28.dp)
+            BrandLockup(
+                modifier = Modifier.weight(1f),
+                tagline = "Android Device Controller"
             )
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Aster",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = colors.text,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Android Device Controller",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.textMuted
-                )
-            }
 
             IconButton(onClick = onNavigateToLogs) {
                 Icon(
@@ -299,13 +286,35 @@ fun HomeScreen(
                 )
             }
 
+            // =================================================================
+            // STAR THE REPO (dismissible invitation)
+            // =================================================================
+
+            val uriHandler = LocalUriHandler.current
+            val starAmber = Color(0xFFF59E0B)
+            val repoUrl = stringResource(R.string.star_repo_url)
+
+            if (!starPromptDismissed) {
+                Spacer(modifier = Modifier.height(24.dp))
+
+                AnimatedEntrance(delayMillis = 550) {
+                    StarRepoCard(
+                        onStar = {
+                            uriHandler.openUri(repoUrl)
+                            // Opening the repo counts as acting on it.
+                            viewModel.dismissStarPrompt()
+                        },
+                        onDismiss = viewModel::dismissStarPrompt
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // =================================================================
             // YOUTUBE SUBSCRIBE FOOTER
             // =================================================================
 
-            val uriHandler = LocalUriHandler.current
             val ytRed = Color(0xFFFF0000)
 
             Row(
@@ -346,6 +355,41 @@ fun HomeScreen(
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.textMuted
                 )
+            }
+
+            // =================================================================
+            // STAR THE REPO
+            // =================================================================
+
+            if (starPromptDismissed) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 32.dp)
+                        .clickable {
+                            uriHandler.openUri(repoUrl)
+                        },
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = FeatherIcons.Star,
+                        contentDescription = null,
+                        tint = starAmber,
+                        modifier = Modifier.size(18.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Text(
+                        text = stringResource(R.string.star_repo_action),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = starAmber,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }

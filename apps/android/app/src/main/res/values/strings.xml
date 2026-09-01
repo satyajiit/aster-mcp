@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!--
+      app_name stays unmarked on purpose. It is shown in the launcher, in system
+      Settings > Accessibility, and inside error copy — none of which are brand
+      surfaces. The trademark rides brand_lockup instead.
+    -->
     <string name="app_name">Aster by OpenAlly</string>
+
+    <!-- Brand surfaces only: onboarding, Settings > About, the home app bar. -->
+    <string name="brand_by">by</string>
+    <string name="brand_openally">OpenAlly\u2122</string>
+    <string name="brand_trademark_notice">OpenAlly is a trademark of Matterward Labs Private Limited.</string>
+
+    <!-- Repository call to action -->
+    <string name="star_repo_title">Enjoying Aster?</string>
+    <string name="star_repo_body">Aster is free and open source. A star on GitHub helps other people find it.</string>
+    <string name="star_repo_action">Star on GitHub</string>
+    <string name="star_repo_dismiss">Not now</string>
+    <string name="star_repo_url">https://github.com/satyajiit/aster-mcp</string>
     <string name="accessibility_service_description">Aster by OpenAlly uses accessibility to capture screen content, perform gestures, and control the device for remote management.</string>
 
     <!-- Connection -->
