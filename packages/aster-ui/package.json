@@ -1,0 +1,8 @@
+{
+  "name": "@aster/aster-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared Aster design system — a dependency-free Nuxt layer consumed by the dashboard and the marketing site.",
+  "main": "./nuxt.config.ts"
+}

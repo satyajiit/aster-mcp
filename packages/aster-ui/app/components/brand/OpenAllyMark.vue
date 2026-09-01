@@ -1,0 +1,57 @@
+<script setup lang="ts">
+/**
+ * The OpenAlly mark. Single source of truth for the geometry — the 1024-unit
+ * path below is byte-identical to OpenAllyWeb/app/components/shared/Logo.tsx.
+ *
+ * The tile field (#1BC391) is deliberately NOT the UI accent token and does not
+ * change with the colour scheme. Per Logo.tsx: the mark is theme-invariant.
+ * Use `variant="glyph"` only where a tile would be wrong (inline in a text run);
+ * it inherits currentColor and is therefore not the brand lockup.
+ */
+withDefaults(
+  defineProps<{
+    variant?: 'tile' | 'glyph';
+    size?: number | string;
+  }>(),
+  { variant: 'tile', size: 24 },
+);
+
+const MARK_PATH =
+  'M501.2 5.4L529.0 7.0L553.8 17.8L573.9 36.4L586.2 61.1L587.8 96.7L584.7 109.1L575.4 126.1L563.0 138.4L564.6 203.4L884.8 203.4L903.3 208.0L929.6 222.0L952.8 243.6L963.7 260.6L973.0 294.7L973.0 455.5L1003.9 467.9L1013.2 477.2L1020.9 491.1L1024.0 508.1L1024.0 618.0L1017.8 638.1L1003.9 653.5L988.4 661.3L973.0 664.4L974.5 843.8L973.0 932.0L969.9 945.9L960.6 967.5L949.8 983.0L945.1 984.6L943.6 989.2L932.7 998.5L912.6 1010.9L884.8 1018.6L136.1 1018.6L114.5 1012.4L89.7 998.5L71.2 979.9L58.8 959.8L49.5 927.3L49.5 664.4L34.0 661.3L17.0 652.0L6.2 639.6L0.0 622.6L1.5 492.7L17.0 469.5L29.4 461.7L49.5 457.1L49.5 299.3L57.2 266.8L69.6 245.2L91.3 223.5L119.1 208.0L137.7 203.4L459.4 203.4L459.4 138.4L440.8 115.2L434.7 92.0L434.7 68.8L440.8 48.7L456.3 27.1L479.5 11.6ZM304.7 718.5L304.7 741.7L320.2 785.0L334.1 806.7L366.6 839.2L394.4 857.7L428.5 873.2L471.8 884.0L508.9 887.1L552.2 884.0L590.9 874.7L601.7 868.5L611.0 867.0L646.6 846.9L671.3 823.7L674.4 823.7L691.4 803.6L711.5 768.0L719.3 738.6L719.3 718.5ZM326.4 407.6L310.9 410.7L295.4 418.4L280.0 432.3L269.1 447.8L255.2 489.6L255.2 528.2L267.6 568.5L281.5 588.6L295.4 600.9L309.4 608.7L338.8 611.8L354.2 608.7L372.8 597.8L392.9 574.6L405.3 545.3L409.9 519.0L409.9 500.4L403.7 467.9L388.3 437.0L372.8 421.5L354.2 410.7ZM685.2 407.6L665.1 412.2L654.3 418.4L635.7 437.0L628.0 449.4L620.3 466.4L614.1 494.2L614.1 526.7L620.3 553.0L637.3 583.9L652.8 599.4L665.1 607.1L683.7 611.8L699.2 611.8L717.7 607.1L728.6 600.9L750.2 577.7L759.5 559.2L767.2 532.9L768.8 498.9L761.0 463.3L744.0 433.9L730.1 420.0L710.0 409.1Z';
+</script>
+
+<template>
+  <svg
+    v-if="variant === 'tile'"
+    :width="size"
+    :height="size"
+    viewBox="0 0 32 32"
+    role="img"
+    aria-label="OpenAlly"
+    class="openally-mark"
+  >
+    <rect width="32" height="32" rx="7.2" fill="#1BC391" />
+    <g transform="translate(6.080 6.080) scale(0.019375)">
+      <path fill="#FFFFFF" fill-rule="evenodd" :d="MARK_PATH" />
+    </g>
+  </svg>
+
+  <svg
+    v-else
+    :width="size"
+    :height="size"
+    viewBox="0 0 1024 1024"
+    role="img"
+    aria-label="OpenAlly"
+    class="openally-mark"
+  >
+    <path fill="currentColor" fill-rule="evenodd" :d="MARK_PATH" />
+  </svg>
+</template>
+
+<style scoped>
+.openally-mark {
+  display: block;
+  flex: none;
+}
+</style>
