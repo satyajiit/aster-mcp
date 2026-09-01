@@ -31,33 +31,34 @@
         </button>
       </div>
 
+      <!-- Theme switcher — both the app and the dashboard ship in both themes -->
+      <div class="flex items-center justify-center gap-2 mb-8">
+        <button
+          v-for="theme in themes"
+          :key="theme.id"
+          class="px-4 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-[0.1em] border transition-all duration-300"
+          :class="shotTheme === theme.id
+            ? 'bg-aster/10 border-aster/30 text-aster'
+            : 'border-border-dim text-text-tertiary hover:text-text-secondary hover:border-border-subtle'"
+          @click="shotTheme = theme.id"
+        >
+          <Icon :name="theme.icon" class="inline mr-1 text-xs" />
+          {{ theme.label }}
+        </button>
+      </div>
+
       <!-- Android App Screenshots -->
       <Transition name="tab" mode="out-in">
         <div v-if="activeTab === 'app'" key="app">
-          <!-- Theme switcher -->
-          <div class="flex items-center justify-center gap-2 mb-8">
-            <button
-              v-for="theme in themes"
-              :key="theme.id"
-              class="px-4 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-[0.1em] border transition-all duration-300"
-              :class="appTheme === theme.id
-                ? 'bg-aster/10 border-aster/30 text-aster'
-                : 'border-border-dim text-text-tertiary hover:text-text-secondary hover:border-border-subtle'"
-              @click="appTheme = theme.id"
-            >
-              <Icon :name="theme.icon" class="inline mr-1 text-xs" />
-              {{ theme.label }}
-            </button>
-          </div>
           <div class="flex justify-start sm:justify-center gap-4 sm:gap-6 overflow-x-auto pb-4 sm:pb-0 sm:overflow-x-visible snap-x snap-mandatory">
             <div
               v-for="shot in appScreenshots"
-              :key="appTheme + shot.src"
+              :key="shotTheme + shot.src"
               class="screenshot-card group relative rounded-2xl overflow-hidden border border-border-dim bg-surface-raised/60 backdrop-blur-sm hover:border-aster/20 transition-all duration-500 flex-shrink-0 snap-center"
               style="width: 180px;"
             >
               <img
-                :src="appTheme === 'light' ? shot.src.replace('/app/', '/app/light/') : shot.src"
+                :src="shotTheme === 'light' ? shot.src.replace('/app/', '/app/light/') : shot.src"
                 :alt="shot.label"
                 class="w-full h-auto block transition-transform duration-500 group-hover:scale-[1.02]"
                 loading="lazy"
@@ -74,11 +75,11 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div
               v-for="shot in dashboardScreenshots"
-              :key="shot.src"
+              :key="shotTheme + shot.src"
               class="screenshot-card group relative rounded-2xl overflow-hidden border border-border-dim bg-surface-raised/60 backdrop-blur-sm hover:border-aster/20 transition-all duration-500"
             >
               <img
-                :src="shot.src"
+                :src="shotTheme === 'light' ? shot.src.replace('/dashboard/', '/dashboard/light/') : shot.src"
                 :alt="shot.label"
                 class="w-full h-auto block transition-transform duration-500 group-hover:scale-[1.01]"
                 loading="lazy"
@@ -96,7 +97,7 @@
 
 <script setup lang="ts">
 const activeTab = ref('app')
-const appTheme = ref('dark')
+const shotTheme = ref('dark')
 
 const tabs = [
   { id: 'app', label: 'Android App', icon: 'lucide:smartphone' },
@@ -117,15 +118,21 @@ const appScreenshots = [
   { src: '/screenshots/app/on-device-mcp.jpg', label: 'On-device MCP' },
 ]
 
+// Captured by tools/screenshots (`node run.mjs`), which also syncs them here.
+// Every name must exist under both /screenshots/dashboard/ and .../light/.
 const dashboardScreenshots = [
-  { src: '/screenshots/dashboard/dashboard-overview.png', label: 'Dashboard Overview' },
-  { src: '/screenshots/dashboard/device-telemetry.png', label: 'Device Telemetry' },
-  { src: '/screenshots/dashboard/file-preview.png', label: 'File Browser & Preview' },
-  { src: '/screenshots/dashboard/mcp-tool-explorer.png', label: 'MCP Tool Explorer' },
+  { src: '/screenshots/dashboard/dashboard-overview.png', label: 'Overview' },
   { src: '/screenshots/dashboard/device-registry.png', label: 'Device Registry' },
-  { src: '/screenshots/dashboard/device-system-info.png', label: 'System Information' },
-  { src: '/screenshots/dashboard/device-control.png', label: 'Device Control' },
+  { src: '/screenshots/dashboard/device-telemetry.png', label: 'Device Telemetry' },
+  { src: '/screenshots/dashboard/device-screen-control.png', label: 'Screen Control' },
+  { src: '/screenshots/dashboard/panel-messages.png', label: 'Messages' },
+  { src: '/screenshots/dashboard/panel-apps.png', label: 'Apps Inventory' },
+  { src: '/screenshots/dashboard/panel-storage.png', label: 'Storage & Media' },
+  { src: '/screenshots/dashboard/logs.png', label: 'Logs' },
+  { src: '/screenshots/dashboard/connect.png', label: 'Connect' },
   { src: '/screenshots/dashboard/file-browser.png', label: 'File Browser' },
+  { src: '/screenshots/dashboard/mcp-tool-explorer.png', label: 'MCP Tool Explorer' },
+  { src: '/screenshots/dashboard/event-forwarding.png', label: 'Event Forwarding' },
 ]
 </script>
 

@@ -5,6 +5,11 @@
 <h1 align="center">Aster</h1>
 
 <p align="center">
+  <a href="https://openally.ai"><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/assets/openally-mark.svg" width="15" alt="" /></a>
+  <sub>by <a href="https://openally.ai"><b>OpenAlly</b></a><sup>&trade;</sup></sub>
+</p>
+
+<p align="center">
   <strong>Your AI CoPilot on Mobile — or give your AI its own phone</strong>
 </p>
 
@@ -99,20 +104,72 @@ Aster is an MCP server that bridges any Android device to AI assistants. Use it 
 
 ## Web Dashboard
 
+A dashboard on `:5989` — device registry and approvals, live telemetry, click-through screen control, filtered logs, a file browser, panels for messages, apps, storage and media, and an explorer for all 49 MCP tools. It follows your system theme.
+
 <p align="center">
-  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dashboard-overview.png" width="49%" alt="Dashboard Overview" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/dashboard-overview.png" />
+    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/dashboard-overview.png" width="49%" alt="Overview" />
+  </picture>
   &nbsp;
-  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/device-telemetry.png" width="49%" alt="Device Telemetry" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/device-telemetry.png" />
+    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/device-telemetry.png" width="49%" alt="Device Telemetry" />
+  </picture>
 </p>
 <p align="center">
-  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/file-preview.png" width="49%" alt="File Browser & Preview" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/device-screen-control.png" />
+    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/device-screen-control.png" width="49%" alt="Screen Control" />
+  </picture>
   &nbsp;
-  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/mcp-tool-explorer.png" width="49%" alt="MCP Tool Explorer" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/mcp-tool-explorer.png" />
+    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/mcp-tool-explorer.png" width="49%" alt="MCP Tool Explorer" />
+  </picture>
+</p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/panel-messages.png" />
+    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/panel-messages.png" width="49%" alt="Messages" />
+  </picture>
+  &nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/panel-storage.png" />
+    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/panel-storage.png" width="49%" alt="Storage &amp; Media" />
+  </picture>
+</p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/logs.png" />
+    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/logs.png" width="49%" alt="Logs" />
+  </picture>
+  &nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/connect.png" />
+    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/connect.png" width="49%" alt="Connect" />
+  </picture>
 </p>
 
 <p align="center">
-  <sub>Dashboard Overview &nbsp;&bull;&nbsp; Device Telemetry &nbsp;&bull;&nbsp; File Browser & Preview &nbsp;&bull;&nbsp; MCP Tool Explorer</sub>
+  <sub>Overview &nbsp;&bull;&nbsp; Device Telemetry &nbsp;&bull;&nbsp; Screen Control &nbsp;&bull;&nbsp; MCP Tool Explorer &nbsp;&bull;&nbsp; Messages &nbsp;&bull;&nbsp; Storage &amp; Media &nbsp;&bull;&nbsp; Logs &nbsp;&bull;&nbsp; Connect</sub>
 </p>
+
+| Page | What it does |
+|---|---|
+| **Overview** | Device counts, online state, recent activity, server health |
+| **Devices** | Registry with approve / reject / un-reject / delete, live online state |
+| **Device detail** | Full telemetry — ABIs, build tags, radio, RAM, storage, display, uptime, live battery |
+| **Screen control** | Live screenshot, click-through tapping, gestures, text input, global actions, element search |
+| **Messages / Notifications / Contacts / Alarms** | Read and send SMS, the notification stream, contact search, alarm management |
+| **Apps** | Installed-app inventory with paging, package list, launch by intent |
+| **Storage & media** | Storage analytics, large-file finder, media indexing, natural-language media search |
+| **Audio / Location / Shell / Utilities** | Volume and playback, TTS, location, shell, clipboard, overlays, calls |
+| **Logs** | Level, device and full-text filters, pagination, structured event payloads |
+| **Connect** | MCP, dashboard, WebSocket and Tailscale URLs with a ready-to-paste `.mcp.json` |
+| **Tools** | Every registered MCP tool, grouped exactly as the Android app groups them |
+
+Start it with `aster start`, or `aster dashboard` to open it in a browser.
 
 ## Installation
 
@@ -249,7 +306,7 @@ Aster is built with a security-first, privacy-first architecture:
 - **Device Approval** — Every new device must be manually approved from the dashboard before it can connect.
 - **Tailscale Integration** — Optional encrypted mesh VPN with WireGuard. Secure remote access with automatic TLS, no port forwarding.
 - **No Root Required** — Uses the official Android Accessibility Service API. No rooting, no ADB hacks. Every action is permission-gated and sandboxed.
-- **Local Storage Only** — All data stored in a local SQLite database. Nothing is sent externally.
+- **Local Storage Only** — Devices, logs and settings live in a local SQLite database. The server has no telemetry and no cloud dependency; the only outbound traffic is what you configure yourself under event forwarding.
 - **100% Open Source** — MIT licensed, fully auditable codebase.
 
 ## Requirements
@@ -266,6 +323,14 @@ Aster is built with a security-first, privacy-first architecture:
 
 Aster is the end-to-end device companion for [**OpenAlly.ai**](https://openally.ai) — the cross-platform AI agent platform. OpenAlly drives the phone fully on-device over Aster's IPC (Binder) mode: no server, no network, the complete 49-tool surface locally.
 
+## Star the repo
+
+If Aster is useful to you, a star is the cheapest way to say so — it is how other people find the project.
+
+<p align="center">
+  <a href="https://github.com/satyajiit/aster-mcp"><img src="https://img.shields.io/github/stars/satyajiit/aster-mcp?style=for-the-badge&color=f59e0b&labelColor=06060c&logo=github" alt="Star aster-mcp on GitHub" /></a>
+</p>
+
 ## License
 
 MIT
@@ -276,4 +341,8 @@ MIT
   <a href="https://aster.matterwardlabs.com">Website</a> &bull;
   <a href="https://github.com/satyajiit/aster-mcp">GitHub</a> &bull;
   <a href="https://openally.ai">OpenAlly</a>
+</p>
+
+<p align="center">
+  <sub>OpenAlly is a trademark of Matterward Labs Private Limited.</sub>
 </p>

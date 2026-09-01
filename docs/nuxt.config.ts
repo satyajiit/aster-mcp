@@ -4,6 +4,11 @@ const isGitHubPages = process.env.GITHUB_PAGES === 'true';
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
+  // Shared Aster design system — same layer the dashboard consumes, so the two
+  // surfaces cannot drift. Relative path: docs/ and mcp/dashboard/ each carry
+  // their own lockfile and there is no root workspace to link through.
+  extends: ['../packages/aster-ui'],
+
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   modules: ['@nuxt/fonts', '@nuxt/icon'],
@@ -17,14 +22,14 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'Aster — Your AI CoPilot on Mobile or Give Your AI Its Own Phone',
-      htmlAttrs: { lang: 'en' },
+      htmlAttrs: { lang: 'en', 'data-theme': 'dark' },
       meta: [
         // Primary meta
         { name: 'description', content: 'Aster connects any Android device to AI assistants via MCP. Your AI CoPilot on mobile — or give your AI a dedicated device and let it call, text, and act on its own. 49 tools, open source, self-hosted.' },
         { name: 'keywords', content: 'aster, android ai copilot, mcp server, model context protocol, ai phone, ai assistant android, claude android, openclaw, clawdbot, moltbot, clawbot, clawhub, ai automation, ai copilot mobile, give ai a phone, ai own phone, natural language android, ai calls you, ai own device' },
         { name: 'author', content: 'Satyajit Pradhan' },
         { name: 'robots', content: 'index, follow' },
-        { name: 'theme-color', content: '#2dd4bf' },
+        { name: 'theme-color', content: '#06060c' },
 
         // Open Graph
         { property: 'og:type', content: 'website' },

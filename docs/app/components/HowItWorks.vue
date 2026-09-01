@@ -4,7 +4,7 @@
     <div class="absolute inset-0">
       <div
         class="absolute inset-0 opacity-[0.018]"
-        style="background-image: linear-gradient(rgba(45,212,191,.25) 1px, transparent 1px), linear-gradient(90deg, rgba(45,212,191,.25) 1px, transparent 1px); background-size: 48px 48px;"
+        style="background-image: linear-gradient(color-mix(in oklab, var(--color-primary) 25%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in oklab, var(--color-primary) 25%, transparent) 1px, transparent 1px); background-size: 48px 48px;"
       />
       <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,_rgba(45,212,191,0.04)_0%,_transparent_55%)]" />
     </div>
@@ -126,7 +126,7 @@
                   <div
                     v-if="phase === 0"
                     class="beam-packet"
-                    style="background: linear-gradient(90deg, transparent, #a78bfa, transparent);"
+                    style="background: linear-gradient(90deg, transparent, var(--color-info-bright), transparent);"
                   />
                 </div>
                 <!-- Right beam: Server → Phone -->
@@ -138,7 +138,7 @@
                   <div
                     v-if="phase === 1"
                     class="beam-packet"
-                    style="background: linear-gradient(90deg, transparent, #2dd4bf, transparent);"
+                    style="background: linear-gradient(90deg, transparent, var(--color-primary), transparent);"
                   />
                 </div>
               </div>

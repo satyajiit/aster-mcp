@@ -5,6 +5,11 @@
 <h1 align="center">Aster</h1>
 
 <p align="center">
+  <a href="https://openally.ai"><img src="./assets/openally-mark.svg" width="15" alt="" /></a>
+  <sub>by <a href="https://openally.ai"><b>OpenAlly</b></a><sup>&trade;</sup></sub>
+</p>
+
+<p align="center">
   <strong>Your AI CoPilot on Mobile — or give your AI its own phone</strong>
 </p>
 
@@ -125,40 +130,109 @@ The last few releases (v1.3 → v1.7) added a lot:
 
 ## Web Dashboard
 
-Aster ships with a built-in web dashboard for managing devices, browsing files, and testing MCP tools.
+The server ships with a web dashboard on `:5989` — device registry and approvals, live telemetry, click-through screen control, filtered logs, a file browser, panels for messages, apps, storage and media, and an explorer for all 49 MCP tools. It follows your system theme.
 
 <p align="center">
-  <img src="./mcp/dashboard/screenshots/dashboard-overview.png" width="49%" alt="Dashboard Overview" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/dashboard-overview.png" />
+    <img src="./mcp/dashboard/screenshots/dark/dashboard-overview.png" width="49%" alt="Overview" />
+  </picture>
   &nbsp;
-  <img src="./mcp/dashboard/screenshots/device-telemetry.png" width="49%" alt="Device Telemetry" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/device-telemetry.png" />
+    <img src="./mcp/dashboard/screenshots/dark/device-telemetry.png" width="49%" alt="Device Telemetry" />
+  </picture>
 </p>
 <p align="center">
-  <img src="./mcp/dashboard/screenshots/file-preview.png" width="49%" alt="File Browser & Preview" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/device-screen-control.png" />
+    <img src="./mcp/dashboard/screenshots/dark/device-screen-control.png" width="49%" alt="Screen Control" />
+  </picture>
   &nbsp;
-  <img src="./mcp/dashboard/screenshots/mcp-tool-explorer.png" width="49%" alt="MCP Tool Explorer" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/mcp-tool-explorer.png" />
+    <img src="./mcp/dashboard/screenshots/dark/mcp-tool-explorer.png" width="49%" alt="MCP Tool Explorer" />
+  </picture>
 </p>
 
 <p align="center">
-  <sub>Dashboard Overview &nbsp;&bull;&nbsp; Device Telemetry &nbsp;&bull;&nbsp; File Browser & Preview &nbsp;&bull;&nbsp; MCP Tool Explorer</sub>
+  <sub>Overview &nbsp;&bull;&nbsp; Device Telemetry &nbsp;&bull;&nbsp; Screen Control &nbsp;&bull;&nbsp; MCP Tool Explorer</sub>
 </p>
 
 <details>
-<summary>More screenshots</summary>
+<summary><b>More screenshots</b> &mdash; registry, panels, logs, connect, files, event forwarding</summary>
 <br>
 <p align="center">
-  <img src="./mcp/dashboard/screenshots/device-registry.png" width="49%" alt="Device Registry" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/device-registry.png" />
+    <img src="./mcp/dashboard/screenshots/dark/device-registry.png" width="49%" alt="Device Registry" />
+  </picture>
   &nbsp;
-  <img src="./mcp/dashboard/screenshots/device-system-info.png" width="49%" alt="System Info" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/panel-messages.png" />
+    <img src="./mcp/dashboard/screenshots/dark/panel-messages.png" width="49%" alt="Messages" />
+  </picture>
 </p>
 <p align="center">
-  <img src="./mcp/dashboard/screenshots/device-control.png" width="49%" alt="Device Control" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/panel-apps.png" />
+    <img src="./mcp/dashboard/screenshots/dark/panel-apps.png" width="49%" alt="Apps Inventory" />
+  </picture>
   &nbsp;
-  <img src="./mcp/dashboard/screenshots/file-browser.png" width="49%" alt="File Browser" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/panel-storage.png" />
+    <img src="./mcp/dashboard/screenshots/dark/panel-storage.png" width="49%" alt="Storage &amp; Media" />
+  </picture>
 </p>
 <p align="center">
-  <sub>Device Registry &nbsp;&bull;&nbsp; System Info &nbsp;&bull;&nbsp; Device Control &nbsp;&bull;&nbsp; File Browser</sub>
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/logs.png" />
+    <img src="./mcp/dashboard/screenshots/dark/logs.png" width="49%" alt="Logs" />
+  </picture>
+  &nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/connect.png" />
+    <img src="./mcp/dashboard/screenshots/dark/connect.png" width="49%" alt="Connect" />
+  </picture>
+</p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/file-browser.png" />
+    <img src="./mcp/dashboard/screenshots/dark/file-browser.png" width="49%" alt="File Browser" />
+  </picture>
+  &nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/event-forwarding.png" />
+    <img src="./mcp/dashboard/screenshots/dark/event-forwarding.png" width="49%" alt="Event Forwarding" />
+  </picture>
+</p>
+<p align="center">
+  <sub>Device Registry &nbsp;&bull;&nbsp; Messages &nbsp;&bull;&nbsp; Apps Inventory &nbsp;&bull;&nbsp; Storage &amp; Media &nbsp;&bull;&nbsp; Logs &nbsp;&bull;&nbsp; Connect &nbsp;&bull;&nbsp; File Browser &nbsp;&bull;&nbsp; Event Forwarding</sub>
 </p>
 </details>
+
+<p align="center">
+  <sub><b>Dark on the top row of your reader, light if that is your system setting</b> &mdash; both themes are captured from the same build by <a href="./tools/screenshots"><code>tools/screenshots</code></a>, so they never drift from the shipped UI.</sub>
+</p>
+
+**What the dashboard covers**
+
+| Page | What it does |
+|---|---|
+| **Overview** | Device counts, online state, recent activity, server health |
+| **Devices** | Registry with approve / reject / un-reject / delete, live online state |
+| **Device detail** | Full telemetry — ABIs, build tags, radio, RAM, storage, display, uptime, live battery |
+| **Screen control** | Live screenshot, click-through tapping, gestures, text input, global actions, element search |
+| **Messages** | Read and send SMS |
+| **Notifications** | Read the notification stream, post notifications |
+| **Apps** | Installed-app inventory with paging, package list, launch by intent |
+| **Storage & media** | Storage analytics, large-file finder, media indexing, natural-language media search |
+| **Contacts / Alarms / Audio / Location / Shell / Utilities** | The remaining tool families as purpose-built panels |
+| **Logs** | Level, device and full-text filters, pagination, structured event payloads |
+| **Connect** | MCP, dashboard, WebSocket and Tailscale URLs with a ready-to-paste `.mcp.json` |
+| **Tools** | Every registered MCP tool, grouped exactly as the Android app groups them |
+
+Run it with `aster start` (or `aster dashboard` to open it), then visit <http://localhost:5989>.
 
 ## Quick Start
 
@@ -675,6 +749,18 @@ Aster automatically detects Tailscale and prints a `wss://<magicdns>` URL for th
 
 Aster also ships as the **end-to-end companion** for the [**OpenAlly.ai**](https://openally.ai) app. OpenAlly drives the phone entirely on-device through Aster's [IPC (Binder) mode](#connection-modes) — no server, no network, nothing leaves the device. It works **out of the box**: install both, approve the on-device handshake once, and OpenAlly has the full 49-tool surface locally.
 
+## Star the repo
+
+If Aster is useful to you, a star is the cheapest way to say so — it is how other people find the project.
+
+<p align="center">
+  <a href="https://github.com/satyajiit/aster-mcp"><img src="https://img.shields.io/github/stars/satyajiit/aster-mcp?style=for-the-badge&color=f59e0b&labelColor=06060c&logo=github" alt="Star aster-mcp on GitHub" /></a>
+</p>
+
+## Backlog
+
+Things deliberately left undone — unreachable device actions, the unauthenticated API surface, manual Android capture — are recorded in [BACKLOG.md](./BACKLOG.md) with the method used to find each one.
+
 ## License
 
 MIT © [Satyajit Pradhan](https://github.com/satyajiit)
@@ -683,4 +769,8 @@ MIT © [Satyajit Pradhan](https://github.com/satyajiit)
 
 <p align="center">
   <sub>Built with ❤️ for the AI-first future</sub>
+</p>
+
+<p align="center">
+  <sub>OpenAlly is a trademark of Matterward Labs Private Limited.</sub>
 </p>

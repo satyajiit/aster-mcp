@@ -1,34 +1,41 @@
 @import "tailwindcss";
 
-@theme {
-  --color-aster: #2dd4bf;
+/* The shared Aster design system — the same layer the dashboard consumes.
+   Imported here (not registered by the layer) so Tailwind sees @theme in the
+   same compilation unit as the import above. */
+@import "../../../../packages/aster-ui/app/assets/css/tokens.css";
+
+@source "../../../../packages/aster-ui/app/components";
+
+/* Back-compat alias layer.
+   This site's components were written against the older token names. Rather
+   than rewrite 17 components, alias the old names onto the canonical
+   Android-derived values so there is exactly one source of truth. */
+@theme static {
+  --color-aster: var(--color-primary);
   --color-aster-light: #5eead4;
   --color-aster-dark: #14b8a6;
-  --color-aster-glow: rgba(45, 212, 191, 0.15);
-  --color-surface: #0a0a0f;
-  --color-surface-raised: #12121a;
-  --color-surface-overlay: #1a1a25;
-  --color-border-dim: rgba(255, 255, 255, 0.06);
-  --color-border-subtle: rgba(255, 255, 255, 0.1);
-  --color-text-primary: #f0f0f5;
-  --color-text-secondary: #8888a0;
-  --color-text-tertiary: #55556a;
+  --color-aster-glow: color-mix(in oklab, var(--color-primary) 15%, transparent);
 
-  --font-display: "Instrument Sans", "SF Pro Display", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+  --color-surface: var(--color-bg);
+  --color-surface-raised: var(--color-surface-1);
+  --color-surface-overlay: var(--color-surface-2);
+
+  --color-border-dim: var(--color-border);
+  --color-border-subtle: var(--color-border-bright);
+
+  --color-text-primary: var(--color-fg);
+  --color-text-secondary: var(--color-fg-subtle);
+  --color-text-tertiary: var(--color-fg-muted);
 }
 
+/* Base colours, fonts and smoothing come from the shared tokens. */
 html {
   scroll-behavior: smooth;
   overflow-x: hidden;
 }
 
 body {
-  background-color: var(--color-surface);
-  color: var(--color-text-primary);
-  font-family: var(--font-display);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
 }
 
@@ -141,20 +148,3 @@ body {
   color: #fbbf24;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-border-subtle);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-tertiary);
-}
