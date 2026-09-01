@@ -503,7 +503,7 @@ function formatDate(iso: string): string {
                   />
                   <div>
                     <div class="text-[12px] text-terminal-text group-hover:text-primary-bright transition-colors">Incoming Calls</div>
-                    <div class="text-[10px] text-terminal-dim">Forward RINGING events (caller ID is best-effort; often empty on Android 12+)</div>
+                    <div class="text-[10px] text-terminal-dim">Forward RINGING events (caller ID needs the call-log grant on Android 9&ndash;11 and is never available on 12+)</div>
                   </div>
                 </label>
               </div>

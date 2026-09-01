@@ -40,7 +40,7 @@ Aster is two pieces: a self-hosted Node.js MCP server (npm: `aster-mcp`) and an 
 
 ## Key facts
 
-- Proactive event forwarding: pushes incoming SMS, app notifications, and device events to your agent via webhook (off by default; `aster set-event-forwarding`)
+- Proactive event forwarding: pushes incoming SMS, app notifications, incoming calls, and device events to your agent via webhook — OpenClaw-style agent webhook or a Mattermost incoming webhook (off by default; `aster set-event-forwarding`)
 - Connection modes: Remote WebSocket (default), on-device Local MCP server (Ktor, default port 8080), IPC/Binder for same-device agents
 - Safety: device approval gate (pending → approved), on-screen kill switch during AI control, fail-closed package policy that blocks control of banking apps by default
 - Security: plain ws:// on trusted LAN; use Tailscale (auto-detected, `tailscale serve` TLS) for remote access; no telemetry, local SQLite storage

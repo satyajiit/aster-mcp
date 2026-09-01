@@ -155,7 +155,8 @@ object PermissionUtils {
                 Manifest.permission.SEND_SMS,
                 Manifest.permission.RECEIVE_SMS,
                 Manifest.permission.CALL_PHONE,
-                Manifest.permission.READ_PHONE_STATE
+                Manifest.permission.READ_PHONE_STATE,
+                Manifest.permission.READ_CALL_LOG
             )
             PermissionType.CONTACTS -> listOf(Manifest.permission.READ_CONTACTS)
             PermissionType.CAMERA -> listOf(Manifest.permission.CAMERA)
@@ -260,6 +261,12 @@ object PermissionUtils {
         ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.CALL_PHONE
+        ) == PackageManager.PERMISSION_GRANTED &&
+        // CallStateMonitor (incoming_call events, offhook wait) needs phone state.
+        // READ_CALL_LOG is requested but optional: caller ID is best-effort.
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_PHONE_STATE
         ) == PackageManager.PERMISSION_GRANTED
     }
 

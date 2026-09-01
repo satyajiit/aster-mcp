@@ -206,7 +206,7 @@ Every event follows a standardized structure with 4 fixed headers and `[data-*]`
 [data-action] approve this device from the Aster dashboard or via aster devices approve
 ```
 
-**`incoming_call`** — Phone is ringing (caller ID is best-effort; `[data-number]` may be empty on Android 12+)
+**`incoming_call`** — Phone is ringing (caller ID is best-effort; `[data-number]` is always empty on Android 12+ and needs the call-log grant on 9–11)
 ```
 [skill] aster
 [event] incoming_call
@@ -265,7 +265,7 @@ When you receive a message with `[skill] aster`, parse the `[event]` and `[devic
 → If unexpected: alert user "Unknown device SM-S924B trying to connect"
 ```
 
-**Incoming call — log or notify (caller ID may be empty on Android 12+):**
+**Incoming call — log or notify (caller ID is always empty on Android 12+):**
 ```
 [event] incoming_call | [device_id] a1b2c3d4 | number: +1234567890 | contact: Jane Doe
 → aster_send_sms (deviceId: a1b2c3d4) to user: "Incoming call from Jane Doe"

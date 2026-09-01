@@ -3,7 +3,13 @@ package com.aster.service
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+// Robolectric supplies real android.graphics (Rect, Color) on the JVM.
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class ScreenAnnotatorGeometryTest {
 
     @Test

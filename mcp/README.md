@@ -168,9 +168,10 @@ Aster can push real-time events from the phone to your AI agent via webhook — 
 
 - **Incoming SMS** — auto-reply while driving, forward OTPs, escalate urgent messages
 - **App notifications** — flight delays, delivery updates, ride arrivals — your AI knows instantly
+- **Incoming calls** — phone rings, your AI knows who (caller ID is best-effort by Android version)
 - **Device events** — device online/offline, new device pairing requests
 
-Works out of the box with **OpenClaw**, **ClawdBot**, and **MoltBot**. Configure via the dashboard at `/settings/event-forwarding` or CLI:
+Works out of the box with **OpenClaw**, **ClawdBot**, and **MoltBot** — or point it at a **Mattermost incoming webhook** instead. Configure via the dashboard at `/settings/event-forwarding` or CLI:
 
 ```bash
 aster set-event-forwarding

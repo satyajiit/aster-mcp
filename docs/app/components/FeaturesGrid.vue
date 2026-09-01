@@ -77,7 +77,7 @@ const features = [
   {
     icon: 'lucide:radio',
     title: 'Proactive Events',
-    description: 'Your AI doesn\'t just wait for commands — it reacts to incoming SMS, notifications, and device events in real-time via webhooks.',
+    description: 'Your AI doesn\'t just wait for commands — it reacts to incoming SMS, notifications, calls, and device events in real-time. Webhooks to OpenClaw or Mattermost.',
     accent: 'from-fuchsia-400 to-pink-400',
   },
   {

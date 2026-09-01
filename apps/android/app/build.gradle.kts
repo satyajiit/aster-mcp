@@ -72,6 +72,13 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    testOptions {
+        unitTests {
+            // Robolectric: real android.graphics (Rect/Paint/Color) for the Screen* JVM tests.
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -156,6 +163,7 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

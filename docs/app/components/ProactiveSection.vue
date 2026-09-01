@@ -16,7 +16,7 @@
           <span class="bg-gradient-to-r from-fuchsia-400 via-pink-400 to-aster bg-clip-text text-transparent">before you even ask.</span>
         </h2>
         <p class="mt-6 text-text-secondary max-w-2xl mx-auto text-lg leading-relaxed">
-          Aster pushes real-time events &mdash; SMS, notifications, device status &mdash; straight to your AI via webhooks.
+          Aster pushes real-time events &mdash; SMS, notifications, incoming calls, device status &mdash; straight to your AI via webhooks.
           No polling, no delays. Your AI reacts the moment something happens.
         </p>
       </div>
