@@ -104,56 +104,108 @@ Aster is an MCP server that bridges any Android device to AI assistants. Use it 
 
 ## Web Dashboard
 
-A dashboard on `:5989` — device registry and approvals, live telemetry, click-through screen control, filtered logs, a file browser, panels for messages, apps, storage and media, and an explorer for all 49 MCP tools. It follows your system theme.
+A dashboard on `:5989` — device registry and approvals, live telemetry, click-through screen control, filtered logs, a file browser, panels for messages, apps, storage and media, and an explorer for all 49 MCP tools.
+
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>Overview</b></sub></td>
+    <td align="center"><sub><b>Device Telemetry</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/dashboard-overview.png" width="430" alt="Overview, dark theme" /></td>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/device-telemetry.png" width="430" alt="Device Telemetry, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/dashboard-overview.png" width="430" alt="Overview, light theme" /></td>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/device-telemetry.png" width="430" alt="Device Telemetry, light theme" /></td>
+  </tr>
+</table>
+
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>Screen Control</b></sub></td>
+    <td align="center"><sub><b>MCP Tool Explorer</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/device-screen-control.png" width="430" alt="Screen Control, dark theme" /></td>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/mcp-tool-explorer.png" width="430" alt="MCP Tool Explorer, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/device-screen-control.png" width="430" alt="Screen Control, light theme" /></td>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/mcp-tool-explorer.png" width="430" alt="MCP Tool Explorer, light theme" /></td>
+  </tr>
+</table>
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/dashboard-overview.png" />
-    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/dashboard-overview.png" width="49%" alt="Overview" />
-  </picture>
-  &nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/device-telemetry.png" />
-    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/device-telemetry.png" width="49%" alt="Device Telemetry" />
-  </picture>
-</p>
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/device-screen-control.png" />
-    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/device-screen-control.png" width="49%" alt="Screen Control" />
-  </picture>
-  &nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/mcp-tool-explorer.png" />
-    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/mcp-tool-explorer.png" width="49%" alt="MCP Tool Explorer" />
-  </picture>
-</p>
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/panel-messages.png" />
-    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/panel-messages.png" width="49%" alt="Messages" />
-  </picture>
-  &nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/panel-storage.png" />
-    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/panel-storage.png" width="49%" alt="Storage &amp; Media" />
-  </picture>
-</p>
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/logs.png" />
-    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/logs.png" width="49%" alt="Logs" />
-  </picture>
-  &nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/connect.png" />
-    <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/connect.png" width="49%" alt="Connect" />
-  </picture>
+  <sub><b>Every page ships in both themes</b> &mdash; dark on the top row, light on the bottom. The dashboard follows your system setting.</sub>
 </p>
 
-<p align="center">
-  <sub>Overview &nbsp;&bull;&nbsp; Device Telemetry &nbsp;&bull;&nbsp; Screen Control &nbsp;&bull;&nbsp; MCP Tool Explorer &nbsp;&bull;&nbsp; Messages &nbsp;&bull;&nbsp; Storage &amp; Media &nbsp;&bull;&nbsp; Logs &nbsp;&bull;&nbsp; Connect</sub>
-</p>
+<details>
+<summary><b>More screenshots</b> &mdash; registry, panels, logs, connect, files, event forwarding</summary>
+<br>
+
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>Device Registry</b></sub></td>
+    <td align="center"><sub><b>Messages</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/device-registry.png" width="430" alt="Device Registry, dark theme" /></td>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/panel-messages.png" width="430" alt="Messages, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/device-registry.png" width="430" alt="Device Registry, light theme" /></td>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/panel-messages.png" width="430" alt="Messages, light theme" /></td>
+  </tr>
+</table>
+
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>Apps Inventory</b></sub></td>
+    <td align="center"><sub><b>Storage &amp; Media</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/panel-apps.png" width="430" alt="Apps Inventory, dark theme" /></td>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/panel-storage.png" width="430" alt="Storage &amp; Media, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/panel-apps.png" width="430" alt="Apps Inventory, light theme" /></td>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/panel-storage.png" width="430" alt="Storage &amp; Media, light theme" /></td>
+  </tr>
+</table>
+
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>Logs</b></sub></td>
+    <td align="center"><sub><b>Connect</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/logs.png" width="430" alt="Logs, dark theme" /></td>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/connect.png" width="430" alt="Connect, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/logs.png" width="430" alt="Logs, light theme" /></td>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/connect.png" width="430" alt="Connect, light theme" /></td>
+  </tr>
+</table>
+
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>File Browser</b></sub></td>
+    <td align="center"><sub><b>Event Forwarding</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/file-browser.png" width="430" alt="File Browser, dark theme" /></td>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/dark/event-forwarding.png" width="430" alt="Event Forwarding, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/file-browser.png" width="430" alt="File Browser, light theme" /></td>
+    <td><img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/mcp/dashboard/screenshots/light/event-forwarding.png" width="430" alt="Event Forwarding, light theme" /></td>
+  </tr>
+</table>
+</details>
+
+**What the dashboard covers**
 
 | Page | What it does |
 |---|---|
@@ -161,10 +213,11 @@ A dashboard on `:5989` — device registry and approvals, live telemetry, click-
 | **Devices** | Registry with approve / reject / un-reject / delete, live online state |
 | **Device detail** | Full telemetry — ABIs, build tags, radio, RAM, storage, display, uptime, live battery |
 | **Screen control** | Live screenshot, click-through tapping, gestures, text input, global actions, element search |
-| **Messages / Notifications / Contacts / Alarms** | Read and send SMS, the notification stream, contact search, alarm management |
+| **Messages** | Read and send SMS |
+| **Notifications** | Read the notification stream, post notifications |
 | **Apps** | Installed-app inventory with paging, package list, launch by intent |
 | **Storage & media** | Storage analytics, large-file finder, media indexing, natural-language media search |
-| **Audio / Location / Shell / Utilities** | Volume and playback, TTS, location, shell, clipboard, overlays, calls |
+| **Contacts / Alarms / Audio / Location / Shell / Utilities** | The remaining tool families as purpose-built panels |
 | **Logs** | Level, device and full-text filters, pagination, structured event payloads |
 | **Connect** | MCP, dashboard, WebSocket and Tailscale URLs with a ready-to-paste `.mcp.json` |
 | **Tools** | Every registered MCP tool, grouped exactly as the Android app groups them |

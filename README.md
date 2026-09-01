@@ -130,90 +130,106 @@ The last few releases (v1.3 → v1.7) added a lot:
 
 ## Web Dashboard
 
-The server ships with a web dashboard on `:5989` — device registry and approvals, live telemetry, click-through screen control, filtered logs, a file browser, panels for messages, apps, storage and media, and an explorer for all 49 MCP tools. It follows your system theme.
+The server ships with a web dashboard on `:5989` — device registry and approvals, live telemetry, click-through screen control, filtered logs, a file browser, panels for messages, apps, storage and media, and an explorer for all 49 MCP tools.
+
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>Overview</b></sub></td>
+    <td align="center"><sub><b>Device Telemetry</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="./mcp/dashboard/screenshots/dark/dashboard-overview.png" width="430" alt="Overview, dark theme" /></td>
+    <td><img src="./mcp/dashboard/screenshots/dark/device-telemetry.png" width="430" alt="Device Telemetry, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="./mcp/dashboard/screenshots/light/dashboard-overview.png" width="430" alt="Overview, light theme" /></td>
+    <td><img src="./mcp/dashboard/screenshots/light/device-telemetry.png" width="430" alt="Device Telemetry, light theme" /></td>
+  </tr>
+</table>
+
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>Screen Control</b></sub></td>
+    <td align="center"><sub><b>MCP Tool Explorer</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="./mcp/dashboard/screenshots/dark/device-screen-control.png" width="430" alt="Screen Control, dark theme" /></td>
+    <td><img src="./mcp/dashboard/screenshots/dark/mcp-tool-explorer.png" width="430" alt="MCP Tool Explorer, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="./mcp/dashboard/screenshots/light/device-screen-control.png" width="430" alt="Screen Control, light theme" /></td>
+    <td><img src="./mcp/dashboard/screenshots/light/mcp-tool-explorer.png" width="430" alt="MCP Tool Explorer, light theme" /></td>
+  </tr>
+</table>
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/dashboard-overview.png" />
-    <img src="./mcp/dashboard/screenshots/dark/dashboard-overview.png" width="49%" alt="Overview" />
-  </picture>
-  &nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/device-telemetry.png" />
-    <img src="./mcp/dashboard/screenshots/dark/device-telemetry.png" width="49%" alt="Device Telemetry" />
-  </picture>
-</p>
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/device-screen-control.png" />
-    <img src="./mcp/dashboard/screenshots/dark/device-screen-control.png" width="49%" alt="Screen Control" />
-  </picture>
-  &nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/mcp-tool-explorer.png" />
-    <img src="./mcp/dashboard/screenshots/dark/mcp-tool-explorer.png" width="49%" alt="MCP Tool Explorer" />
-  </picture>
-</p>
-
-<p align="center">
-  <sub>Overview &nbsp;&bull;&nbsp; Device Telemetry &nbsp;&bull;&nbsp; Screen Control &nbsp;&bull;&nbsp; MCP Tool Explorer</sub>
+  <sub><b>Every page ships in both themes</b> &mdash; dark on the top row, light on the bottom. The dashboard follows your system setting.</sub>
 </p>
 
 <details>
 <summary><b>More screenshots</b> &mdash; registry, panels, logs, connect, files, event forwarding</summary>
 <br>
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/device-registry.png" />
-    <img src="./mcp/dashboard/screenshots/dark/device-registry.png" width="49%" alt="Device Registry" />
-  </picture>
-  &nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/panel-messages.png" />
-    <img src="./mcp/dashboard/screenshots/dark/panel-messages.png" width="49%" alt="Messages" />
-  </picture>
-</p>
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/panel-apps.png" />
-    <img src="./mcp/dashboard/screenshots/dark/panel-apps.png" width="49%" alt="Apps Inventory" />
-  </picture>
-  &nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/panel-storage.png" />
-    <img src="./mcp/dashboard/screenshots/dark/panel-storage.png" width="49%" alt="Storage &amp; Media" />
-  </picture>
-</p>
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/logs.png" />
-    <img src="./mcp/dashboard/screenshots/dark/logs.png" width="49%" alt="Logs" />
-  </picture>
-  &nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/connect.png" />
-    <img src="./mcp/dashboard/screenshots/dark/connect.png" width="49%" alt="Connect" />
-  </picture>
-</p>
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/file-browser.png" />
-    <img src="./mcp/dashboard/screenshots/dark/file-browser.png" width="49%" alt="File Browser" />
-  </picture>
-  &nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="./mcp/dashboard/screenshots/light/event-forwarding.png" />
-    <img src="./mcp/dashboard/screenshots/dark/event-forwarding.png" width="49%" alt="Event Forwarding" />
-  </picture>
-</p>
-<p align="center">
-  <sub>Device Registry &nbsp;&bull;&nbsp; Messages &nbsp;&bull;&nbsp; Apps Inventory &nbsp;&bull;&nbsp; Storage &amp; Media &nbsp;&bull;&nbsp; Logs &nbsp;&bull;&nbsp; Connect &nbsp;&bull;&nbsp; File Browser &nbsp;&bull;&nbsp; Event Forwarding</sub>
-</p>
-</details>
 
-<p align="center">
-  <sub><b>Dark on the top row of your reader, light if that is your system setting</b> &mdash; both themes are captured from the same build by <a href="./tools/screenshots"><code>tools/screenshots</code></a>, so they never drift from the shipped UI.</sub>
-</p>
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>Device Registry</b></sub></td>
+    <td align="center"><sub><b>Messages</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="./mcp/dashboard/screenshots/dark/device-registry.png" width="430" alt="Device Registry, dark theme" /></td>
+    <td><img src="./mcp/dashboard/screenshots/dark/panel-messages.png" width="430" alt="Messages, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="./mcp/dashboard/screenshots/light/device-registry.png" width="430" alt="Device Registry, light theme" /></td>
+    <td><img src="./mcp/dashboard/screenshots/light/panel-messages.png" width="430" alt="Messages, light theme" /></td>
+  </tr>
+</table>
+
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>Apps Inventory</b></sub></td>
+    <td align="center"><sub><b>Storage &amp; Media</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="./mcp/dashboard/screenshots/dark/panel-apps.png" width="430" alt="Apps Inventory, dark theme" /></td>
+    <td><img src="./mcp/dashboard/screenshots/dark/panel-storage.png" width="430" alt="Storage &amp; Media, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="./mcp/dashboard/screenshots/light/panel-apps.png" width="430" alt="Apps Inventory, light theme" /></td>
+    <td><img src="./mcp/dashboard/screenshots/light/panel-storage.png" width="430" alt="Storage &amp; Media, light theme" /></td>
+  </tr>
+</table>
+
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>Logs</b></sub></td>
+    <td align="center"><sub><b>Connect</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="./mcp/dashboard/screenshots/dark/logs.png" width="430" alt="Logs, dark theme" /></td>
+    <td><img src="./mcp/dashboard/screenshots/dark/connect.png" width="430" alt="Connect, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="./mcp/dashboard/screenshots/light/logs.png" width="430" alt="Logs, light theme" /></td>
+    <td><img src="./mcp/dashboard/screenshots/light/connect.png" width="430" alt="Connect, light theme" /></td>
+  </tr>
+</table>
+
+<table align="center">
+  <tr>
+    <td align="center"><sub><b>File Browser</b></sub></td>
+    <td align="center"><sub><b>Event Forwarding</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="./mcp/dashboard/screenshots/dark/file-browser.png" width="430" alt="File Browser, dark theme" /></td>
+    <td><img src="./mcp/dashboard/screenshots/dark/event-forwarding.png" width="430" alt="Event Forwarding, dark theme" /></td>
+  </tr>
+  <tr>
+    <td><img src="./mcp/dashboard/screenshots/light/file-browser.png" width="430" alt="File Browser, light theme" /></td>
+    <td><img src="./mcp/dashboard/screenshots/light/event-forwarding.png" width="430" alt="Event Forwarding, light theme" /></td>
+  </tr>
+</table>
+</details>
 
 **What the dashboard covers**
 
