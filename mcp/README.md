@@ -56,6 +56,47 @@ Aster is an MCP server that bridges any Android device to AI assistants. Use it 
 
 **New in v1.3 → v1.7:** an animated **companion face overlay** (speech articulation + music reactivity), **App Automations** with an on-device recorder (taps *and* scrolls), a screen-control **kill switch** and fail-closed banking-app policy, an **on-device MCP server** and **IPC (Binder)** mode for same-device agents like [OpenAlly](https://openally.ai), owner-approved folder access, full contacts/installed-apps data, SMS date-window reads, and an **"Ask all together"** guided permission flow in the app.
 
+## Companion App
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/apps/android/screenshots/connection-setup.jpg" width="24%" alt="Connection Setup, dark theme" />
+  &nbsp;
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/apps/android/screenshots/device-dashboard.jpg" width="24%" alt="Device Dashboard, dark theme" />
+  &nbsp;
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/apps/android/screenshots/services-logs.jpg" width="24%" alt="Tool Call Logs, dark theme" />
+  &nbsp;
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/apps/android/screenshots/permissions.jpg" width="24%" alt="Permissions, dark theme" />
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/apps/android/screenshots/light/connection-setup.jpg" width="24%" alt="Connection Setup, light theme" />
+  &nbsp;
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/apps/android/screenshots/light/device-dashboard.jpg" width="24%" alt="Device Dashboard, light theme" />
+  &nbsp;
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/apps/android/screenshots/light/services-logs.jpg" width="24%" alt="Tool Call Logs, light theme" />
+  &nbsp;
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/apps/android/screenshots/light/permissions.jpg" width="24%" alt="Permissions, light theme" />
+</p>
+
+<p align="center">
+  <sub>Connection Setup &nbsp;&bull;&nbsp; Device Dashboard &nbsp;&bull;&nbsp; Tool Call Logs &nbsp;&bull;&nbsp; Permissions ("Ask all together")<br />
+  <b>Every screen ships in both themes</b> &mdash; dark above, light below. The app follows your device setting.</sub>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/apps/android/screenshots/companion-overlay.jpg" width="24%" alt="Companion Face Overlay, dark theme" />
+  &nbsp;
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/apps/android/screenshots/on-device-mcp.jpg" width="24%" alt="On-device MCP Server, dark theme" />
+  &nbsp;
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/apps/android/screenshots/light/companion-overlay.jpg" width="24%" alt="Companion Face Overlay, light theme" />
+  &nbsp;
+  <img src="https://raw.githubusercontent.com/satyajiit/aster-mcp/main/apps/android/screenshots/light/on-device-mcp.jpg" width="24%" alt="On-device MCP Server, light theme" />
+</p>
+
+<p align="center">
+  <sub>Companion Face Overlay &nbsp;&bull;&nbsp; On-device MCP Server (Local MCP mode) &nbsp;&mdash;&nbsp; each shown dark, then light</sub>
+</p>
+
 ## Web Dashboard
 
 <p align="center">
