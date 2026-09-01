@@ -502,6 +502,48 @@ program
   });
 
 // Devices command group
+/**
+ * Device state lives in two places while a daemon runs: the shared aster.db and
+ * the daemon's in-process socket map. A direct DB write leaves the daemon with a
+ * stale status, so every command then fails with "not approved". Route through
+ * the daemon's API when one is running; fall back to the DB when it is not.
+ *
+ * This path deliberately never opens the database — mixing better-sqlite3 with
+ * fetch in one short-lived process crashes on exit.
+ */
+async function daemonDeviceAction(
+  deviceId: string,
+  action: 'approve' | 'reject',
+): Promise<{ handled: boolean; name?: string; notFound?: boolean }> {
+  const status = readStatus();
+  const apiUrl = typeof status?.apiUrl === 'string' ? status.apiUrl.replace(/\/$/, '') : '';
+  const pid = typeof status?.pid === 'number' ? status.pid : null;
+  if (!apiUrl || pid == null || !isProcessRunning(pid)) return { handled: false };
+
+  const request = async (path: string, method: 'GET' | 'POST') => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    try {
+      return await fetch(`${apiUrl}${path}`, { method, signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  try {
+    const lookup = await request(`/api/devices/${deviceId}`, 'GET');
+    if (lookup.status === 404) return { handled: true, notFound: true };
+    if (!lookup.ok) return { handled: false };
+    const device = (await lookup.json()) as { name?: string };
+
+    const applied = await request(`/api/devices/${deviceId}/${action}`, 'POST');
+    if (!applied.ok) return { handled: false };
+    return { handled: true, name: device.name || deviceId };
+  } catch {
+    return { handled: false };
+  }
+}
+
 const devicesCmd = program.command('devices').description('Manage devices');
 
 devicesCmd
@@ -544,6 +586,16 @@ devicesCmd
   .command('approve <deviceId>')
   .description('Approve a pending device')
   .action(async (deviceId: string) => {
+    const viaDaemon = await daemonDeviceAction(deviceId, 'approve');
+    if (viaDaemon.notFound) {
+      console.log(chalk.red(`Device ${deviceId} not found.`));
+      process.exit(1);
+    }
+    if (viaDaemon.handled) {
+      console.log(chalk.green(`✓ Device ${viaDaemon.name} (${deviceId}) approved.`));
+      return;
+    }
+
     process.env.DB_PATH = process.env.DB_PATH || './aster.db';
     const { initDatabase, updateDeviceStatus, getDevice } = await import('../src/db/index.js');
 
@@ -563,6 +615,16 @@ devicesCmd
   .command('reject <deviceId>')
   .description('Reject a device')
   .action(async (deviceId: string) => {
+    const viaDaemon = await daemonDeviceAction(deviceId, 'reject');
+    if (viaDaemon.notFound) {
+      console.log(chalk.red(`Device ${deviceId} not found.`));
+      process.exit(1);
+    }
+    if (viaDaemon.handled) {
+      console.log(chalk.yellow(`✗ Device ${viaDaemon.name} (${deviceId}) rejected.`));
+      return;
+    }
+
     process.env.DB_PATH = process.env.DB_PATH || './aster.db';
     const { initDatabase, updateDeviceStatus, getDevice } = await import('../src/db/index.js');
 

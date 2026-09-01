@@ -363,11 +363,35 @@ async function handleDeleteFile(args: Record<string, unknown>): Promise<ToolResu
 async function handleTakeScreenshot(args: Record<string, unknown>): Promise<ToolResult> {
   const { deviceId } = TakeScreenshotSchema.parse(args);
   const response = await sendCommand(deviceId, 'take_screenshot');
-  const data = response.data as { screenshot?: string; base64?: string; format?: string; mimeType?: string };
+  const data = response.data as {
+    screenshot?: string;
+    base64?: string;
+    filePath?: string;
+    format?: string;
+    mimeType?: string;
+  };
   // Android returns 'screenshot' field, but also support 'base64' for backward compatibility
-  const base64Data = data.screenshot || data.base64;
+  let base64Data = data.screenshot || data.base64;
+
+  // The companion writes the capture to its own storage and returns only the
+  // path — a JPEG inlined in the command response would blow up the WS frame.
+  // Fetch the bytes with a follow-up read_file so the tool still answers with
+  // an image.
+  if (!base64Data && data.filePath) {
+    const file = await sendCommand(deviceId, 'read_file', { path: data.filePath }, 60000);
+    const fileData = file.data as { content?: string; encoding?: string; mimeType?: string };
+    if (fileData?.encoding === 'base64' && fileData.content) {
+      base64Data = fileData.content;
+      if (!data.mimeType && fileData.mimeType) data.mimeType = fileData.mimeType;
+    }
+  }
+
   if (!base64Data) {
-    return errorResult('Screenshot data not found in response');
+    return errorResult(
+      data.filePath
+        ? `Screenshot was captured to ${data.filePath} but its bytes could not be read back from the device.`
+        : 'Screenshot data not found in response',
+    );
   }
   const mimeType = data.mimeType || (data.format ? `image/${data.format}` : 'image/png');
   return imageResult(base64Data, mimeType);

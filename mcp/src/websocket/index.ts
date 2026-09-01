@@ -18,6 +18,7 @@ import {
 } from '../types/index.js';
 import {
   addLog,
+  closeDatabase,
   getDevice,
   updateDeviceExtendedInfo,
   updateDeviceLastSeen,
@@ -168,7 +169,17 @@ export function createWebSocketServer(config: ServerConfig): WebSocketServer {
       const byPid = pid != null ? ` by PID ${pid}` : '';
       console.error(`WebSocket port ${config.wsPort} already in use${byPid} — run \`aster status\``);
       if (!isStdioMcp()) {
-        process.exit(1);
+        // better-sqlite3 statements are still live here; process.exit() tears the
+        // V8 environment down under them and the operator sees a native assertion
+        // and a core dump instead of the message above. Close the DB, then let the
+        // loop drain on its own.
+        try {
+          closeDatabase();
+        } catch {
+          // already closed / never opened
+        }
+        process.exitCode = 1;
+        wss.close();
       }
       return;
     }

@@ -121,7 +121,7 @@ The last few releases (v1.3 → v1.7) added a lot:
 - **Screen-control kill switch** + **PackagePolicyGuard** — a STOP notification during control sessions and a fail-closed denylist for financial apps
 - **Two connection modes beyond the server**: on-device **MCP server** (Ktor, Streamable HTTP) and **IPC (Binder)** for same-device agents like [OpenAlly](https://openally.ai)
 - **Owner-approved folders** — the AI can read/list only directories you've explicitly shared
-- **Deeper device data** — full contacts paging, installed apps with icons, SMS date-window reads and `count_sms`
+- **Deeper device data** — full contacts paging, installed apps with icons, and SMS date-window reads (`sinceDate`)
 - **Multi-window observation** — a two-bucket element budget so dialogs and split-screen apps are seen correctly, with a guaranteed reading order
 - **"Ask all together"** — one tap on the Permissions screen walks every remaining grant in a guided flow
 

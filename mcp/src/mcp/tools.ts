@@ -671,7 +671,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'aster_get_clipboard',
-    description: 'Read text from the device clipboard',
+    description: 'Read text from the device clipboard. Android 10+ only lets the foreground app read the clipboard, so a backgrounded Aster reports an empty clipboard rather than the real contents.',
     inputSchema: {
       type: 'object',
       properties: {
