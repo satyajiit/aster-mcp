@@ -1,0 +1,17 @@
+{
+  "name": "aster-screenshots",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reproducible dashboard screenshot capture for the README and the docs site.",
+  "scripts": {
+    "fixtures": "node fixture-server.mjs",
+    "capture": "node run.mjs",
+    "capture:only": "node capture.mjs",
+    "sync": "node sync.mjs",
+    "panels": "node panelcheck.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}
