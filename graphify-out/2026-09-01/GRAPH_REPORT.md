@@ -1,16 +1,16 @@
 # Graph Report - aster-mcp  (2026-09-01)
 
 ## Corpus Check
-- 246 files · ~570,492 words
+- 238 files · ~523,718 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2766 nodes · 5575 edges · 176 communities (118 shown, 43 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 237 edges (avg confidence: 0.85)
+- 2655 nodes · 5357 edges · 168 communities (113 shown, 40 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 234 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `0373776b`
+- Built from commit: `62839e03`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -40,9 +40,9 @@
 - src/index.ts
 - useApi.ts
 - [id]/index.vue
-- websocket/index.ts
+- server/index.ts
 - ElementFilterTest
-- types/index.ts
+- websocket/index.ts
 - ToolInfo
 - IpcMode
 - compilerOptions
@@ -64,7 +64,7 @@
 - ToolCallLogDao
 - AsterCard
 - aster.ts
-- CallStateMonitor
+- IntentHandler
 - OverlayHandler
 - McpMode
 - IpcApprovalActivity.kt
@@ -86,7 +86,7 @@
 - SnapshotCache
 - IpcDashboardScreen.kt
 - TailscaleUtils
-- Bounds
+- ObserveModel.kt
 - SmartLiftClassifier
 - LiveChatSection.vue
 - pages/index.vue
@@ -110,7 +110,7 @@
 - CommandHandler
 - Screen
 - docs/tsconfig.json
-- SmsHandler
+- .readSms
 - LabelAggregatorTest
 - FilePreview.vue
 - devices/index.vue
@@ -123,28 +123,28 @@
 - HeroSection.vue
 - HowItWorks.vue
 - .mcp.json
-- InteractiveOverlayModel
+- AlarmHandler
 - files.vue
 - queryParser.ts
 - LabelAggregator
-- InteractivePrompt
+- InstalledAppsHandler
 - WireParams
 - OnboardingViewModel
 - SettingsScreen.kt
 - SettingsViewModel
 - AsterTheme
 - CreateFolderModal.vue
-- channels/index.ts
+- addLog
 - handleGetDeviceInfo
 - BootReceiver.kt
 - ActionMapper
 - .isSatisfied
 - CompanionStatusModel
 - ScreenAnnotatorGeometryTest
-- SignInWaitOverlay
+- mcp/index.ts
 - mediaAnalyzer.ts
 - AsterDatabase
-- GuidedPermissionFlow
+- ScrollAxis
 - BoundsTest
 - EmbraceSection.vue
 - ScreenshotsSection.vue
@@ -154,7 +154,7 @@
 - gradlew
 - UseCasesSection.vue
 - QuickAccessBar.vue
-- ConnectionFailureMapperTest
+- NodeDescriptor.kt
 - ProactiveSection.vue
 - AsciiHeader.vue
 - TerminalPageHeader.vue
@@ -168,26 +168,18 @@
 - StatusBadge.vue
 - TerminalDetailHeader.vue
 - installedApps.test.ts
-- InteractivePromptActivity.kt
-- NowPlayingHandler
-- McpDashboardViewModel.kt
-- AccessibilityHandlerActionsTest
-- ReconnectPolicyTest
-- TextWatcher
-- OverlayPermissionActivity.kt
-- .executeShell
 
 ## God Nodes (most connected - your core abstractions)
 1. `CommandResult` - 130 edges
 2. `AsterAccessibilityService` - 108 edges
 3. `CommandHandler` - 63 edges
 4. `handleToolCall()` - 58 edges
-5. `sendCommand()` - 54 edges
+5. `sendCommand()` - 52 edges
 6. `jsonResult()` - 49 edges
-7. `AsterService` - 46 edges
-8. `CompanionFaceOverlay` - 45 edges
-9. `AsterWebSocketClient` - 43 edges
-10. `AccessibilityHandler` - 41 edges
+7. `CompanionFaceOverlay` - 45 edges
+8. `AsterService` - 43 edges
+9. `AccessibilityHandler` - 41 edges
+10. `InteractiveOverlayController` - 40 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `AsterAccessibilityService` --calls--> `OcrEngine`  [INFERRED]
@@ -198,17 +190,17 @@
   apps/android/app/src/main/java/com/aster/service/overlay/CompanionFaceOverlay.kt → apps/android/app/src/main/java/com/aster/service/overlay/CompanionSystemPulseMonitor.kt
 - `CompanionFaceView` --calls--> `CompanionNativeAnimator`  [INFERRED]
   apps/android/app/src/main/java/com/aster/service/overlay/CompanionFaceView.kt → apps/android/app/src/main/java/com/aster/service/overlay/CompanionNativeAnimator.kt
-- `CompanionSystemPulseMonitor` --calls--> `SmartLiftClassifier`  [INFERRED]
-  apps/android/app/src/main/java/com/aster/service/overlay/CompanionSystemPulseMonitor.kt → apps/android/app/src/main/java/com/aster/service/overlay/SmartLiftClassifier.kt
+- `ToolsSection()` --calls--> `AsterCard()`  [INFERRED]
+  apps/android/app/src/main/java/com/aster/ui/components/ToolsSection.kt → apps/android/app/src/main/java/com/aster/ui/components/AsterComponents.kt
 
 ## Import Cycles
 - None detected.
 
-## Communities (176 total, 43 thin omitted)
+## Communities (168 total, 40 thin omitted)
 
 ### Community 0 - "InteractiveOverlayController"
-Cohesion: 0.29
-Nodes (6): InteractiveOverlayController, TextView, View, EditText, GradientDrawable, LinearLayout
+Cohesion: 0.06
+Nodes (32): CappedScrollView, InteractiveOverlayController, TextWatcher, android, JsonObject, TextView, View, WindowManager (+24 more)
 
 ### Community 1 - "InputRouter"
 Cohesion: 0.06
@@ -219,16 +211,16 @@ Cohesion: 0.07
 Nodes (23): Address, CameraInfo, ImageDimensions, LocationInfo, PhotoMetadata, LocationFilter, SearchFilters, SortOption (+15 more)
 
 ### Community 3 - "PermissionUtils"
-Cohesion: 0.15
-Nodes (15): Context, Intent, PermissionCheckResult, PermissionType, ACCESSIBILITY, BATTERY, CAMERA, CONTACTS (+7 more)
+Cohesion: 0.09
+Nodes (23): CompanionApprovalActivity, Activity, Bundle, Activity, Bundle, OverlayPermissionActivity, GuidedPermissionFlow, Context (+15 more)
 
 ### Community 4 - "handler.ts"
 Cohesion: 0.08
 Nodes (49): ToolResult, AnalyzeStorageSchema, ClickByIdSchema, ClickByTextSchema, DeleteAlarmSchema, DeleteContactsSchema, DeleteFileSchema, DismissAlarmSchema (+41 more)
 
 ### Community 5 - "AsterAccessibilityService.kt"
-Cohesion: 0.09
-Nodes (18): AccessibilityService, RoleMapper, dragStrokePoints(), keyNameToKeycode(), normalizeScrollAmount(), normalizeScrollDirection(), pinchStrokePoints(), ScrollAmount (+10 more)
+Cohesion: 0.13
+Nodes (12): AccessibilityService, dragStrokePoints(), keyNameToKeycode(), normalizeScrollAmount(), normalizeScrollDirection(), pinchStrokePoints(), ScrollAmount, HALF_PAGE (+4 more)
 
 ### Community 6 - "ToolExecutionOverlay"
 Cohesion: 0.08
@@ -243,16 +235,16 @@ Cohesion: 0.17
 Nodes (8): CommandResult, AccessibilityHandler, Command, JsonArray, JsonElement, JsonObject, PreAct, Mark
 
 ### Community 9 - "AsterWebSocketClient"
-Cohesion: 0.05
-Nodes (28): AuthMessage, AuthResult, CommandResponse, DeviceStatus, APPROVED, PENDING, REJECTED, EventMessage (+20 more)
+Cohesion: 0.07
+Nodes (22): AuthMessage, AuthResult, CommandResponse, DeviceStatus, APPROVED, PENDING, REJECTED, EventMessage (+14 more)
 
 ### Community 10 - "README.md"
-Cohesion: 0.04
-Nodes (46): 1. Install the MCP Server, 2. Install the Android App, 3. Start the Server, 4. Connect Your Device, 5. Configure Your AI Client, Adding a new MCP tool, Android app, Android permissions — and why each one (+38 more)
+Cohesion: 0.05
+Nodes (40): 1. Install the MCP Server, 2. Install the Android App, 3. Start the Server, 4. Connect Your Device, 5. Configure Your AI Client, Adding a new MCP tool, Android app, Android permissions — and why each one (+32 more)
 
 ### Community 11 - ".put"
-Cohesion: 0.08
-Nodes (9): AlarmHandler, Command, Command, Command, Command, Command, Command, Command (+1 more)
+Cohesion: 0.07
+Nodes (10): Command, Command, Command, Command, NowPlayingHandler, Command, Command, Command (+2 more)
 
 ### Community 12 - "SmsBroadcastReceiver"
 Cohesion: 0.31
@@ -263,8 +255,8 @@ Cohesion: 0.35
 Nodes (5): AppModule, Context, DataStore, OkHttpClient, Preferences
 
 ### Community 14 - "PackagePolicyGuardTest"
-Cohesion: 0.12
-Nodes (3): Command, PackagePolicyGuard, PackagePolicyGuardTest
+Cohesion: 0.09
+Nodes (4): Command, PackagePolicyGuard, AccessibilityHandlerActionsTest, PackagePolicyGuardTest
 
 ### Community 15 - "devDependencies"
 Cohesion: 0.06
@@ -287,7 +279,7 @@ Cohesion: 0.10
 Nodes (11): Bitmap, com, OcrBlock, OcrEngine, JsonArray, JsonObject, MergeResult, ScreenObserveSupport (+3 more)
 
 ### Community 20 - "AsterService"
-Cohesion: 0.12
+Cohesion: 0.13
 Nodes (11): AsterService, com, Context, IBinder, Intent, Job, JsonElement, Notification (+3 more)
 
 ### Community 21 - "AsterNotificationListenerService"
@@ -295,8 +287,8 @@ Cohesion: 0.08
 Nodes (16): BroadcastReceiver, Context, Intent, NotificationActionReceiver, AsterNotificationListenerService, JsonArray, JsonObject, NotificationAction (+8 more)
 
 ### Community 22 - "src/index.ts"
-Cohesion: 0.12
-Nodes (28): initDatabase(), ASTER_DIR, currentFile, getLocalIP(), mainScript, removeStatusFile(), startDashboardServer(), startMcp() (+20 more)
+Cohesion: 0.13
+Nodes (26): closeDatabase(), initDatabase(), ASTER_DIR, currentFile, getLocalIP(), mainScript, removeStatusFile(), startDashboardServer() (+18 more)
 
 ### Community 23 - "useApi.ts"
 Cohesion: 0.09
@@ -306,21 +298,21 @@ Nodes (19): levelIcons, emit, platformIcons, props, AgentEventForwardingConfig, 
 Cohesion: 0.08
 Nodes (19): api, autoScroll, device, deviceId, error, fetchData(), fetchLiveInfo(), handleApprove() (+11 more)
 
-### Community 25 - "websocket/index.ts"
+### Community 25 - "server/index.ts"
 Cohesion: 0.17
-Nodes (26): addLog(), getDatabase(), getDevice(), updateDeviceExtendedInfo(), updateDeviceLastSeen(), updateDeviceStatus(), forwardAgentEvent(), ServerConfig (+18 more)
+Nodes (23): DbDevice, DbLogEntry, deleteDevice(), getAllDevices(), getAllLogs(), getDatabase(), getDevice(), getDeviceLogs() (+15 more)
 
 ### Community 26 - "ElementFilterTest"
 Cohesion: 0.14
 Nodes (4): ElementFilter, NodeFacts, ObserveMode, ElementFilterTest
 
-### Community 27 - "types/index.ts"
-Cohesion: 0.07
-Nodes (32): closeDatabase(), DbDevice, DbLogEntry, deleteDevice(), getAllDevices(), mapDeviceFromDb(), upsertDevice(), AuthMessage (+24 more)
+### Community 27 - "websocket/index.ts"
+Cohesion: 0.11
+Nodes (23): AuthMessage, AuthMessageSchema, AuthResult, AuthResultSchema, Command, CommandResponse, CommandResponseSchema, CommandSchema (+15 more)
 
 ### Community 28 - "ToolInfo"
-Cohesion: 0.14
-Nodes (6): ToolCatalog, ToolEntry, ToolInfo, IpcDashboardViewModel, StateFlow, ViewModel
+Cohesion: 0.11
+Nodes (9): ToolCatalog, ToolEntry, ToolInfo, IpcDashboardViewModel, StateFlow, ViewModel, StateFlow, ViewModel (+1 more)
 
 ### Community 29 - "IpcMode"
 Cohesion: 0.17
@@ -335,8 +327,8 @@ Cohesion: 0.11
 Nodes (18): Apps & System, Aster - Your AI CoPilot on Mobile, Available Tools, Commands, Device Features, Device & Screen, Event Format, Event Types (+10 more)
 
 ### Community 32 - "event-forwarding/index.ts"
-Cohesion: 0.13
-Nodes (27): getAllLogs(), getDeviceLogs(), mapLogFromDb(), getEventChannel(), AgentEventForwardingConfig, buildEventText(), ConfigCandidate, DeviceContext (+19 more)
+Cohesion: 0.16
+Nodes (19): AgentEventForwardingConfig, buildEventText(), ConfigCandidate, DeviceContext, formatData(), getAgentEventForwardingConfig(), getSavedAgentEventForwardingToken(), isAgentEventForwardingEnabled() (+11 more)
 
 ### Community 33 - "CameraHandler"
 Cohesion: 0.18
@@ -347,7 +339,7 @@ Cohesion: 0.09
 Nodes (18): api, commandHistory, device, deviceId, executing, executionResult, filteredTools, isVibrateTool (+10 more)
 
 ### Community 35 - "ModeStatus"
-Cohesion: 0.16
+Cohesion: 0.15
 Nodes (11): ConnectionMode, IpcConfig, StateFlow, McpConfig, ModeConfig, ModeStatus, RemoteConfig, Command (+3 more)
 
 ### Community 36 - "Dp"
@@ -376,7 +368,7 @@ Nodes (7): Command, TextToSpeech, UtteranceProgressListener, MediaHandler, Utter
 
 ### Community 42 - "AsterAccessibilityService"
 Cohesion: 0.05
-Nodes (20): DescriptorBounds, NodeDescriptor, A11yObservation, AsterAccessibilityService, GestureResultCallback, AccessibilityNodeInfo, android, JsonElement (+12 more)
+Nodes (20): NodeDescriptor, A11yObservation, AsterAccessibilityService, GestureResultCallback, AccessibilityNodeInfo, android, JsonElement, JsonObject (+12 more)
 
 ### Community 43 - "mcp/README.md"
 Cohesion: 0.12
@@ -387,8 +379,8 @@ Cohesion: 0.15
 Nodes (3): CompanionFaceView, View, FrameCallback
 
 ### Community 45 - "event-forwarding.vue"
-Cohesion: 0.09
-Nodes (18): api, cancelEditing(), configuredAt, defaultEvents, form, hasExistingConfig, hasSourceToken, isEditing (+10 more)
+Cohesion: 0.11
+Nodes (15): api, cancelEditing(), configuredAt, form, hasExistingConfig, hasSourceToken, isEditing, loadConfig() (+7 more)
 
 ### Community 46 - "ToolCallLogDao"
 Cohesion: 0.16
@@ -399,20 +391,20 @@ Cohesion: 0.28
 Nodes (16): AsterCard(), AsterSectionHeader(), AsterStatCard(), AsterTopBar(), InfoRow(), Color, ImageVector, Modifier (+8 more)
 
 ### Community 48 - "aster.ts"
-Cohesion: 0.10
-Nodes (14): ASTER_DIR, devicesCmd, __dirname, displayStatus(), __filename, lanMcpUrl(), LOG_FILE, PID_FILE (+6 more)
+Cohesion: 0.11
+Nodes (11): ASTER_DIR, devicesCmd, __dirname, __filename, LOG_FILE, PID_FILE, program, PROGRESS_STEPS (+3 more)
 
-### Community 49 - "CallStateMonitor"
-Cohesion: 0.06
-Nodes (19): IntentHandler, UtteranceProgressListener, AudioManager, Command, TextToSpeech, UtteranceProgressListener, CompanionSystemPulseMonitor, Api31Callback (+11 more)
+### Community 49 - "IntentHandler"
+Cohesion: 0.20
+Nodes (5): IntentHandler, UtteranceProgressListener, Command, TextToSpeech, UtteranceProgressListener
 
 ### Community 50 - "OverlayHandler"
 Cohesion: 0.22
 Nodes (5): Command, View, WindowManager, OverlayHandler, OverlayInstance
 
 ### Community 51 - "McpMode"
-Cohesion: 0.24
-Nodes (6): StateFlow, McpMode, CIOApplicationEngine, EmbeddedServer, Server, StreamableHttpServerTransport
+Cohesion: 0.26
+Nodes (5): StateFlow, McpMode, CIOApplicationEngine, EmbeddedServer, StreamableHttpServerTransport
 
 ### Community 52 - "IpcApprovalActivity.kt"
 Cohesion: 0.16
@@ -423,7 +415,7 @@ Cohesion: 0.20
 Nodes (11): aggregateCompanionSpeech(), CompanionFaceStateSnapshot, CompanionSpeechAggregate, CompanionSpeechSource, AUDIO, STREAM, CompanionSpeechStream, parseCompanionFaceState() (+3 more)
 
 ### Community 54 - "CutoutBounds"
-Cohesion: 0.22
+Cohesion: 0.24
 Nodes (5): CompanionOverlayGeometry, CutoutBounds, OverlayGeometry, SafeBounds, CompanionOverlayGeometryTest
 
 ### Community 55 - "RemoteConnectScreen.kt"
@@ -431,7 +423,7 @@ Cohesion: 0.24
 Nodes (16): AsterTextField(), AboutRemoteSection(), InstallationSection(), Color, ImageVector, NumberedStep(), OpenClawSection(), OptionHeader() (+8 more)
 
 ### Community 58 - "Canvas"
-Cohesion: 0.38
+Cohesion: 0.33
 Nodes (3): FaceGroup, Canvas, RectF
 
 ### Community 59 - "FileRow.vue"
@@ -467,8 +459,8 @@ Cohesion: 0.12
 Nodes (16): keywords, accessibility, ai, ai-phone, android, automation, claude, clawdbot (+8 more)
 
 ### Community 67 - "ConnectionState"
-Cohesion: 0.15
-Nodes (12): ConnectionState, APPROVED, CONNECTED, CONNECTING, DISCONNECTED, ERROR, PENDING_APPROVAL, RECONNECTING (+4 more)
+Cohesion: 0.16
+Nodes (11): ConnectionState, APPROVED, CONNECTED, CONNECTING, DISCONNECTED, ERROR, PENDING_APPROVAL, REJECTED (+3 more)
 
 ### Community 69 - "IpcDashboardScreen.kt"
 Cohesion: 0.26
@@ -478,9 +470,13 @@ Nodes (12): Modifier, TokenDisplay(), getCategoryIcon(), Color, ImageVector, Mod
 Cohesion: 0.30
 Nodes (4): Context, Intent, TailscaleStatus, TailscaleUtils
 
+### Community 71 - "ObserveModel.kt"
+Cohesion: 0.23
+Nodes (6): Bounds, JsonObject, ObserveResult, ScreenContext, Scrollable, WindowInfo
+
 ### Community 72 - "SmartLiftClassifier"
-Cohesion: 0.11
-Nodes (7): Edge, LANDED, LIFTED, REFIRE, SmartLiftClassifier, SmartLiftClassifierTest, DoubleArray
+Cohesion: 0.07
+Nodes (12): CompanionSystemPulseMonitor, Edge, LANDED, LIFTED, REFIRE, SmartLiftClassifier, SmartLiftClassifierTest, DoubleArray (+4 more)
 
 ### Community 73 - "LiveChatSection.vue"
 Cohesion: 0.16
@@ -491,8 +487,8 @@ Cohesion: 0.16
 Nodes (12): Stats, api, currentTime, devices, eventForwardingEnabled, fetchData(), handleApprove(), handleReject() (+4 more)
 
 ### Community 75 - ".sampleResult"
-Cohesion: 0.16
-Nodes (8): ElementState, JsonObject, ObservedElement, ObserveResult, ScreenContext, Scrollable, WindowInfo, ObserveModelJsonTest
+Cohesion: 0.26
+Nodes (3): ElementState, ObservedElement, ObserveModelJsonTest
 
 ### Community 76 - "ScreenObserver"
 Cohesion: 0.36
@@ -519,7 +515,7 @@ Cohesion: 0.29
 Nodes (11): AsterButton(), AsterButtonVariant, DANGER, PRIMARY, SECONDARY, Color, ImageVector, Modifier (+3 more)
 
 ### Community 86 - "EventDeduplicator"
-Cohesion: 0.20
+Cohesion: 0.22
 Nodes (3): EventDeduplicator, CoroutineScope, Job
 
 ### Community 88 - "ModeType"
@@ -542,9 +538,9 @@ Nodes (28): SharedFlow, ToolCallLogger, Command, Context, ModeModule, CommandHan
 Cohesion: 0.18
 Nodes (11): Home, IpcDashboard, Logs, McpDashboard, Onboarding, PermissionAlert, Permissions, RemoteConnect (+3 more)
 
-### Community 95 - "SmsHandler"
-Cohesion: 0.33
-Nodes (4): Command, JsonArray, Uri, SmsHandler
+### Community 95 - ".readSms"
+Cohesion: 0.31
+Nodes (3): Command, JsonArray, Uri
 
 ### Community 97 - "FilePreview.vue"
 Cohesion: 0.29
@@ -574,10 +570,6 @@ Nodes (8): assistants, conversations, currentIndex, goTo(), headlineHeight, head
 Cohesion: 0.22
 Nodes (7): activeScenario, current, phase, protocols, Scenario, scenarios, timers
 
-### Community 108 - "InteractiveOverlayModel"
-Cohesion: 0.16
-Nodes (8): Approval, ChoiceOption, Chooser, DraftVariant, InteractiveOverlayModel, JsonElement, JsonObject, TextField
-
 ### Community 109 - "files.vue"
 Cohesion: 0.25
 Nodes (6): api, device, deviceId, error, loading, route
@@ -585,10 +577,6 @@ Nodes (6): api, device, deviceId, error, loading, route
 ### Community 110 - "queryParser.ts"
 Cohesion: 0.39
 Nodes (7): handleSearchMedia(), formatDate(), ParsedQuery, parseFileTypes(), parseLocation(), parseNaturalLanguageQuery(), parseTimeExpression()
-
-### Community 112 - "InteractivePrompt"
-Cohesion: 0.19
-Nodes (6): CappedScrollView, JsonObject, WindowManager, InteractivePrompt, CompletableDeferred, ScrollView
 
 ### Community 114 - "OnboardingViewModel"
 Cohesion: 0.38
@@ -610,9 +598,9 @@ Nodes (5): AsterDarkColors, AsterLightColors, SemanticColors, AsterColorScheme, 
 Cohesion: 0.38
 Nodes (6): emit, folderName, handleKeydown(), handleSubmit(), inputRef, props
 
-### Community 119 - "channels/index.ts"
-Cohesion: 0.23
-Nodes (8): optionalChannel(), send(), testConnection(), webhookUrl(), EventChannel, EventChannelConfig, EventChannelTestResult, EventChannelType
+### Community 119 - "addLog"
+Cohesion: 0.52
+Nodes (7): addLog(), upsertDevice(), forwardAgentEvent(), createWebSocketServer(), handleAuth(), handleCommandResponse(), handleMessage()
 
 ### Community 120 - "handleGetDeviceInfo"
 Cohesion: 0.29
@@ -626,25 +614,25 @@ Nodes (4): BootReceiver, BroadcastReceiver, Context, Intent
 Cohesion: 0.53
 Nodes (3): JsonArray, JsonObject, ScreenWaitMatcher
 
-### Community 126 - "SignInWaitOverlay"
-Cohesion: 0.28
-Nodes (4): FrameLayout, TextView, WindowManager, SignInWaitOverlay
+### Community 126 - "mcp/index.ts"
+Cohesion: 0.40
+Nodes (4): registerMcpHttpRoutes(), createMcpServer(), startMcpServer(), TOOL_DEFINITIONS
 
 ### Community 127 - "mediaAnalyzer.ts"
 Cohesion: 0.47
 Nodes (5): analyzeMediaResults(), generateSuggestions(), generateSummary(), MediaInsights, MediaSearchResult
 
-### Community 129 - "GuidedPermissionFlow"
-Cohesion: 0.27
-Nodes (5): CompanionApprovalActivity, Activity, Bundle, GuidedPermissionFlow, Context
+### Community 129 - "ScrollAxis"
+Cohesion: 0.40
+Nodes (5): ScrollAxis, HORIZONTAL_BACKWARD, HORIZONTAL_FORWARD, VERTICAL_BACKWARD, VERTICAL_FORWARD
 
 ### Community 131 - "EmbraceSection.vue"
 Cohesion: 0.40
 Nodes (4): afterItems, beforeItems, ownPhoneItems, vignettes
 
 ### Community 132 - "ScreenshotsSection.vue"
-Cohesion: 0.29
-Nodes (6): activeTab, appScreenshots, appTheme, dashboardScreenshots, tabs, themes
+Cohesion: 0.40
+Nodes (4): activeTab, appScreenshots, dashboardScreenshots, tabs
 
 ### Community 133 - "SecuritySection.vue"
 Cohesion: 0.40
@@ -654,10 +642,6 @@ Nodes (4): permissionLayers, pillars, safetyPoints, tailscalePoints
 Cohesion: 0.40
 Nodes (5): files, dist, dashboard/.output, LICENSE, README.md
 
-### Community 135 - "TakeScreenshotCallback"
-Cohesion: 0.50
-Nodes (3): TakeScreenshotCallback, ScreenshotCapture, ScreenshotResult
-
 ### Community 136 - "gradlew"
 Cohesion: 0.83
 Nodes (3): gradlew script, die(), warn()
@@ -666,37 +650,25 @@ Nodes (3): gradlew script, die(), warn()
 Cohesion: 0.50
 Nodes (3): Group, groups, UseCase
 
-### Community 168 - "InteractivePromptActivity.kt"
-Cohesion: 0.39
-Nodes (6): ApprovalBody(), BrandHeader(), ChooserBody(), InteractivePromptActivity, Bundle, ComponentActivity
-
-### Community 170 - "McpDashboardViewModel.kt"
-Cohesion: 0.38
-Nodes (3): StateFlow, ViewModel, McpDashboardViewModel
-
-### Community 174 - "OverlayPermissionActivity.kt"
-Cohesion: 0.60
-Nodes (3): Activity, Bundle, OverlayPermissionActivity
-
 ## Knowledge Gaps
-- **507 isolated node(s):** `aster`, `Keys`, `DATE_ASC`, `DATE_DESC`, `SIZE_ASC` (+502 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 877 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **43 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **497 isolated node(s):** `aster`, `Keys`, `DATE_ASC`, `DATE_DESC`, `SIZE_ASC` (+492 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 847 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **40 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `CompanionFaceOverlay` connect `CompanionFaceOverlay` to `CompanionFaceView`, `CommandHandler`, `CallStateMonitor`, `CompanionStatusModel`, `IpcMode`?**
-  _High betweenness centrality (0.092) - this node is a cross-community bridge._
-- **Why does `AsterAccessibilityService` connect `AsterAccessibilityService` to `InputRouter`, `SnapshotCache`, `AsterAccessibilityService.kt`, `ScreenSyncTracker`, `TakeScreenshotCallback`, `CommandResult`, `PackagePolicyGuardTest`, `CommandHandler`, `ScreenObserveSupportTest`, `AccessibilityPulseClassifier`?**
-  _High betweenness centrality (0.087) - this node is a cross-community bridge._
+- **Why does `CompanionFaceOverlay` connect `CompanionFaceOverlay` to `SmartLiftClassifier`, `CompanionFaceView`, `CommandHandler`, `CompanionStatusModel`, `IpcMode`?**
+  _High betweenness centrality (0.084) - this node is a cross-community bridge._
+- **Why does `AsterAccessibilityService` connect `AsterAccessibilityService` to `InputRouter`, `SnapshotCache`, `AsterAccessibilityService.kt`, `ScreenSyncTracker`, `CommandResult`, `PackagePolicyGuardTest`, `CommandHandler`, `ScreenObserveSupportTest`, `AccessibilityPulseClassifier`?**
+  _High betweenness centrality (0.082) - this node is a cross-community bridge._
 - **Why does `AsterWebSocketClient` connect `AsterWebSocketClient` to `ModeStatus`, `ConnectionState`, `AppModule.kt`, `AsterService`, `CommandHandler`?**
-  _High betweenness centrality (0.051) - this node is a cross-community bridge._
+  _High betweenness centrality (0.048) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `AsterAccessibilityService` (e.g. with `OcrEngine` and `ScreenSyncTracker`) actually correct?**
   _`AsterAccessibilityService` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `aster`, `Keys`, `DATE_ASC` to the rest of the system?**
-  _507 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _497 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `InteractiveOverlayController` be split into smaller, more focused modules?**
+  _Cohesion score 0.05711086226203808 - nodes in this community are weakly interconnected._
 - **Should `InputRouter` be split into smaller, more focused modules?**
   _Cohesion score 0.05593220338983051 - nodes in this community are weakly interconnected._
-- **Should `StorageHandler` be split into smaller, more focused modules?**
-  _Cohesion score 0.06954887218045112 - nodes in this community are weakly interconnected._
