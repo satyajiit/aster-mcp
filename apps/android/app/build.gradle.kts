@@ -15,8 +15,8 @@ android {
         applicationId = "com.aster"
         minSdk = 26
         targetSdk = 36
-        versionCode = 15
-        versionName = "1.7.0"
+        versionCode = 16
+        versionName = "1.7.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
