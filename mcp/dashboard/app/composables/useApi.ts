@@ -138,10 +138,96 @@ export interface AgentEventForwardingConfigResponse {
   sourceTokenPreview: string | null;
 }
 
+/** Runtime status, read from ~/.aster/status.json by GET /api/status. */
+export interface ServerStatus {
+  pid?: number;
+  startedAt?: number;
+  wsPort: number;
+  wsUrl?: string;
+  apiPort: number;
+  apiUrl?: string;
+  mcpUrl?: string;
+  dashboardPort?: number;
+  dashboardUrl?: string;
+  dbPath?: string;
+  tailscale?: {
+    ip?: string;
+    dns?: string;
+    wsUrl?: string;
+    dashboardUrl?: string;
+    mcpUrl?: string;
+  } | null;
+  serverTime: number;
+  uptimeMs: number | null;
+}
+
+/** Paged log response. Replaces the bare LogEntry[] the routes used to return. */
+export interface LogPage {
+  logs: LogEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface LogFilters {
+  limit?: number;
+  offset?: number;
+  levels?: LogEntry['level'][];
+  search?: string;
+}
+
 export interface AgentEventForwardingTestResult {
   success: boolean;
   status?: number;
   error?: string;
+}
+
+function logQuery(filters: LogFilters): string {
+  const params = new URLSearchParams();
+  if (filters.limit != null) params.set('limit', String(filters.limit));
+  if (filters.offset) params.set('offset', String(filters.offset));
+  if (filters.levels?.length) params.set('level', filters.levels.join(','));
+  if (filters.search) params.set('search', filters.search);
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/**
+ * Build a displayable src for an image content block.
+ *
+ * The server returns bare base64 in `data` with the media type in a separate
+ * `mimeType` field. Binding `data` straight to an <img src> — which the old
+ * tool explorer did — produces a broken image for every screenshot and photo.
+ */
+export function toolImageSrc(item: { data?: string; mimeType?: string }): string {
+  if (!item.data) return '';
+  if (item.data.startsWith('data:')) return item.data;
+  return `data:${item.mimeType || 'image/png'};base64,${item.data}`;
+}
+
+/** Concatenated text of a tool result, for display or JSON parsing. */
+export function toolText(result: ToolResult | null | undefined): string {
+  if (!result?.content) return '';
+  return result.content
+    .filter((c) => c.type === 'text' && c.text)
+    .map((c) => c.text)
+    .join('\n');
+}
+
+/**
+ * Parse a tool result whose text payload is JSON.
+ *
+ * Nearly every device tool answers with a JSON document inside a text block,
+ * so each caller was otherwise re-implementing this try/catch.
+ */
+export function toolJson<T>(result: ToolResult | null | undefined): T | null {
+  const text = toolText(result);
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
 }
 
 export function useApi() {
@@ -228,11 +314,16 @@ export function useApi() {
       fetchJson<{ success: boolean }>(`/api/devices/${id}/approve`, { method: 'POST', body: '{}' }),
     rejectDevice: (id: string) =>
       fetchJson<{ success: boolean }>(`/api/devices/${id}/reject`, { method: 'POST', body: '{}' }),
+    unrejectDevice: (id: string) =>
+      fetchJson<{ success: boolean }>(`/api/devices/${id}/unreject`, { method: 'POST', body: '{}' }),
+    deleteDevice: (id: string) =>
+      fetchJson<{ success: boolean }>(`/api/devices/${id}`, { method: 'DELETE' }),
 
     // Logs
-    getLogs: (limit = 100) => fetchJson<LogEntry[]>(`/api/logs?limit=${limit}`),
-    getDeviceLogs: (deviceId: string, limit = 100) =>
-      fetchJson<LogEntry[]>(`/api/devices/${deviceId}/logs?limit=${limit}`),
+    getLogs: (filters: LogFilters = {}) => fetchJson<LogPage>(`/api/logs${logQuery(filters)}`),
+    getDeviceLogs: (deviceId: string, filters: LogFilters = {}) =>
+      fetchJson<LogPage>(`/api/devices/${deviceId}/logs${logQuery(filters)}`),
+    getLogDeviceIds: () => fetchJson<string[]>('/api/logs/devices'),
 
     // Tools
     getTools: () => fetchJson<ToolDefinition[]>('/api/tools'),
@@ -242,26 +333,14 @@ export function useApi() {
         body: JSON.stringify({ name, args }),
       }),
 
-    // Health
+    // Health and runtime status
     getHealth: () => fetchJson<{ status: string; timestamp: number }>('/api/health'),
+    getStatus: () => fetchJson<ServerStatus>('/api/status'),
 
     // Agent event forwarding
     getAgentEventForwardingConfig,
     prefillAgentEventForwardingToken,
     saveAgentEventForwardingConfig,
     testAgentEventForwardingConnection,
-
-    // Deprecated zero-logic aliases for dashboard extensions using the old API.
-    getOpenClawConfig: getAgentEventForwardingConfig,
-    prefillOpenClawToken: prefillAgentEventForwardingToken,
-    saveOpenClawConfig: saveAgentEventForwardingConfig,
-    testOpenClawConnection: testAgentEventForwardingConnection,
   };
 }
-
-/** @deprecated Use AgentEventForwardingConfig. */
-export type OpenClawConfig = AgentEventForwardingConfig;
-/** @deprecated Use AgentEventForwardingConfigResponse. */
-export type OpenClawConfigResponse = AgentEventForwardingConfigResponse;
-/** @deprecated Use AgentEventForwardingTestResult. */
-export type OpenClawTestResult = AgentEventForwardingTestResult;

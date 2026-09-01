@@ -1,692 +1,488 @@
 <script setup lang="ts">
-import type { Device, ToolDefinition, ToolResult } from '~/composables/useApi';
+import type { ToolDefinition, ToolResult } from '~/composables/useApi';
+import { TOOL_CATEGORIES, categoryFor } from '~/utils/toolCategories';
 
 const route = useRoute();
 const api = useApi();
+const toast = useToast();
+const deviceId = route.params.id as string;
 
-const device = ref<Device | null>(null);
+useHead({ title: 'Tool explorer' });
+
 const tools = ref<ToolDefinition[]>([]);
-const selectedToolName = ref<string>('');
-const toolArgs = ref<Record<string, any>>({});
-const executing = ref(false);
-const executionResult = ref<ToolResult | null>(null);
-const commandHistory = ref<Array<{ tool: string; timestamp: Date; success: boolean }>>([]);
-const toolSearch = ref('');
-const loading = ref(true);
+const selected = ref<ToolDefinition | null>(null);
+const args = ref<Record<string, unknown>>({});
+const result = ref<ToolResult | null>(null);
+const running = ref(false);
+const search = ref('');
+const expanded = ref<Record<string, boolean>>({});
 
-const deviceId = computed(() => route.params.id as string);
+onMounted(async () => {
+  tools.value = await api.getTools();
+  // Open the first non-empty category by default, as the phone does.
+  const first = grouped.value.find((g) => g.tools.length);
+  if (first) expanded.value[first.key] = true;
+});
 
-// Helper function to get category icon
-const getCategoryIcon = (category: string): string => {
-  const icons: Record<string, string> = {
-    'Device': 'ph:device-mobile',
-    'Files': 'ph:folder',
-    'Display': 'ph:monitor',
-    'Input': 'ph:cursor',
-    'Media': 'ph:speaker-high',
-    'System': 'ph:gear',
-    'Other': 'ph:cube'
-  };
-  return icons[category] || 'ph:cube';
-};
-
-// Filtered tools based on search
-const filteredTools = computed(() => {
-  if (!toolSearch.value) return tools.value;
-  const query = toolSearch.value.toLowerCase();
-  return tools.value.filter(t =>
-    t.name.toLowerCase().includes(query) ||
-    t.description.toLowerCase().includes(query)
+const filtered = computed(() => {
+  const q = search.value.trim().toLowerCase();
+  if (!q) return tools.value;
+  return tools.value.filter(
+    (t) => t.name.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q),
   );
 });
 
-// Tool categories
-const toolCategories = computed(() => {
-  const categories: Record<string, ToolDefinition[]> = {
-    'Device': [],
-    'Files': [],
-    'Display': [],
-    'Input': [],
-    'Media': [],
-    'System': [],
-    'Other': []
-  };
+const grouped = computed(() =>
+  TOOL_CATEGORIES.map((cat) => ({
+    ...cat,
+    tools: filtered.value.filter((t) => categoryFor(t.name) === cat.key),
+  })).filter((g) => g.tools.length > 0),
+);
 
-  for (const tool of filteredTools.value) {
-    const name = tool.name.replace('aster_', '');
-    if (name.includes('device') || name.includes('battery') || name.includes('location')) {
-      categories['Device']?.push(tool);
-    } else if (name.includes('file') || name.includes('package')) {
-      categories['Files']?.push(tool);
-    } else if (name.includes('screen') || name.includes('screenshot') || name.includes('overlay')) {
-      categories['Display']?.push(tool);
-    } else if (name.includes('input') || name.includes('gesture') || name.includes('global') || name.includes('text')) {
-      categories['Input']?.push(tool);
-    } else if (name.includes('speak') || name.includes('audio') || name.includes('vibrate')) {
-      categories['Media']?.push(tool);
-    } else if (name.includes('notification') || name.includes('sms') || name.includes('call') || name.includes('clipboard') || name.includes('toast') || name.includes('intent') || name.includes('shell')) {
-      categories['System']?.push(tool);
-    } else {
-      categories['Other']?.push(tool);
+/** Visible params, minus deviceId which the server injects server-side. */
+const params = computed(() => {
+  const schema = selected.value?.inputSchema;
+  if (!schema?.properties) return [];
+  return Object.entries(schema.properties)
+    .filter(([name]) => name !== 'deviceId')
+    .map(([name, spec]) => ({
+      name,
+      spec: spec as Record<string, any>,
+      required: schema.required?.includes(name) ?? false,
+    }));
+});
+
+function selectTool(tool: ToolDefinition) {
+  selected.value = tool;
+  result.value = null;
+  args.value = {};
+  // Seed defaults so the form reflects what the server will actually receive.
+  for (const p of params.value) {
+    if (p.spec.default !== undefined) args.value[p.name] = p.spec.default;
+    else if (p.spec.type === 'boolean') args.value[p.name] = false;
+    else if (p.spec.type === 'array') args.value[p.name] = '';
+  }
+}
+
+function coerce(name: string, spec: Record<string, any>, raw: unknown): unknown {
+  if (raw === '' || raw === undefined || raw === null) return undefined;
+  if (spec.type === 'number' || spec.type === 'integer') return Number(raw);
+  if (spec.type === 'boolean') return Boolean(raw);
+  if (spec.type === 'array') {
+    const parts = String(raw)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return spec.items?.type === 'number' ? parts.map(Number) : parts;
+  }
+  if (spec.type === 'object') {
+    try {
+      return JSON.parse(String(raw));
+    } catch {
+      throw new Error(`${name} must be valid JSON`);
     }
   }
+  return raw;
+}
 
-  return Object.fromEntries(Object.entries(categories).filter(([, t]) => t.length > 0));
-});
+async function execute() {
+  if (!selected.value) return;
+  running.value = true;
+  result.value = null;
+  try {
+    const payload: Record<string, unknown> = {};
+    for (const p of params.value) {
+      const v = coerce(p.name, p.spec, args.value[p.name]);
+      if (v !== undefined) payload[p.name] = v;
+    }
+    result.value = await api.executeTool(deviceId, selected.value.name, payload);
+  } catch (e) {
+    toast.error('Execution failed', e instanceof Error ? e.message : String(e));
+  } finally {
+    running.value = false;
+  }
+}
 
-const selectedTool = computed(() => tools.value.find(t => t.name === selectedToolName.value));
-
-const toolProperties = computed(() => {
-  if (!selectedTool.value) return {};
-  const props = { ...selectedTool.value.inputSchema.properties };
-  delete props.deviceId;
-  return props;
-});
-
-// Vibration preset patterns
-const vibratePresets = [
-  { name: 'Tap', pattern: [0, 50] },
-  { name: 'Double Tap', pattern: [0, 50, 100, 50] },
-  { name: 'Notification', pattern: [0, 200, 100, 200] },
-  { name: 'Alert', pattern: [0, 100, 50, 100, 50, 100] },
-  { name: 'Long Pulse', pattern: [0, 500] },
+const VIBRATE_PRESETS = [
+  { label: 'Short', value: '0,200' },
+  { label: 'Double', value: '0,100,100,100' },
+  { label: 'Long', value: '0,800' },
+  { label: 'SOS', value: '0,150,100,150,100,150,300,400,100,400,100,400,300,150,100,150,100,150' },
 ];
-
-const isVibrateTool = computed(() => selectedTool.value?.name === 'aster_vibrate');
-
-// Watch for tool changes to initialize args
-watch(selectedToolName, () => {
-  toolArgs.value = {};
-  executionResult.value = null;
-  if (selectedTool.value) {
-    const props = toolProperties.value;
-    for (const [key, schema] of Object.entries(props)) {
-      if (schema.default !== undefined) {
-        toolArgs.value[key] = schema.default;
-      } else if (schema.type === 'boolean') {
-        toolArgs.value[key] = false;
-      } else if (schema.type === 'array') {
-        toolArgs.value[key] = [];
-      }
-    }
-  }
-});
-
-// Select vibrate preset
-const selectVibratePreset = (pattern: number[]) => {
-  toolArgs.value.pattern = pattern;
-};
-
-// Update custom vibrate pattern
-const updateCustomVibratePattern = (value: string) => {
-  try {
-    const parsed = JSON.parse(value);
-    if (Array.isArray(parsed) && parsed.every(n => typeof n === 'number')) {
-      toolArgs.value.pattern = parsed;
-    }
-  } catch (e) {
-    // Invalid JSON, ignore
-  }
-};
-
-// Execute command
-const executeCommand = async () => {
-  if (!selectedTool.value || !device.value) return;
-
-  executing.value = true;
-  executionResult.value = null;
-
-  try {
-    // Convert args to proper types based on schema
-    const convertedArgs: Record<string, any> = { deviceId: device.value.id };
-    const props = toolProperties.value;
-
-    for (const [key, value] of Object.entries(toolArgs.value)) {
-      const schema = props[key];
-      if (!schema) continue;
-
-      if (schema.type === 'number') {
-        convertedArgs[key] = Number(value);
-      } else if (schema.type === 'integer') {
-        convertedArgs[key] = parseInt(String(value), 10);
-      } else if (schema.type === 'boolean') {
-        convertedArgs[key] = Boolean(value);
-      } else if (schema.type === 'array') {
-        convertedArgs[key] = Array.isArray(value) ? value : [];
-      } else if (schema.type === 'object') {
-        convertedArgs[key] = typeof value === 'object' ? value : {};
-      } else {
-        convertedArgs[key] = value;
-      }
-    }
-
-    const result = await api.executeTool(device.value.id, selectedTool.value.name, convertedArgs);
-    executionResult.value = result;
-
-    // Add to command history
-    commandHistory.value.unshift({
-      tool: selectedTool.value.name,
-      timestamp: new Date(),
-      success: !result.isError,
-    });
-
-    // Keep only last 10 commands
-    if (commandHistory.value.length > 10) {
-      commandHistory.value = commandHistory.value.slice(0, 10);
-    }
-  } catch (e) {
-    executionResult.value = {
-      content: [{ type: 'text', text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
-      isError: true,
-    };
-  } finally {
-    executing.value = false;
-  }
-};
-
-onMounted(async () => {
-  try {
-    const [deviceData, toolsData] = await Promise.all([
-      api.getDevice(deviceId.value),
-      api.getTools(),
-    ]);
-    device.value = deviceData;
-    tools.value = toolsData;
-  } catch (e) {
-    console.error('Failed to load control page data:', e);
-  } finally {
-    loading.value = false;
-  }
-});
 </script>
 
 <template>
-  <div class="control-page">
-    <div class="grid-bg"></div>
+  <div>
+    <PageHeader
+      title="Tool explorer"
+      :description="`Run any of the ${tools.length} MCP tools directly against this device.`"
+      :back-to="`/devices/${deviceId}`"
+      back-label="Device"
+    />
 
-    <div class="relative z-10 h-screen flex flex-col">
-      <!-- Header -->
-      <header class="control-header">
-        <div class="max-w-[1800px] mx-auto px-4 py-3 flex items-center justify-between">
-          <div class="flex items-center gap-4">
-            <NuxtLink :to="`/devices/${deviceId}`" class="back-link">
-              <Icon name="ph:arrow-left" size="18" />
-              <span>Back to Device</span>
-            </NuxtLink>
-            <div class="header-divider"></div>
-            <h1 class="control-title">Device Control</h1>
-            <span v-if="device" class="device-id-badge">{{ device.id.slice(0, 8) }}</span>
-          </div>
-          <div v-if="device" class="connection-status" :class="device.online ? 'is-online' : 'is-offline'">
-            <div class="status-dot"></div>
-            <span>{{ device.online ? 'ONLINE' : 'OFFLINE' }}</span>
+    <div class="layout">
+      <ACard variant="flush" class="sidebar">
+        <label class="search">
+          <Icon name="ph:magnifying-glass" />
+          <input v-model="search" type="search" placeholder="Search tools" />
+        </label>
+
+        <div class="cats">
+          <div v-for="cat in grouped" :key="cat.key" class="cat">
+            <button
+              type="button"
+              class="cat__head"
+              :aria-expanded="!!expanded[cat.key]"
+              @click="expanded[cat.key] = !expanded[cat.key]"
+            >
+              <AIconTile :icon="cat.icon" :accent="cat.accent" :size="28" />
+              <span class="cat__name">{{ cat.label }}</span>
+              <span class="cat__count">{{ cat.tools.length }}</span>
+              <Icon :name="expanded[cat.key] ? 'ph:caret-up' : 'ph:caret-down'" />
+            </button>
+
+            <div v-if="expanded[cat.key] || search" class="cat__tools">
+              <button
+                v-for="tool in cat.tools"
+                :key="tool.name"
+                type="button"
+                class="tool"
+                :class="{ 'tool--active': selected?.name === tool.name }"
+                @click="selectTool(tool)"
+              >
+                <span class="tool__dot" :style="{ background: cat.accent }" />
+                <span class="tool__name mono">{{ tool.name.replace('aster_', '') }}</span>
+              </button>
+            </div>
           </div>
         </div>
-      </header>
+      </ACard>
 
-      <!-- Loading State -->
-      <div v-if="loading" class="flex-1 flex items-center justify-center">
-        <div class="loading-spinner"></div>
-      </div>
+      <div class="main">
+        <AEmptyState
+          v-if="!selected"
+          icon="ph:cursor-click"
+          title="Pick a tool"
+          description="Choose a tool from the catalogue to build and run a call."
+        />
 
-      <!-- Main Content -->
-      <div v-else class="flex-1 flex overflow-hidden">
-        <!-- Sidebar -->
-        <aside class="control-sidebar">
-          <div class="sidebar-search">
-            <Icon name="ph:magnifying-glass" size="18" />
-            <input
-              v-model="toolSearch"
-              type="text"
-              placeholder="Search tools..."
-              class="search-input"
-            />
-          </div>
+        <template v-else>
+          <ACard>
+            <h2 class="tool__title mono">{{ selected.name }}</h2>
+            <p class="tool__desc">{{ selected.description }}</p>
 
-          <div class="sidebar-content">
-            <div v-for="(categoryTools, category) in toolCategories" :key="category" class="tool-category">
-              <div class="category-header">
-                <Icon :name="getCategoryIcon(category)" size="16" />
-                <span>{{ category }}</span>
-                <span class="category-count">{{ categoryTools.length }}</span>
-              </div>
-              <div class="category-tools">
-                <button
-                  v-for="tool in categoryTools"
-                  :key="tool.name"
-                  @click="selectedToolName = tool.name"
-                  :class="['tool-item', { 'tool-active': selectedToolName === tool.name }]"
-                >
-                  {{ tool.name.replace('aster_', '') }}
-                </button>
-              </div>
-            </div>
-
-            <div v-if="commandHistory.length > 0" class="recent-commands">
-              <div class="recent-header">Recent</div>
-              <button
-                v-for="(cmd, idx) in commandHistory.slice(0, 5)"
-                :key="idx"
-                @click="selectedToolName = cmd.tool"
-                class="recent-item"
-              >
-                <Icon :name="cmd.success ? 'ph:check-circle' : 'ph:x-circle'" size="14" />
-                <span>{{ cmd.tool.replace('aster_', '') }}</span>
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        <!-- Main Panel -->
-        <main class="control-main">
-          <div v-if="!selectedTool" class="empty-state">
-            <Icon name="ph:hand-pointing" size="48" />
-            <h3>Select a tool from the sidebar</h3>
-            <p>{{ tools.length }} tools available</p>
-          </div>
-
-          <div v-else class="tool-panel">
-            <div class="tool-header">
-              <h2>{{ selectedTool.name.replace('aster_', '') }}</h2>
-              <p>{{ selectedTool.description }}</p>
-            </div>
-
-            <div class="tool-form">
-              <!-- Special case: Vibration presets -->
-              <div v-if="isVibrateTool" class="form-group">
-                <label class="form-label">Presets</label>
-                <div class="preset-grid">
-                  <button
-                    v-for="preset in vibratePresets"
-                    :key="preset.name"
-                    @click="selectVibratePreset(preset.pattern)"
-                    :class="['preset-btn', { 'preset-active': JSON.stringify(toolArgs.pattern) === JSON.stringify(preset.pattern) }]"
-                  >
-                    {{ preset.name }}
-                  </button>
-                </div>
-              </div>
-
-              <!-- Dynamic form fields -->
-              <div v-for="(schema, key) in toolProperties" :key="key" class="form-group">
-                <label class="form-label">
-                  {{ key }}
-                  <span v-if="selectedTool.inputSchema.required?.includes(key)" class="text-red-400">*</span>
+            <div v-if="params.length" class="params">
+              <div v-for="p in params" :key="p.name" class="param">
+                <label class="param__label" :for="`p-${p.name}`">
+                  {{ p.name }}
+                  <span v-if="p.required" class="param__req">required</span>
+                  <span class="param__type">{{ p.spec.type }}</span>
                 </label>
-                <p v-if="schema.description" class="form-description">{{ schema.description }}</p>
+                <p v-if="p.spec.description" class="param__desc">{{ p.spec.description }}</p>
 
-                <!-- String input -->
-                <input
-                  v-if="schema.type === 'string' && !schema.enum"
-                  v-model="toolArgs[key]"
-                  type="text"
-                  class="form-input"
-                  :placeholder="schema.default"
-                />
-
-                <!-- Enum select -->
                 <select
-                  v-else-if="schema.enum"
-                  v-model="toolArgs[key]"
-                  class="form-input"
+                  v-if="p.spec.enum"
+                  :id="`p-${p.name}`"
+                  v-model="args[p.name]"
+                  class="control"
                 >
-                  <option v-for="option in schema.enum" :key="option" :value="option">
-                    {{ option }}
-                  </option>
+                  <option value="">—</option>
+                  <option v-for="opt in p.spec.enum" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
 
-                <!-- Number input -->
-                <input
-                  v-else-if="schema.type === 'number' || schema.type === 'integer'"
-                  v-model.number="toolArgs[key]"
-                  type="number"
-                  class="form-input"
-                  :placeholder="schema.default?.toString()"
-                  :min="schema.minimum"
-                  :max="schema.maximum"
+                <AToggle
+                  v-else-if="p.spec.type === 'boolean'"
+                  :id="`p-${p.name}`"
+                  v-model="args[p.name] as boolean"
                 />
 
-                <!-- Boolean toggle -->
-                <label v-else-if="schema.type === 'boolean'" class="toggle-label">
-                  <input
-                    v-model="toolArgs[key]"
-                    type="checkbox"
-                    class="toggle-input"
-                  />
-                  <span class="toggle-switch"></span>
-                  <span class="toggle-text">{{ toolArgs[key] ? 'Enabled' : 'Disabled' }}</span>
-                </label>
+                <input
+                  v-else-if="p.spec.type === 'number' || p.spec.type === 'integer'"
+                  :id="`p-${p.name}`"
+                  v-model="args[p.name]"
+                  type="number"
+                  class="control"
+                  :min="p.spec.minimum"
+                  :max="p.spec.maximum"
+                />
 
-                <!-- Array input (JSON) -->
                 <textarea
-                  v-else-if="schema.type === 'array'"
-                  v-model="toolArgs[key]"
-                  @input="(e: Event) => { if (isVibrateTool && key === 'pattern') updateCustomVibratePattern((e.target as HTMLTextAreaElement).value) }"
-                  class="form-input"
-                  rows="3"
-                  :placeholder="schema.default ? JSON.stringify(schema.default, null, 2) : '[...]'"
-                ></textarea>
-
-                <!-- Object input (JSON) -->
-                <textarea
-                  v-else-if="schema.type === 'object'"
-                  v-model="toolArgs[key]"
-                  class="form-input"
+                  v-else-if="p.spec.type === 'object' || p.name === 'content' || p.name === 'html'"
+                  :id="`p-${p.name}`"
+                  v-model="args[p.name]"
+                  class="control control--area"
                   rows="4"
-                  :placeholder="schema.default ? JSON.stringify(schema.default, null, 2) : '{...}'"
-                ></textarea>
-              </div>
+                />
 
-              <!-- Execute button -->
-              <button
-                @click="executeCommand"
-                :disabled="!device?.online || executing"
-                class="execute-btn"
-              >
-                <Icon v-if="executing" name="svg-spinners:90-ring-with-bg" size="18" />
-                <Icon v-else name="ph:play-fill" size="18" />
-                <span>{{ executing ? 'Executing...' : 'Execute' }}</span>
-              </button>
-            </div>
-
-            <div v-if="executionResult" class="execution-results">
-              <div class="results-header">
-                <h3>Results</h3>
-                <span :class="['result-badge', executionResult.isError ? 'badge-error' : 'badge-success']">
-                  {{ executionResult.isError ? 'ERROR' : 'SUCCESS' }}
-                </span>
-              </div>
-
-              <div class="results-content">
-                <div v-for="(item, idx) in executionResult.content" :key="idx">
-                  <!-- Text content -->
-                  <pre v-if="item.type === 'text'" class="result-text">{{ item.text }}</pre>
-
-                  <!-- Image content -->
-                  <img v-else-if="item.type === 'image'" :src="item.data" class="result-image" alt="Result" />
-                </div>
+                <template v-else>
+                  <input
+                    :id="`p-${p.name}`"
+                    v-model="args[p.name]"
+                    type="text"
+                    class="control"
+                    :placeholder="p.spec.type === 'array' ? 'Comma-separated' : ''"
+                  />
+                  <div v-if="selected.name === 'aster_vibrate' && p.name === 'pattern'" class="presets">
+                    <button
+                      v-for="preset in VIBRATE_PRESETS"
+                      :key="preset.label"
+                      type="button"
+                      class="preset"
+                      @click="args[p.name] = preset.value"
+                    >
+                      {{ preset.label }}
+                    </button>
+                  </div>
+                </template>
               </div>
             </div>
-          </div>
-        </main>
+            <p v-else class="params__none">This tool takes no parameters.</p>
+
+            <AButton
+              variant="primary"
+              icon="ph:play"
+              :loading="running"
+              class="run"
+              @click="execute"
+            >
+              Execute
+            </AButton>
+          </ACard>
+
+          <ToolResultView v-if="result" :result="result" class="result" />
+        </template>
       </div>
     </div>
   </div>
 </template>
 
-<style>
-@reference "tailwindcss";
-
-.control-page {
-  @apply min-h-screen bg-[#0a0b0d] relative overflow-hidden;
+<style scoped>
+.layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
 }
 
-.grid-bg {
-  @apply absolute inset-0 opacity-20;
-  background-image:
-    linear-gradient(rgba(139, 92, 246, 0.1) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(139, 92, 246, 0.1) 1px, transparent 1px);
-  background-size: 30px 30px;
+@media (max-width: 1000px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
 }
 
-.control-header {
-  @apply border-b border-gray-800 bg-black/40 backdrop-blur-sm;
+.sidebar {
+  position: sticky;
+  top: 5rem;
+  max-height: calc(100vh - 7rem);
+  display: flex;
+  flex-direction: column;
 }
 
-.back-link {
-  @apply flex items-center gap-2 px-3 py-1.5 rounded-md
-    bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700
-    text-gray-300 text-sm transition-colors;
+.search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-fg-muted);
 }
 
-.header-divider {
-  @apply w-px h-5 bg-gray-700;
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: var(--color-fg);
+  font: inherit;
+  font-size: var(--text-body-md);
+  outline: none;
 }
 
-.control-title {
-  @apply text-lg font-semibold text-white;
+.cats {
+  overflow-y: auto;
+  padding: 0.375rem;
 }
 
-.device-id-badge {
-  @apply px-2 py-1 rounded text-xs font-mono bg-violet-500/20 text-violet-300 border border-violet-500/30;
+.cat__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  border: none;
+  background: none;
+  color: var(--color-fg);
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
 }
 
-.connection-status {
-  @apply flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium;
+.cat__head:hover {
+  background: var(--color-surface-2);
 }
 
-.connection-status.is-online {
-  @apply bg-emerald-500/20 text-emerald-300 border border-emerald-500/30;
+.cat__name {
+  flex: 1;
+  text-align: left;
+  font-size: var(--text-title-sm);
+  font-weight: 600;
 }
 
-.connection-status.is-offline {
-  @apply bg-gray-700/50 text-gray-400 border border-gray-600;
+.cat__count {
+  font-size: var(--text-label-sm);
+  color: var(--color-fg-muted);
 }
 
-.status-dot {
-  @apply w-2 h-2 rounded-full;
+.cat__tools {
+  display: grid;
+  gap: 1px;
+  padding: 0.125rem 0 0.375rem 0.5rem;
 }
 
-.is-online .status-dot {
-  @apply bg-emerald-400 animate-pulse;
+.tool {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3125rem 0.5rem;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-subtle);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  cursor: pointer;
+  text-align: left;
 }
 
-.is-offline .status-dot {
-  @apply bg-gray-500;
+.tool:hover {
+  background: var(--color-surface-2);
+  color: var(--color-fg);
 }
 
-.control-sidebar {
-  @apply w-80 border-r border-gray-800 bg-black/20 backdrop-blur-sm flex flex-col;
+.tool--active {
+  background: color-mix(in oklab, var(--color-primary) 14%, transparent);
+  color: var(--color-primary);
 }
 
-.sidebar-search {
-  @apply flex items-center gap-2 px-4 py-3 border-b border-gray-800;
+.tool__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex: none;
+  opacity: 0.6;
 }
 
-.search-input {
-  @apply flex-1 bg-transparent text-white placeholder-gray-500 outline-none text-sm;
+.tool__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.sidebar-content {
-  @apply flex-1 overflow-y-auto p-3 space-y-4;
+.main {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
 }
 
-.tool-category {
-  @apply space-y-1;
+.tool__title {
+  margin: 0;
+  font-size: var(--text-title-lg);
+  font-weight: 600;
+  color: var(--color-fg);
 }
 
-.category-header {
-  @apply flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-gray-400 uppercase;
+.tool__desc {
+  margin: 0.25rem 0 1.25rem;
+  font-size: var(--text-body-md);
+  color: var(--color-fg-subtle);
 }
 
-.category-count {
-  @apply ml-auto px-1.5 py-0.5 rounded text-[10px] bg-gray-800 text-gray-500;
+.params {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
 }
 
-.category-tools {
-  @apply space-y-0.5;
+.param__label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-body-sm);
+  color: var(--color-fg);
+  margin-bottom: 0.25rem;
 }
 
-.tool-item {
-  @apply w-full text-left px-3 py-2 rounded-md text-sm text-gray-300
-    hover:bg-gray-800/50 transition-colors;
+.param__req {
+  font-family: var(--font-display);
+  font-size: var(--text-label-sm);
+  color: var(--color-error);
 }
 
-.tool-active {
-  @apply bg-violet-500/20 text-violet-300 border border-violet-500/30;
+.param__type {
+  font-family: var(--font-display);
+  font-size: var(--text-label-sm);
+  color: var(--color-fg-muted);
 }
 
-.recent-commands {
-  @apply pt-3 border-t border-gray-800 space-y-1;
+.param__desc {
+  margin: 0 0 0.375rem;
+  font-size: var(--text-label-md);
+  color: var(--color-fg-subtle);
 }
 
-.recent-header {
-  @apply px-2 py-1.5 text-xs font-semibold text-gray-400 uppercase;
+.control {
+  width: 100%;
+  min-height: 38px;
+  padding: 0.4375rem 0.625rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-fg);
+  font: inherit;
+  font-size: var(--text-body-md);
 }
 
-.recent-item {
-  @apply w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-gray-400
-    hover:bg-gray-800/50 transition-colors;
+.control:focus {
+  outline: none;
+  border-color: var(--color-primary);
 }
 
-.control-main {
-  @apply flex-1 overflow-y-auto p-6;
+.control--area {
+  font-family: var(--font-mono);
+  resize: vertical;
 }
 
-.empty-state {
-  @apply flex flex-col items-center justify-center h-full text-center space-y-4;
+.params__none {
+  margin: 0 0 1.25rem;
+  font-size: var(--text-label-md);
+  color: var(--color-fg-muted);
 }
 
-.empty-state h3 {
-  @apply text-xl font-semibold text-white;
+.presets {
+  display: flex;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
 }
 
-.empty-state p {
-  @apply text-gray-400;
+.preset {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-fg-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.1875rem 0.5rem;
+  font: inherit;
+  font-size: var(--text-label-sm);
+  cursor: pointer;
 }
 
-.tool-panel {
-  @apply max-w-4xl mx-auto space-y-6;
+.preset:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
-.tool-header {
-  @apply space-y-2;
-}
-
-.tool-header h2 {
-  @apply text-2xl font-bold text-white;
-}
-
-.tool-header p {
-  @apply text-gray-400;
-}
-
-.tool-form {
-  @apply p-6 rounded-lg border border-gray-800 bg-gray-900/50;
-}
-
-.execution-results {
-  @apply p-6 rounded-lg border border-gray-800 bg-gray-900/50 space-y-4;
-}
-
-.execution-results h3 {
-  @apply text-lg font-semibold text-white;
-}
-
-.loading-spinner {
-  @apply w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin;
-}
-
-/* Form Styles */
-.form-group {
-  @apply space-y-2;
-}
-
-.form-label {
-  @apply block text-sm font-medium text-gray-300;
-}
-
-.form-description {
-  @apply text-xs text-gray-500;
-}
-
-.form-input {
-  @apply w-full px-3 py-2 rounded-md bg-gray-800/50 border border-gray-700
-    text-white placeholder-gray-500
-    focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500
-    transition-colors;
-}
-
-.form-input:disabled {
-  @apply opacity-50 cursor-not-allowed;
-}
-
-/* Toggle Switch */
-.toggle-label {
-  @apply flex items-center gap-3 cursor-pointer;
-}
-
-.toggle-input {
-  @apply sr-only;
-}
-
-.toggle-switch {
-  @apply relative w-11 h-6 bg-gray-700 rounded-full transition-colors;
-}
-
-.toggle-switch::after {
-  @apply content-[''] absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform;
-}
-
-.toggle-input:checked + .toggle-switch {
-  @apply bg-violet-500;
-}
-
-.toggle-input:checked + .toggle-switch::after {
-  @apply translate-x-5;
-}
-
-.toggle-text {
-  @apply text-sm text-gray-400;
-}
-
-/* Preset Grid */
-.preset-grid {
-  @apply grid grid-cols-3 gap-2;
-}
-
-.preset-btn {
-  @apply px-4 py-2 rounded-md text-sm font-medium
-    bg-gray-800/50 border border-gray-700 text-gray-300
-    hover:bg-gray-700/50 hover:border-violet-500/50
-    transition-colors;
-}
-
-.preset-active {
-  @apply bg-violet-500/20 border-violet-500 text-violet-300;
-}
-
-/* Execute Button */
-.execute-btn {
-  @apply w-full mt-4 px-4 py-3 rounded-md font-medium
-    bg-violet-500 text-white
-    hover:bg-violet-600
-    disabled:opacity-50 disabled:cursor-not-allowed
-    flex items-center justify-center gap-2
-    transition-colors;
-}
-
-/* Results Display */
-.results-header {
-  @apply flex items-center justify-between;
-}
-
-.results-header h3 {
-  @apply text-lg font-semibold text-white;
-}
-
-.result-badge {
-  @apply px-2 py-1 rounded text-xs font-semibold uppercase;
-}
-
-.badge-success {
-  @apply bg-emerald-500/20 text-emerald-300 border border-emerald-500/30;
-}
-
-.badge-error {
-  @apply bg-red-500/20 text-red-300 border border-red-500/30;
-}
-
-.results-content {
-  @apply space-y-3;
-}
-
-.result-text {
-  @apply p-4 rounded-md bg-gray-800/50 border border-gray-700
-    text-sm text-gray-300 font-mono overflow-x-auto;
-}
-
-.result-image {
-  @apply rounded-md border border-gray-700 max-w-full h-auto;
+.run {
+  width: 100%;
 }
 </style>

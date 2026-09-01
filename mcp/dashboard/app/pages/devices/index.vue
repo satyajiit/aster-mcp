@@ -1,165 +1,233 @@
 <script setup lang="ts">
 import type { Device } from '~/composables/useApi';
 
+useHead({ title: 'Devices' });
+
 const api = useApi();
+const toast = useToast();
+
 const devices = ref<Device[]>([]);
 const loading = ref(true);
-const filter = ref<'all' | 'online' | 'pending'>('all');
+const filter = ref<'all' | 'online' | 'pending' | 'rejected'>('all');
+const search = ref('');
+const removing = ref<Device | null>(null);
 
-onMounted(async () => {
-  await fetchDevices();
-  setInterval(fetchDevices, 5000);
-});
-
-async function fetchDevices() {
-  try {
-    devices.value = await api.getDevices();
-  } finally {
-    loading.value = false;
-  }
+async function load() {
+  devices.value = await api.getDevices();
+  loading.value = false;
 }
 
-const filteredDevices = computed(() => {
-  switch (filter.value) {
-    case 'online':
-      return devices.value.filter(d => d.online);
-    case 'pending':
-      return devices.value.filter(d => d.status === 'pending');
-    default:
-      return devices.value;
-  }
-});
+const { refresh } = usePolling(load, 5000);
 
 const counts = computed(() => ({
   all: devices.value.length,
-  online: devices.value.filter(d => d.online).length,
-  pending: devices.value.filter(d => d.status === 'pending').length,
+  online: devices.value.filter((d) => d.online).length,
+  pending: devices.value.filter((d) => d.status === 'pending').length,
+  rejected: devices.value.filter((d) => d.status === 'rejected').length,
 }));
 
-async function handleApprove(id: string) {
+const visible = computed(() => {
+  let list = devices.value;
+  if (filter.value === 'online') list = list.filter((d) => d.online);
+  else if (filter.value === 'pending') list = list.filter((d) => d.status === 'pending');
+  else if (filter.value === 'rejected') list = list.filter((d) => d.status === 'rejected');
+
+  const q = search.value.trim().toLowerCase();
+  if (q) {
+    list = list.filter((d) =>
+      [d.name, d.model, d.manufacturer, d.id].some((v) => v.toLowerCase().includes(q)),
+    );
+  }
+  return list;
+});
+
+const TABS = [
+  { key: 'all', label: 'All' },
+  { key: 'online', label: 'Online' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'rejected', label: 'Rejected' },
+] as const;
+
+async function approve(id: string) {
   await api.approveDevice(id);
-  await fetchDevices();
+  toast.success('Device approved');
+  await refresh();
 }
 
-async function handleReject(id: string) {
+async function reject(id: string) {
   await api.rejectDevice(id);
-  await fetchDevices();
+  toast.info('Device rejected');
+  await refresh();
+}
+
+async function unreject(id: string) {
+  await api.unrejectDevice(id);
+  toast.success('Device restored to pending');
+  await refresh();
+}
+
+function askRemove(id: string) {
+  removing.value = devices.value.find((d) => d.id === id) ?? null;
+}
+
+async function confirmRemove() {
+  if (!removing.value) return;
+  const name = removing.value.name;
+  try {
+    await api.deleteDevice(removing.value.id);
+    toast.success(`Removed ${name}`);
+  } catch (e) {
+    toast.error('Could not remove device', e instanceof Error ? e.message : String(e));
+  } finally {
+    removing.value = null;
+    await refresh();
+  }
 }
 </script>
 
 <template>
-  <div class="min-h-screen p-6">
-    <div class="max-w-[1400px] mx-auto space-y-6">
-      <!-- Header -->
-      <TerminalPageHeader
-        description="Device Registry // Manage Connected Devices"
-        :loading="loading"
-        :show-refresh="false"
-        @refresh="fetchDevices"
-      >
-        <template #left>
-          <NuxtLink to="/" class="btn-terminal text-[11px] px-3 py-2 inline-flex items-center gap-2">
-            <Icon name="ph:arrow-left" size="14" />
-            DASHBOARD
-          </NuxtLink>
-        </template>
-        <template #actions>
-          <button
-            class="btn-terminal text-[11px] px-3 py-2 inline-flex items-center gap-2"
-            :disabled="loading"
-            @click="fetchDevices"
-          >
-            <Icon name="ph:arrows-clockwise" size="14" :class="{ 'animate-spin': loading }" />
-            {{ loading ? 'SYNCING' : 'REFRESH' }}
-          </button>
-        </template>
-      </TerminalPageHeader>
+  <div>
+    <PageHeader title="Devices" description="Every device that has paired with this server.">
+      <template #actions>
+        <AButton size="sm" icon="ph:arrows-clockwise" @click="refresh">Refresh</AButton>
+      </template>
+    </PageHeader>
 
-      <!-- Quick Stats -->
-      <div class="grid grid-cols-3 gap-4">
-        <StatCard
-          label="Approved"
-          :value="devices.filter(d => d.status === 'approved').length"
-          icon="✓"
-          color="emerald"
-        />
-        <StatCard
-          label="Pending"
-          :value="devices.filter(d => d.status === 'pending').length"
-          icon="◐"
-          color="amber"
-        />
-        <StatCard
-          label="Rejected"
-          :value="devices.filter(d => d.status === 'rejected').length"
-          icon="✕"
-          color="rose"
-        />
-      </div>
-
-      <!-- Filter Tabs -->
-      <div class="terminal-panel p-1 inline-flex gap-1">
+    <div class="toolbar">
+      <div class="tabs" role="tablist">
         <button
-          v-for="f in ['all', 'online', 'pending'] as const"
-          :key="f"
-          class="px-4 py-2 text-[11px] uppercase tracking-wider transition-all rounded-sm"
-          :class="filter === f
-            ? 'bg-terminal-surface-elevated text-primary'
-            : 'text-terminal-muted hover:text-terminal-text'"
-          @click="filter = f"
+          v-for="tab in TABS"
+          :key="tab.key"
+          type="button"
+          role="tab"
+          class="tab"
+          :class="{ 'tab--active': filter === tab.key }"
+          :aria-selected="filter === tab.key"
+          @click="filter = tab.key"
         >
-          {{ f }}
-          <span class="ml-2 text-terminal-dim">({{ counts[f] }})</span>
+          {{ tab.label }}
+          <span class="tab__count">{{ counts[tab.key] }}</span>
         </button>
       </div>
 
-      <!-- Devices Table -->
-      <TerminalWindow title="device registry" class="animate-fade-in">
-        <div v-if="loading" class="py-12 text-center">
-          <div class="text-primary animate-pulse">Loading...</div>
-        </div>
-
-        <div v-else-if="filteredDevices.length === 0" class="py-12 text-center">
-          <div class="text-terminal-muted text-4xl mb-4">
-            {{ filter === 'pending' ? '◐' : '◌' }}
-          </div>
-          <div class="text-terminal-muted">
-            {{ filter === 'all' ? 'No devices registered' : `No ${filter} devices` }}
-          </div>
-          <div v-if="filter !== 'all'" class="mt-4">
-            <button
-              class="btn-terminal text-[11px]"
-              @click="filter = 'all'"
-            >
-              Show all devices
-            </button>
-          </div>
-        </div>
-
-        <table v-else class="terminal-table">
-          <thead>
-            <tr>
-              <th class="w-8">
-                <span class="sr-only">Status</span>
-              </th>
-              <th>Device</th>
-              <th>Model</th>
-              <th>Status</th>
-              <th>Last Seen</th>
-              <th class="w-40"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <DeviceRow
-              v-for="device in filteredDevices"
-              :key="device.id"
-              :device="device"
-              @approve="handleApprove"
-              @reject="handleReject"
-            />
-          </tbody>
-        </table>
-      </TerminalWindow>
+      <label class="search">
+        <Icon name="ph:magnifying-glass" />
+        <input v-model="search" type="search" placeholder="Search name, model or id" />
+      </label>
     </div>
+
+    <ACard variant="flush">
+      <div v-if="loading" class="loading"><ASpinner /> Loading devices…</div>
+      <AEmptyState
+        v-else-if="visible.length === 0"
+        icon="ph:device-mobile-slash"
+        :title="devices.length === 0 ? 'No devices registered' : 'No devices match this filter'"
+        :description="
+          devices.length === 0
+            ? 'Install the Aster companion and point it at this server to pair a device.'
+            : null
+        "
+      />
+      <DeviceRow
+        v-for="d in visible"
+        :key="d.id"
+        :device="d"
+        @approve="approve"
+        @reject="reject"
+        @unreject="unreject"
+        @remove="askRemove"
+      />
+    </ACard>
+
+    <AModal
+      :open="!!removing"
+      title="Remove device?"
+      :description="`${removing?.name ?? ''} will be deleted along with its logs. The device can pair again later.`"
+      @update:open="(v) => !v && (removing = null)"
+    >
+      <template #footer>
+        <AButton size="sm" @click="removing = null">Cancel</AButton>
+        <AButton variant="danger" size="sm" @click="confirmRemove">Remove</AButton>
+      </template>
+    </AModal>
   </div>
 </template>
+
+<style scoped>
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.875rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.1875rem;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border: none;
+  background: none;
+  color: var(--color-fg-subtle);
+  font: inherit;
+  font-size: var(--text-label-lg);
+  padding: 0.3125rem 0.625rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.tab--active {
+  background: var(--color-surface-3);
+  color: var(--color-fg);
+}
+
+.tab__count {
+  font-size: var(--text-label-sm);
+  color: var(--color-fg-muted);
+}
+
+.search {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.75rem;
+  min-height: 38px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-1);
+  color: var(--color-fg-muted);
+}
+
+.search:focus-within {
+  border-color: var(--color-primary);
+}
+
+.search input {
+  border: none;
+  background: none;
+  color: var(--color-fg);
+  font: inherit;
+  font-size: var(--text-body-md);
+  outline: none;
+  min-width: 16rem;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  justify-content: center;
+  color: var(--color-fg-subtle);
+}
+</style>

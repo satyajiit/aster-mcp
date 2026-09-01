@@ -1,709 +1,290 @@
 <script setup lang="ts">
-const api = useApi();
+import type { AgentEventForwardingConfig } from '~/composables/useApi';
 
-const loading = ref(true);
+useHead({ title: 'Event forwarding' });
+
+const api = useApi();
+const toast = useToast();
+
+const loaded = ref(false);
 const saving = ref(false);
 const testing = ref(false);
+const editing = ref(false);
+const hasSourceToken = ref(false);
+const savedConfig = ref<AgentEventForwardingConfig | null>(null);
 const testResult = ref<{ success: boolean; status?: number; error?: string } | null>(null);
-const saveSuccess = ref(false);
-const isEditing = ref(false);
-const hasExistingConfig = ref(false);
-
-// Form fields
-const defaultEvents = {
-  notifications: true,
-  sms: true,
-  deviceConnected: true,
-  deviceDisconnected: true,
-  pairingRequired: true,
-  incomingCalls: true,
-};
 
 const form = reactive({
-  enabled: true,
-  endpoint: 'http://localhost:18789',
-  webhookPath: '/hooks/agent',
-  token: '',
+  enabled: false,
   channelType: 'openclaw' as 'openclaw' | 'mattermost',
-  channel: 'whatsapp',
+  endpoint: '',
+  webhookPath: '',
+  token: '',
+  channel: '',
   deliverTo: '',
-  events: { ...defaultEvents },
+  events: {
+    notifications: true,
+    sms: true,
+    deviceConnected: true,
+    deviceDisconnected: true,
+    pairingRequired: true,
+    incomingCalls: true,
+  },
 });
 
-const isMattermost = computed(() => form.channelType === 'mattermost');
-const webhookDisplay = computed(() => `${form.endpoint}${form.webhookPath || ''}`);
+const EVENTS = [
+  { key: 'notifications', label: 'Notifications', desc: 'App notifications from the shade', icon: 'ph:bell' },
+  { key: 'sms', label: 'SMS', desc: 'Incoming text messages', icon: 'ph:chat-circle' },
+  { key: 'incomingCalls', label: 'Incoming calls', desc: 'Caller number and contact name', icon: 'ph:phone-incoming' },
+  { key: 'deviceConnected', label: 'Device connected', desc: 'A device comes online', icon: 'ph:plugs-connected' },
+  { key: 'deviceDisconnected', label: 'Device disconnected', desc: 'A device drops off', icon: 'ph:plugs' },
+  { key: 'pairingRequired', label: 'Pairing required', desc: 'A new device needs approval', icon: 'ph:key' },
+] as const;
 
-const configuredAt = ref<string | null>(null);
-const hasSourceToken = ref(false);
-const sourceTokenPreview = ref<string | null>(null);
+async function load() {
+  const res = await api.getAgentEventForwardingConfig();
+  savedConfig.value = res.config;
+  hasSourceToken.value = res.hasSourceToken;
+  if (res.config) {
+    Object.assign(form, {
+      enabled: res.config.enabled,
+      channelType: res.config.channelType ?? 'openclaw',
+      endpoint: res.config.endpoint,
+      webhookPath: res.config.webhookPath,
+      token: '',
+      channel: res.config.channel,
+      deliverTo: res.config.deliverTo,
+      events: { ...form.events, ...res.config.events },
+    });
+  } else {
+    editing.value = true;
+  }
+  loaded.value = true;
+}
 
-onMounted(async () => {
-  await loadConfig();
-});
+onMounted(load);
 
-async function loadConfig() {
-  loading.value = true;
-  try {
-    const data = await api.getAgentEventForwardingConfig();
-    hasSourceToken.value = data.hasSourceToken;
-    sourceTokenPreview.value = data.sourceTokenPreview;
-
-    if (data.config) {
-      hasExistingConfig.value = true;
-      form.enabled = data.config.enabled;
-      form.channelType = data.config.channelType === 'mattermost' ? 'mattermost' : 'openclaw';
-      form.endpoint = data.config.endpoint;
-      form.webhookPath = data.config.webhookPath;
-      form.channel = form.channelType === 'mattermost'
-        ? (data.config.channel || '')
-        : (data.config.channel || 'whatsapp');
-      form.deliverTo = data.config.deliverTo || '';
-      // Merge so older JSON without incomingCalls does not leave the checkbox undefined.
-      form.events = { ...defaultEvents, ...data.config.events };
-      configuredAt.value = data.config.configuredAt;
-      // Token is masked from server — keep field empty unless editing
-      form.token = '';
-      if (form.channelType === 'mattermost' && form.webhookPath) {
-        form.endpoint = `${form.endpoint}${form.webhookPath}`;
-        form.webhookPath = '';
-      }
-    } else {
-      isEditing.value = true;
-      // Pre-fill token from source if available
-      if (data.hasSourceToken) {
-        await prefillToken();
-      }
-    }
-  } catch {
-    // No config yet, start in edit mode
-    isEditing.value = true;
-  } finally {
-    loading.value = false;
+async function prefill() {
+  const { token } = await api.prefillAgentEventForwardingToken();
+  if (token) {
+    form.token = token;
+    toast.success('Token imported from ~/.openclaw/openclaw.json');
+  } else {
+    toast.info('No local OpenClaw token found');
   }
 }
 
-async function prefillToken() {
-  try {
-    const data = await api.prefillAgentEventForwardingToken();
-    if (data.token) {
-      form.token = data.token;
-    }
-  } catch {
-    // Ignore — source config may not exist
-  }
-}
-
-async function handleTest() {
+async function test() {
   testing.value = true;
   testResult.value = null;
   try {
-    // Server falls back to saved token when empty; probe follows the active channel.
     testResult.value = await api.testAgentEventForwardingConnection(
       form.endpoint,
       form.webhookPath,
-      form.token || undefined,
+      form.token,
       form.channelType,
       form.channel,
     );
-  } catch (err: any) {
-    testResult.value = { success: false, error: err.message };
+    if (testResult.value.success) toast.success('Connection succeeded');
+    else toast.error('Connection failed', testResult.value.error);
   } finally {
     testing.value = false;
   }
 }
 
-async function handleSave() {
+async function save() {
   saving.value = true;
-  saveSuccess.value = false;
   try {
-    // Server preserves existing token when empty string is sent
-    await api.saveAgentEventForwardingConfig({
-      enabled: form.enabled,
-      endpoint: form.endpoint,
-      webhookPath: form.channelType === 'mattermost' ? (form.webhookPath || '') : form.webhookPath,
-      token: form.token,
-      channelType: form.channelType,
-      channel: form.channel,
-      deliverTo: form.deliverTo,
-      events: form.events,
-    });
-    saveSuccess.value = true;
-    hasExistingConfig.value = true;
-    isEditing.value = false;
-    configuredAt.value = new Date().toISOString();
-
-    // Clear token field after save
-    form.token = '';
-
-    setTimeout(() => { saveSuccess.value = false; }, 3000);
-  } catch (err: any) {
-    testResult.value = { success: false, error: `Save failed: ${err.message}` };
+    await api.saveAgentEventForwardingConfig({ ...form });
+    toast.success('Configuration saved');
+    editing.value = false;
+    await load();
+  } catch (e) {
+    toast.error('Could not save', e instanceof Error ? e.message : String(e));
   } finally {
     saving.value = false;
   }
 }
 
-function onChannelTypeChange() {
-  if (form.channelType === 'mattermost') {
-    if (form.webhookPath) {
-      form.endpoint = `${form.endpoint}${form.webhookPath}`;
-      form.webhookPath = '';
-    }
-    if (form.channel === 'whatsapp' || form.channel === 'telegram') {
-      form.channel = '';
-    }
-  } else {
-    if (!form.channel) form.channel = 'whatsapp';
-    if (!form.webhookPath) form.webhookPath = '/hooks/agent';
-    if (!form.endpoint) form.endpoint = 'http://localhost:18789';
-  }
-}
-
-function startEditing() {
-  isEditing.value = true;
-  testResult.value = null;
-  saveSuccess.value = false;
-}
-
-function cancelEditing() {
-  isEditing.value = false;
-  testResult.value = null;
-  loadConfig();
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString();
-}
+const enabledEvents = computed(() =>
+  EVENTS.filter((e) => savedConfig.value?.events?.[e.key as keyof typeof form.events]),
+);
 </script>
 
 <template>
-  <div class="min-h-screen p-6">
-    <div class="max-w-[1400px] mx-auto space-y-6">
-      <!-- Header -->
-      <TerminalPageHeader
-        description="Agent // Event Forwarding Configuration"
-        :loading="loading"
-        :show-refresh="false"
-      >
-        <template #left>
-          <NuxtLink to="/" class="btn-terminal text-[11px] px-3 py-2 inline-flex items-center gap-2">
-            <Icon name="ph:arrow-left" size="14" />
-            DASHBOARD
-          </NuxtLink>
-        </template>
-        <template #actions>
-          <div class="flex items-center gap-3">
-            <span class="status-dot" :class="hasExistingConfig ? (form.enabled ? 'status-online' : 'status-offline') : 'status-error'"></span>
-            <span class="text-[11px] uppercase tracking-wider" :class="hasExistingConfig ? (form.enabled ? 'text-emerald' : 'text-terminal-muted') : 'text-rose'">
-              {{ hasExistingConfig ? (form.enabled ? 'Active' : 'Disabled') : 'Not Configured' }}
-            </span>
+  <div>
+    <PageHeader
+      title="Event forwarding"
+      description="Push device events to your agent as they happen."
+    >
+      <template #actions>
+        <AStatusPill
+          v-if="savedConfig"
+          :status="savedConfig.enabled ? 'running' : 'offline'"
+          :label="savedConfig.enabled ? 'Enabled' : 'Disabled'"
+        />
+        <AButton v-if="savedConfig && !editing" size="sm" icon="ph:pencil" @click="editing = true">
+          Edit
+        </AButton>
+      </template>
+    </PageHeader>
+
+    <div v-if="!loaded" class="state"><ASpinner /> Loading…</div>
+
+    <div v-else class="layout">
+      <div class="main">
+        <!-- Saved view -->
+        <ACard v-if="savedConfig && !editing">
+          <ASectionLabel label="Current configuration" />
+          <InfoGrid
+            :items="[
+              { label: 'Channel', value: savedConfig.channelType ?? 'openclaw' },
+              { label: 'Endpoint', value: savedConfig.endpoint, mono: true },
+              { label: 'Webhook path', value: savedConfig.webhookPath, mono: true },
+              { label: 'Token', value: savedConfig.hasToken ? 'Configured' : 'Not set' },
+              { label: 'Channel name', value: savedConfig.channel },
+              { label: 'Deliver to', value: savedConfig.deliverTo },
+              { label: 'Configured', value: savedConfig.configuredAt },
+            ]"
+          />
+
+          <ASectionLabel label="Forwarded events" :count="enabledEvents.length" class="mt" />
+          <div class="chips">
+            <ABadge v-for="e in enabledEvents" :key="e.key" tone="primary">{{ e.label }}</ABadge>
+            <p v-if="enabledEvents.length === 0" class="muted">No event types enabled.</p>
           </div>
-        </template>
-      </TerminalPageHeader>
+        </ACard>
 
-      <!-- Loading -->
-      <div v-if="loading" class="py-12 text-center">
-        <div class="text-primary animate-pulse text-[12px]">Loading configuration...</div>
-      </div>
-
-      <template v-else>
-        <!-- Info Banner -->
-        <div class="terminal-panel p-4">
-          <div class="flex items-start gap-3">
-            <span class="text-primary text-lg mt-0.5">&#9432;</span>
-            <div class="text-[12px] text-terminal-muted leading-relaxed">
-              Forward device events (notifications, SMS, incoming calls) to OpenClaw or a
-              Mattermost incoming webhook in real-time. When your phone receives an event,
-              Aster POSTs it so your agent can react proactively.
-            </div>
-          </div>
-        </div>
-
-        <!-- View Mode (existing config, not editing) -->
-        <TerminalWindow v-if="hasExistingConfig && !isEditing" title="current configuration" class="animate-fade-in">
-          <div class="space-y-5">
-            <!-- Status Row -->
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <span class="status-dot" :class="form.enabled ? 'status-online' : 'status-offline'"></span>
-                <span class="text-[12px] uppercase tracking-wider" :class="form.enabled ? 'text-emerald' : 'text-terminal-muted'">
-                  {{ form.enabled ? 'Enabled' : 'Disabled' }}
-                </span>
-              </div>
-              <button class="btn-terminal btn-terminal-primary text-[11px] px-4 py-2" @click="startEditing">
-                EDIT CONFIG
-              </button>
-            </div>
-
-            <!-- Config Details -->
-            <div class="grid grid-cols-2 gap-4">
-              <div class="config-field">
-                <div class="config-label">Channel Type</div>
-                <div class="config-value">{{ isMattermost ? 'Mattermost' : 'OpenClaw' }}</div>
-              </div>
-              <div class="config-field">
-                <div class="config-label">Configured At</div>
-                <div class="config-value">{{ configuredAt ? formatDate(configuredAt) : '-' }}</div>
-              </div>
-              <template v-if="!isMattermost">
-                <div class="config-field">
-                  <div class="config-label">Endpoint</div>
-                  <div class="config-value">{{ form.endpoint }}</div>
-                </div>
-                <div class="config-field">
-                  <div class="config-label">Webhook Path</div>
-                  <div class="config-value">{{ form.webhookPath }}</div>
-                </div>
-                <div class="config-field">
-                  <div class="config-label">Token</div>
-                  <div class="config-value text-terminal-dim">Configured</div>
-                </div>
-                <div class="config-field">
-                  <div class="config-label">OpenClaw Delivery Channel</div>
-                  <div class="config-value">{{ form.channel || '-' }}</div>
-                </div>
-                <div class="config-field">
-                  <div class="config-label">Deliver To</div>
-                  <div class="config-value">{{ form.deliverTo || 'Not set' }}</div>
-                </div>
-              </template>
-              <template v-else>
-                <div class="config-field">
-                  <div class="config-label">Incoming Webhook</div>
-                  <div class="config-value">{{ webhookDisplay }}</div>
-                </div>
-                <div class="config-field">
-                  <div class="config-label">Mattermost Channel</div>
-                  <div class="config-value">{{ form.channel || 'Webhook default' }}</div>
-                </div>
-              </template>
-            </div>
-
-            <!-- Events -->
-            <div>
-              <div class="config-label mb-3">Event Types</div>
-              <div class="flex flex-wrap gap-3">
-                <span class="badge" :class="form.events.notifications ? 'badge-emerald' : 'badge-muted'">
-                  Notifications {{ form.events.notifications ? 'ON' : 'OFF' }}
-                </span>
-                <span class="badge" :class="form.events.sms ? 'badge-emerald' : 'badge-muted'">
-                  SMS {{ form.events.sms ? 'ON' : 'OFF' }}
-                </span>
-                <span class="badge" :class="form.events.deviceConnected ? 'badge-emerald' : 'badge-muted'">
-                  Device Connected {{ form.events.deviceConnected ? 'ON' : 'OFF' }}
-                </span>
-                <span class="badge" :class="form.events.deviceDisconnected ? 'badge-emerald' : 'badge-muted'">
-                  Device Disconnected {{ form.events.deviceDisconnected ? 'ON' : 'OFF' }}
-                </span>
-                <span class="badge" :class="form.events.pairingRequired ? 'badge-emerald' : 'badge-muted'">
-                  Pairing Required {{ form.events.pairingRequired ? 'ON' : 'OFF' }}
-                </span>
-                <span class="badge" :class="form.events.incomingCalls ? 'badge-emerald' : 'badge-muted'">
-                  Incoming Calls {{ form.events.incomingCalls ? 'ON' : 'OFF' }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </TerminalWindow>
-
-        <!-- Edit/Create Mode -->
-        <TerminalWindow v-if="isEditing" title="configure event forwarding" class="animate-fade-in">
-          <div class="space-y-5">
-            <!-- Token Pre-fill Notice -->
-            <div v-if="hasSourceToken && !form.token && !hasExistingConfig && !isMattermost" class="flex items-center gap-3 p-3 rounded-sm" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2);">
-              <span class="text-emerald text-sm">&#10003;</span>
-              <span class="text-[11px] text-emerald">OpenClaw token detected from ~/.openclaw/openclaw.json</span>
-              <button class="btn-terminal btn-terminal-success btn-terminal-sm ml-auto" @click="prefillToken">
-                USE TOKEN
-              </button>
-            </div>
-
-            <!-- Enabled Toggle -->
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="text-[12px] text-terminal-text font-semibold">Enable Event Forwarding</div>
-                <div class="text-[11px] text-terminal-dim mt-1">Forward notifications, SMS, and incoming calls to the selected channel</div>
-              </div>
-              <button
-                class="toggle-btn"
-                :class="{ 'toggle-on': form.enabled }"
-                @click="form.enabled = !form.enabled"
-              >
-                <span class="toggle-knob"></span>
-              </button>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Channel Type</label>
-              <select v-model="form.channelType" class="input-terminal" @change="onChannelTypeChange">
-                <option value="openclaw">OpenClaw</option>
-                <option value="mattermost">Mattermost</option>
+        <!-- Edit form -->
+        <ACard v-else>
+          <ASectionLabel label="Delivery" />
+          <div class="form">
+            <div class="field">
+              <label class="lbl" for="channelType">Channel type</label>
+              <select id="channelType" v-model="form.channelType" class="control">
+                <option value="openclaw">OpenClaw (Bearer auth)</option>
+                <option value="mattermost">Mattermost incoming webhook</option>
               </select>
-              <div class="text-[10px] text-terminal-dim mt-1">Where Aster POSTs device events</div>
             </div>
 
-            <div class="border-t border-terminal-border"></div>
+            <div class="field">
+              <label class="lbl" for="endpoint">Endpoint</label>
+              <input id="endpoint" v-model="form.endpoint" class="control" placeholder="http://localhost:18789" />
+            </div>
 
-            <template v-if="!isMattermost">
-              <!-- Endpoint -->
-              <div class="form-group">
-                <label class="form-label">Endpoint URL</label>
-                <input
-                  v-model="form.endpoint"
-                  type="text"
-                  class="input-terminal"
-                  placeholder="http://localhost:18789"
-                />
-              </div>
+            <div class="field">
+              <label class="lbl" for="webhookPath">Webhook path</label>
+              <input id="webhookPath" v-model="form.webhookPath" class="control" placeholder="/hooks/agent" />
+            </div>
 
-              <!-- Webhook Path -->
-              <div class="form-group">
-                <label class="form-label">Webhook Path</label>
+            <div v-if="form.channelType === 'openclaw'" class="field">
+              <label class="lbl" for="token">Token</label>
+              <div class="row">
                 <input
-                  v-model="form.webhookPath"
-                  type="text"
-                  class="input-terminal"
-                  placeholder="/hooks/agent"
-                />
-              </div>
-
-              <!-- Token -->
-              <div class="form-group">
-                <label class="form-label">
-                  Auth Token
-                  <span v-if="hasExistingConfig" class="text-terminal-dim font-normal ml-2">(leave empty to keep current)</span>
-                </label>
-                <input
+                  id="token"
                   v-model="form.token"
                   type="password"
-                  class="input-terminal"
-                  :placeholder="hasExistingConfig ? 'Leave empty to keep existing token' : 'Paste your OpenClaw token'"
+                  class="control"
+                  :placeholder="savedConfig?.hasToken ? 'Leave blank to keep current token' : 'Bearer token'"
                 />
-                <div v-if="hasSourceToken && !form.token" class="mt-2">
-                  <button class="text-[11px] text-primary hover:text-primary-bright transition-colors" @click="prefillToken">
-                    Auto-fill from ~/.openclaw/openclaw.json
-                  </button>
-                </div>
-              </div>
-
-              <div class="border-t border-terminal-border"></div>
-
-              <!-- Delivery Settings -->
-              <div class="form-group">
-                <label class="form-label">OpenClaw Delivery Channel</label>
-                <select v-model="form.channel" class="input-terminal">
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="telegram">Telegram</option>
-                </select>
-                <div class="text-[10px] text-terminal-dim mt-1">Channel used by OpenClaw to deliver event alerts to you</div>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Deliver To</label>
-                <input
-                  v-model="form.deliverTo"
-                  type="text"
-                  class="input-terminal"
-                  placeholder="+919876543210"
-                />
-                <div class="text-[10px] text-terminal-dim mt-1">Your phone number with country code (e.g. +91 for India, +1 for US) or email/username for the selected channel</div>
-              </div>
-            </template>
-
-            <template v-else>
-              <div class="form-group">
-                <label class="form-label">Incoming Webhook URL</label>
-                <input
-                  v-model="form.endpoint"
-                  type="text"
-                  class="input-terminal"
-                  placeholder="https://mattermost.example.com/hooks/xxxxxxxx"
-                />
-                <div class="text-[10px] text-terminal-dim mt-1">Mattermost incoming webhook URL. Token and OpenClaw delivery fields are not used.</div>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Mattermost Channel</label>
-                <input
-                  v-model="form.channel"
-                  type="text"
-                  class="input-terminal"
-                  placeholder="town-square"
-                />
-                <div class="text-[10px] text-terminal-dim mt-1">Optional override. Leave empty to use the webhook's default channel. WhatsApp/Telegram values are ignored.</div>
-              </div>
-            </template>
-
-            <div class="border-t border-terminal-border"></div>
-
-            <!-- Event Types -->
-            <div>
-              <div class="form-label mb-3">Event Types</div>
-              <div class="space-y-3">
-                <label class="flex items-center gap-3 cursor-pointer group">
-                  <input
-                    v-model="form.events.notifications"
-                    type="checkbox"
-                    class="checkbox-terminal"
-                  />
-                  <div>
-                    <div class="text-[12px] text-terminal-text group-hover:text-primary-bright transition-colors">Notifications</div>
-                    <div class="text-[10px] text-terminal-dim">Forward app notifications to OpenClaw</div>
-                  </div>
-                </label>
-                <label class="flex items-center gap-3 cursor-pointer group">
-                  <input
-                    v-model="form.events.sms"
-                    type="checkbox"
-                    class="checkbox-terminal"
-                  />
-                  <div>
-                    <div class="text-[12px] text-terminal-text group-hover:text-primary-bright transition-colors">SMS</div>
-                    <div class="text-[10px] text-terminal-dim">Forward incoming SMS messages to OpenClaw</div>
-                  </div>
-                </label>
-                <label class="flex items-center gap-3 cursor-pointer group">
-                  <input
-                    v-model="form.events.deviceConnected"
-                    type="checkbox"
-                    class="checkbox-terminal"
-                  />
-                  <div>
-                    <div class="text-[12px] text-terminal-text group-hover:text-primary-bright transition-colors">Device Connected</div>
-                    <div class="text-[10px] text-terminal-dim">Notify when an approved device comes online</div>
-                  </div>
-                </label>
-                <label class="flex items-center gap-3 cursor-pointer group">
-                  <input
-                    v-model="form.events.deviceDisconnected"
-                    type="checkbox"
-                    class="checkbox-terminal"
-                  />
-                  <div>
-                    <div class="text-[12px] text-terminal-text group-hover:text-primary-bright transition-colors">Device Disconnected</div>
-                    <div class="text-[10px] text-terminal-dim">Notify when a device goes offline</div>
-                  </div>
-                </label>
-                <label class="flex items-center gap-3 cursor-pointer group">
-                  <input
-                    v-model="form.events.pairingRequired"
-                    type="checkbox"
-                    class="checkbox-terminal"
-                  />
-                  <div>
-                    <div class="text-[12px] text-terminal-text group-hover:text-primary-bright transition-colors">Pairing Approval Required</div>
-                    <div class="text-[10px] text-terminal-dim">Notify when a new device needs approval</div>
-                  </div>
-                </label>
-                <label class="flex items-center gap-3 cursor-pointer group">
-                  <input
-                    v-model="form.events.incomingCalls"
-                    type="checkbox"
-                    class="checkbox-terminal"
-                  />
-                  <div>
-                    <div class="text-[12px] text-terminal-text group-hover:text-primary-bright transition-colors">Incoming Calls</div>
-                    <div class="text-[10px] text-terminal-dim">Forward RINGING events (caller ID needs the call-log grant on Android 9&ndash;11 and is never available on 12+)</div>
-                  </div>
-                </label>
+                <AButton v-if="hasSourceToken" size="sm" icon="ph:download-simple" @click="prefill">
+                  Import local
+                </AButton>
               </div>
             </div>
 
-            <div class="border-t border-terminal-border"></div>
-
-            <!-- Test Result -->
-            <div v-if="testResult" class="p-3 rounded-sm" :class="testResult.success ? 'test-success' : 'test-error'">
-              <div class="flex items-center gap-2">
-                <span class="text-sm">{{ testResult.success ? '&#10003;' : '&#10007;' }}</span>
-                <span class="text-[12px] font-semibold">
-                  {{ testResult.success ? `Connected (HTTP ${testResult.status})` : 'Connection Failed' }}
-                </span>
-                <span v-if="!testResult.success && testResult.status" class="text-[10px] opacity-60 ml-1">
-                  HTTP {{ testResult.status }}
-                </span>
-              </div>
-              <div v-if="testResult.error" class="text-[11px] mt-2 opacity-80 leading-relaxed">{{ testResult.error }}</div>
+            <div class="field">
+              <label class="lbl" for="channel">Channel</label>
+              <input id="channel" v-model="form.channel" class="control" placeholder="whatsapp, telegram, …" />
             </div>
 
-            <!-- Save Success -->
-            <div v-if="saveSuccess" class="p-3 rounded-sm test-success">
-              <div class="flex items-center gap-2">
-                <span class="text-sm">&#10003;</span>
-                <span class="text-[12px] font-semibold">Configuration saved and applied</span>
-              </div>
-            </div>
-
-            <!-- Actions -->
-            <div class="flex items-center gap-3">
-              <button
-                class="btn-terminal btn-terminal-primary px-5 py-2.5 text-[11px]"
-                :disabled="saving || !form.endpoint"
-                @click="handleSave"
-              >
-                {{ saving ? 'SAVING...' : (hasExistingConfig ? 'UPDATE CONFIG' : 'SAVE CONFIG') }}
-              </button>
-              <button
-                class="btn-terminal px-5 py-2.5 text-[11px]"
-                :disabled="testing || !form.endpoint"
-                @click="handleTest"
-              >
-                {{ testing ? 'TESTING...' : 'TEST CONNECTION' }}
-              </button>
-              <button
-                v-if="hasExistingConfig"
-                class="btn-terminal btn-terminal-ghost px-4 py-2.5 text-[11px]"
-                @click="cancelEditing"
-              >
-                CANCEL
-              </button>
+            <div class="field">
+              <label class="lbl" for="deliverTo">Deliver to</label>
+              <input id="deliverTo" v-model="form.deliverTo" class="control" placeholder="Optional recipient" />
             </div>
           </div>
-        </TerminalWindow>
 
-        <!-- How it works -->
-        <TerminalWindow title="how it works" class="animate-slide-up stagger-2">
-          <div class="space-y-4 text-[12px] text-terminal-muted leading-relaxed">
-            <div class="flex items-start gap-3">
-              <span class="text-primary font-bold shrink-0">1.</span>
-              <span>Your phone receives a notification, SMS, or incoming call</span>
-            </div>
-            <div class="flex items-start gap-3">
-              <span class="text-primary font-bold shrink-0">2.</span>
-              <span>The Aster Android service forwards the event via WebSocket</span>
-            </div>
-            <div class="flex items-start gap-3">
-              <span class="text-primary font-bold shrink-0">3.</span>
-              <span>The MCP server receives the event and HTTP POSTs it to OpenClaw or Mattermost</span>
-            </div>
-            <div class="flex items-start gap-3">
-              <span class="text-primary font-bold shrink-0">4.</span>
-              <span>OpenClaw wakes Claude, which can react to the event in real-time</span>
+          <ASectionLabel label="Events" class="mt" />
+          <div class="events">
+            <label v-for="e in EVENTS" :key="e.key" class="event">
+              <AIconTile :icon="e.icon" :size="32" accent="var(--color-primary)" />
+              <div class="event__body">
+                <p class="event__label">{{ e.label }}</p>
+                <p class="event__desc">{{ e.desc }}</p>
+              </div>
+              <AToggle v-model="form.events[e.key as keyof typeof form.events]" />
+            </label>
+          </div>
+
+          <div class="foot">
+            <AToggle v-model="form.enabled" label="Forwarding enabled" />
+            <div class="foot__btns">
+              <AButton
+                v-if="savedConfig"
+                size="sm"
+                @click="editing = false"
+              >
+                Cancel
+              </AButton>
+              <AButton size="sm" icon="ph:plugs-connected" :loading="testing" @click="test">
+                Test connection
+              </AButton>
+              <AButton variant="primary" size="sm" icon="ph:check" :loading="saving" @click="save">
+                Save
+              </AButton>
             </div>
           </div>
-        </TerminalWindow>
-      </template>
+
+          <div v-if="testResult" class="result" :class="testResult.success ? 'result--ok' : 'result--bad'">
+            <Icon :name="testResult.success ? 'ph:check-circle' : 'ph:x-circle'" />
+            <span>
+              {{ testResult.success ? `Delivered (HTTP ${testResult.status})` : testResult.error }}
+            </span>
+          </div>
+        </ACard>
+      </div>
+
+      <ACard class="aside">
+        <ASectionLabel label="How it works" />
+        <ol class="steps">
+          <li>The device reports an event over its WebSocket connection.</li>
+          <li>The server matches it against the event types enabled here.</li>
+          <li>It POSTs a formatted message to your endpoint plus webhook path.</li>
+          <li>Your agent wakes and handles it.</li>
+        </ol>
+        <p class="muted">
+          Events are also written to the log, so anything forwarded is visible under
+          <NuxtLink to="/logs" class="link">Logs</NuxtLink>.
+        </p>
+      </ACard>
     </div>
   </div>
 </template>
 
 <style scoped>
-.config-field {
-  padding: 12px 14px;
-  background: rgba(148, 163, 184, 0.03);
-  border: 1px solid var(--color-terminal-border);
-  border-radius: 2px;
-}
-
-.config-label {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-terminal-dim);
-}
-
-.config-label::before {
-  content: '// ';
-  opacity: 0.5;
-}
-
-.config-value {
-  font-size: 13px;
-  color: var(--color-terminal-text);
-  margin-top: 4px;
-  word-break: break-all;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-label {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-terminal-muted);
-}
-
-/* Toggle */
-.toggle-btn {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  background: var(--color-terminal-surface-elevated);
-  border: 1px solid var(--color-terminal-border-bright);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  padding: 0;
-}
-
-.toggle-btn.toggle-on {
-  background: rgba(16, 185, 129, 0.2);
-  border-color: rgba(16, 185, 129, 0.4);
-}
-
-.toggle-knob {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 16px;
-  height: 16px;
-  background: var(--color-terminal-dim);
-  border-radius: 50%;
-  transition: all 0.2s ease;
-}
-
-.toggle-on .toggle-knob {
-  left: 23px;
-  background: var(--color-emerald);
-  box-shadow: 0 0 6px var(--color-emerald);
-}
-
-/* Checkbox */
-.checkbox-terminal {
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border: 1px solid var(--color-terminal-border-bright);
-  border-radius: 2px;
-  background: var(--color-terminal-surface);
-  cursor: pointer;
-  position: relative;
-  flex-shrink: 0;
-  transition: all 0.15s ease;
-}
-
-.checkbox-terminal:checked {
-  background: rgba(34, 211, 238, 0.15);
-  border-color: rgba(34, 211, 238, 0.4);
-}
-
-.checkbox-terminal:checked::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 5px;
-  width: 4px;
-  height: 8px;
-  border: solid var(--color-primary);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-/* Test result */
-.test-success {
-  background: rgba(16, 185, 129, 0.08);
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  color: var(--color-emerald);
-}
-
-.test-error {
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  color: var(--color-error);
-}
+.state { display: flex; align-items: center; gap: 0.5rem; justify-content: center; padding: 3rem; color: var(--color-fg-subtle); }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); gap: 1.25rem; align-items: start; }
+@media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } }
+.form { display: grid; gap: 0.875rem; }
+.field { display: grid; gap: 0.25rem; }
+.lbl { font-size: var(--text-label-md); color: var(--color-fg-subtle); }
+.row { display: flex; gap: 0.5rem; }
+.control { width: 100%; min-height: 38px; padding: 0.4375rem 0.625rem; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: var(--color-surface-2); color: var(--color-fg); font: inherit; font-size: var(--text-body-md); }
+.control:focus { outline: none; border-color: var(--color-primary); }
+.mt { margin-top: 1.5rem; }
+.events { display: grid; gap: 0.375rem; }
+.event { display: flex; align-items: center; gap: 0.625rem; padding: 0.5rem; border-radius: var(--radius-md); cursor: pointer; }
+.event:hover { background: var(--color-surface-2); }
+.event__body { flex: 1; min-width: 0; }
+.event__label { margin: 0; font-size: var(--text-body-md); }
+.event__desc { margin: 0; font-size: var(--text-label-sm); color: var(--color-fg-muted); }
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--color-border); flex-wrap: wrap; }
+.foot__btns { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.result { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.875rem; padding: 0.625rem 0.75rem; border-radius: var(--radius-md); font-size: var(--text-body-sm); }
+.result--ok { background: color-mix(in oklab, var(--color-success) 12%, transparent); color: var(--color-success); }
+.result--bad { background: color-mix(in oklab, var(--color-error) 12%, transparent); color: var(--color-error); }
+.chips { display: flex; gap: 0.375rem; flex-wrap: wrap; }
+.steps { margin: 0 0 0.875rem; padding-left: 1.125rem; display: grid; gap: 0.5rem; font-size: var(--text-body-sm); color: var(--color-fg-subtle); }
+.muted { margin: 0; font-size: var(--text-label-md); color: var(--color-fg-muted); }
+.link { color: var(--color-primary); }
 </style>

@@ -1,47 +1,33 @@
 <script setup lang="ts">
-import type { Device, Stats, LogEntry } from '~/composables/useApi';
+import type { Device, LogEntry, ServerStatus, Stats } from '~/composables/useApi';
+
+useHead({ title: 'Overview' });
 
 const api = useApi();
+const toast = useToast();
 
 const stats = ref<Stats | null>(null);
 const devices = ref<Device[]>([]);
 const logs = ref<LogEntry[]>([]);
+const status = ref<ServerStatus | null>(null);
+const forwardingEnabled = ref(false);
+const serverOnline = ref(true);
 const loading = ref(true);
-const serverOnline = ref(false);
-const currentTime = ref(new Date());
-const eventForwardingEnabled = ref<boolean | null>(null);
 
-// Update time every second
-let timeInterval: ReturnType<typeof setInterval>;
-
-onMounted(async () => {
-  timeInterval = setInterval(() => {
-    currentTime.value = new Date();
-  }, 1000);
-
-  await fetchData();
-
-  // Poll for updates
-  setInterval(fetchData, 5000);
-});
-
-onUnmounted(() => {
-  clearInterval(timeInterval);
-});
-
-async function fetchData() {
+async function load() {
   try {
-    const [statsData, devicesData, logsData, eventForwardingData] = await Promise.all([
+    const [s, d, l, st, fw] = await Promise.all([
       api.getStats(),
       api.getDevices(),
-      api.getLogs(20),
+      api.getLogs({ limit: 12 }),
+      api.getStatus().catch(() => null),
       api.getAgentEventForwardingConfig().catch(() => null),
     ]);
-
-    stats.value = statsData;
-    devices.value = devicesData;
-    logs.value = logsData;
-    eventForwardingEnabled.value = eventForwardingData?.config?.enabled ?? null;
+    stats.value = s;
+    devices.value = d;
+    logs.value = l.logs;
+    status.value = st;
+    forwardingEnabled.value = !!fw?.config?.enabled;
     serverOnline.value = true;
   } catch {
     serverOnline.value = false;
@@ -50,278 +36,208 @@ async function fetchData() {
   }
 }
 
-async function handleApprove(id: string) {
+// One polling primitive with guaranteed teardown, replacing the interval this
+// page used to start and never clear.
+const { refresh } = usePolling(load, 5000);
+
+const pending = computed(() => devices.value.filter((d) => d.status === 'pending'));
+
+async function approve(id: string) {
   await api.approveDevice(id);
-  await fetchData();
+  toast.success('Device approved');
+  await refresh();
 }
 
-async function handleReject(id: string) {
+async function reject(id: string) {
   await api.rejectDevice(id);
-  await fetchData();
-}
-
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString('en-US', { hour12: false });
+  toast.info('Device rejected');
+  await refresh();
 }
 </script>
 
 <template>
-  <div class="min-h-screen p-6">
-    <div class="max-w-[1536px] mx-auto space-y-6">
-      <!-- Header -->
-      <TerminalPageHeader
-        description="MCP Server // Device Control Bridge"
-        :loading="loading"
-        @refresh="fetchData"
-      >
-        <template #actions>
-          <div class="flex items-center gap-4">
-            <div class="flex items-center gap-3">
-              <span class="status-dot" :class="serverOnline ? 'status-online' : 'status-error'"></span>
-              <span class="text-[11px] uppercase tracking-wider" :class="serverOnline ? 'text-emerald' : 'text-rose'">
-                {{ serverOnline ? 'Online' : 'Offline' }}
-              </span>
-            </div>
-            <div class="text-terminal-dim">|</div>
-            <div class="text-terminal-muted text-[12px] tabular-nums">
-              {{ formatTime(currentTime) }}
-            </div>
-          </div>
-        </template>
-      </TerminalPageHeader>
+  <div>
+    <PageHeader title="Overview" description="Server health, devices and recent activity.">
+      <template #actions>
+        <AStatusPill :status="serverOnline ? 'online' : 'error'" :label="serverOnline ? 'Server online' : 'Server unreachable'" />
+        <AButton size="sm" icon="ph:arrows-clockwise" @click="refresh">Refresh</AButton>
+      </template>
+    </PageHeader>
 
-      <!-- Stats Grid -->
-      <div v-if="stats" class="grid grid-cols-4 gap-4 animate-fade-in">
-        <StatCard
-          label="Total Devices"
-          :value="stats.totalDevices"
-          icon="◎"
-          color="blue"
-          class="stagger-1"
-        />
-        <StatCard
-          label="Online"
-          :value="stats.onlineDevices"
-          icon="●"
-          color="emerald"
-          class="stagger-2"
-        />
-        <StatCard
-          label="Pending Approval"
-          :value="stats.pendingDevices"
-          icon="◐"
-          color="amber"
-          class="stagger-3"
-        />
-        <StatCard
-          label="Approved"
-          :value="stats.approvedDevices"
-          icon="✓"
-          color="violet"
-          class="stagger-4"
-        />
-      </div>
-
-      <!-- Loading skeleton -->
-      <div v-else-if="loading" class="grid grid-cols-4 gap-4">
-        <div v-for="i in 4" :key="i" class="terminal-panel p-4 h-24 animate-pulse">
-          <div class="h-3 bg-terminal-border rounded w-20 mb-4"></div>
-          <div class="h-8 bg-terminal-border rounded w-12"></div>
-        </div>
-      </div>
-
-      <!-- Agent Event Forwarding CTA -->
-      <NuxtLink
-        to="/settings/event-forwarding"
-        class="event-forwarding-cta animate-fade-in stagger-4"
-      >
-        <div class="cta-content">
-          <div class="flex items-center gap-3">
-            <div class="cta-icon">
-              <span>&#9889;</span>
-            </div>
-            <div>
-              <div class="cta-title">Agent Event Forwarding</div>
-              <div class="cta-subtitle">
-                <template v-if="eventForwardingEnabled === true">
-                  Event forwarding is active
-                </template>
-                <template v-else-if="eventForwardingEnabled === false">
-                  Event forwarding is disabled
-                </template>
-                <template v-else>
-                  Forward notifications & SMS to Claude in real-time
-                </template>
-              </div>
-            </div>
-          </div>
-          <div class="cta-right">
-            <span
-              v-if="eventForwardingEnabled !== null"
-              class="badge text-[9px]"
-              :class="eventForwardingEnabled ? 'badge-emerald' : 'badge-amber'"
-            >
-              {{ eventForwardingEnabled ? 'ACTIVE' : 'DISABLED' }}
-            </span>
-            <span v-else class="badge badge-muted text-[9px]">SETUP</span>
-            <span class="cta-arrow">&#8594;</span>
-          </div>
-        </div>
-      </NuxtLink>
-
-      <!-- Main Content Grid -->
-      <div class="grid grid-cols-3 gap-6">
-        <!-- Devices List -->
-        <div class="col-span-2">
-          <TerminalWindow title="devices" class="animate-slide-up stagger-2">
-            <div class="flex items-center justify-between mb-4">
-              <div class="flex items-center gap-2 text-[11px]">
-                <span class="text-terminal-muted">{{ devices.length }} devices registered</span>
-                <span class="text-terminal-dim">|</span>
-                <span class="text-emerald">{{ devices.filter(d => d.online).length }} online</span>
-              </div>
-              <NuxtLink to="/devices" class="btn-terminal text-[11px] px-3 py-1">
-                VIEW ALL →
-              </NuxtLink>
-            </div>
-
-            <div v-if="devices.length === 0 && !loading" class="py-12 text-center">
-              <div class="text-terminal-muted text-4xl mb-4">◌</div>
-              <div class="text-terminal-muted">No devices connected</div>
-              <div class="text-[11px] text-terminal-dim mt-2">
-                Connect an Android device to get started
-              </div>
-            </div>
-
-            <table v-else class="terminal-table">
-              <thead>
-                <tr>
-                  <th class="w-8"></th>
-                  <th>Device</th>
-                  <th>Model</th>
-                  <th>Status</th>
-                  <th>Last Seen</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <DeviceRow
-                  v-for="device in devices.slice(0, 5)"
-                  :key="device.id"
-                  :device="device"
-                  @approve="handleApprove"
-                  @reject="handleReject"
-                />
-              </tbody>
-            </table>
-          </TerminalWindow>
-        </div>
-
-        <!-- Activity Log -->
-        <div class="col-span-1">
-          <TerminalWindow title="activity log" class="animate-slide-up stagger-3">
-            <div class="space-y-0 max-h-[400px] overflow-y-auto">
-              <div v-if="logs.length === 0 && !loading" class="py-8 text-center text-terminal-muted text-[12px]">
-                No activity yet
-              </div>
-              <LogEntry
-                v-for="log in logs"
-                :key="log.id"
-                :log="log"
-                show-device
-              />
-            </div>
-          </TerminalWindow>
-        </div>
-      </div>
-
-      <!-- Footer -->
-      <footer class="pt-6 border-t border-terminal-border">
-        <div class="flex items-center justify-between text-[11px] text-terminal-muted">
-          <div class="flex items-center gap-4">
-            <span>ASTER v0.1.0</span>
-            <span class="text-terminal-dim">|</span>
-            <span>MCP Protocol</span>
-          </div>
-          <div class="flex items-center gap-4">
-            <NuxtLink to="/devices" class="hover:text-primary transition-colors">Devices</NuxtLink>
-            <span class="text-terminal-dim">|</span>
-            <NuxtLink to="/settings/event-forwarding" class="hover:text-primary transition-colors">Event Forwarding</NuxtLink>
-            <span class="text-terminal-dim">|</span>
-            <a href="#" class="hover:text-primary transition-colors">Documentation</a>
-          </div>
-        </div>
-      </footer>
+    <div class="grid-stats">
+      <AAnimatedEntrance :delay="0">
+        <AStatCard label="Total devices" :value="stats?.totalDevices ?? '—'" icon="ph:devices" to="/devices" />
+      </AAnimatedEntrance>
+      <AAnimatedEntrance :delay="60">
+        <AStatCard label="Online" :value="stats?.onlineDevices ?? '—'" icon="ph:wifi-high" accent="var(--color-success)" />
+      </AAnimatedEntrance>
+      <AAnimatedEntrance :delay="120">
+        <AStatCard label="Pending approval" :value="stats?.pendingDevices ?? '—'" icon="ph:hourglass" accent="var(--color-warning)" />
+      </AAnimatedEntrance>
+      <AAnimatedEntrance :delay="180">
+        <AStatCard label="Approved" :value="stats?.approvedDevices ?? '—'" icon="ph:shield-check" accent="var(--color-primary)" />
+      </AAnimatedEntrance>
     </div>
+
+    <!-- Pending devices are the one thing that needs action, so surface them
+         above the fold rather than buried in the registry table. -->
+    <section v-if="pending.length" class="section">
+      <ASectionLabel label="Awaiting approval" :count="pending.length" />
+      <ACard variant="flush">
+        <DeviceRow
+          v-for="d in pending"
+          :key="d.id"
+          :device="d"
+          @approve="approve"
+          @reject="reject"
+        />
+      </ACard>
+    </section>
+
+    <div class="split">
+      <section>
+        <ASectionLabel label="Devices">
+          <template #actions>
+            <NuxtLink to="/devices" class="more">View all</NuxtLink>
+          </template>
+        </ASectionLabel>
+        <ACard variant="flush">
+          <AEmptyState
+            v-if="!loading && devices.length === 0"
+            icon="ph:device-mobile-slash"
+            title="No devices yet"
+            description="Install the Aster companion on an Android device and point it at this server."
+          >
+            <NuxtLink to="/connect">
+              <AButton variant="primary" size="sm">Connection details</AButton>
+            </NuxtLink>
+          </AEmptyState>
+          <DeviceRow
+            v-for="d in devices.slice(0, 5)"
+            :key="d.id"
+            :device="d"
+            @approve="approve"
+            @reject="reject"
+          />
+        </ACard>
+      </section>
+
+      <section>
+        <ASectionLabel label="Recent activity">
+          <template #actions>
+            <NuxtLink to="/logs" class="more">Open logs</NuxtLink>
+          </template>
+        </ASectionLabel>
+        <ACard variant="flush">
+          <AEmptyState v-if="!loading && logs.length === 0" icon="ph:list-dashes" title="No activity yet" />
+          <LogRow v-for="log in logs" :key="log.id" :log="log" show-device />
+        </ACard>
+      </section>
+    </div>
+
+    <StarRepoCard />
+
+    <section class="section">
+      <ASectionLabel label="Quick links" />
+      <div class="grid-links">
+        <NuxtLink to="/connect" class="link-card focus-ring">
+          <AIconTile icon="ph:plugs-connected" accent="var(--color-mode-remote)" />
+          <div>
+            <p class="link-card__title">MCP connection</p>
+            <p class="link-card__desc">
+              {{ status?.mcpUrl ?? 'URLs, ports and client config' }}
+            </p>
+          </div>
+        </NuxtLink>
+
+        <NuxtLink to="/settings/event-forwarding" class="link-card focus-ring">
+          <AIconTile icon="ph:broadcast" accent="var(--color-mode-mcp)" />
+          <div>
+            <p class="link-card__title">Event forwarding</p>
+            <p class="link-card__desc">
+              Push notifications and SMS to your agent
+            </p>
+          </div>
+          <AStatusPill
+            class="link-card__pill"
+            :status="forwardingEnabled ? 'running' : 'offline'"
+            :label="forwardingEnabled ? 'Enabled' : 'Off'"
+          />
+        </NuxtLink>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.event-forwarding-cta {
-  display: block;
-  background: rgba(30, 41, 59, 0.95);
-  border: 1px solid var(--color-terminal-border);
-  border-radius: 2px;
-  padding: 16px 20px;
-  transition: all 0.2s ease;
-  cursor: pointer;
+.grid-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.75rem;
+}
+
+.section {
+  margin-bottom: 1.75rem;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+@media (max-width: 1000px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.more {
+  font-size: var(--text-label-md);
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.grid-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.link-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-1);
   text-decoration: none;
   color: inherit;
+  transition: border-color var(--dur-base) var(--ease-out-soft);
 }
 
-.event-forwarding-cta:hover {
-  border-color: rgba(139, 92, 246, 0.35);
-  background: rgba(139, 92, 246, 0.04);
-  transform: translateY(-1px);
+.link-card:hover {
+  border-color: var(--color-border-bright);
 }
 
-.cta-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.link-card__title {
+  margin: 0;
+  font-size: var(--text-body-md);
+  font-weight: 600;
+  color: var(--color-fg);
 }
 
-.cta-icon {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(139, 92, 246, 0.1);
-  border: 1px solid rgba(139, 92, 246, 0.25);
-  border-radius: 4px;
-  font-size: 16px;
-  flex-shrink: 0;
+.link-card__desc {
+  margin: 0.125rem 0 0;
+  font-size: var(--text-label-md);
+  color: var(--color-fg-subtle);
+  overflow-wrap: anywhere;
 }
 
-.cta-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-terminal-text);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.cta-subtitle {
-  font-size: 11px;
-  color: var(--color-terminal-dim);
-  margin-top: 2px;
-}
-
-.cta-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.cta-arrow {
-  color: var(--color-terminal-dim);
-  font-size: 14px;
-  transition: all 0.2s ease;
-}
-
-.event-forwarding-cta:hover .cta-arrow {
-  color: var(--color-violet);
-  transform: translateX(3px);
+.link-card__pill {
+  margin-left: auto;
 }
 </style>

@@ -1,13 +1,12 @@
 <script setup lang="ts">
-useHead({
-  htmlAttrs: {
-    class: 'dark',
-  },
-});
+const { init } = useColorScheme();
+
+// Apply the stored scheme before paint so there is no flash of the wrong theme.
+onMounted(init);
 </script>
 
 <template>
-  <div class="min-h-screen bg-terminal-bg text-terminal-text font-mono">
+  <NuxtLayout>
     <NuxtPage />
-  </div>
+  </NuxtLayout>
 </template>
