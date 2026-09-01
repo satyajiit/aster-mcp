@@ -1410,32 +1410,32 @@
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/dashboard-overview.png": {
-    "mtime": 1788294495.7081678,
-    "seen": 1788294607.5357325,
+    "mtime": 1788290659.7051091,
+    "seen": 1788291136.1267078,
     "ast_hash": "af68faee4590d4577c8ec86dfff95bab",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/device-registry.png": {
-    "mtime": 1788294495.7085328,
-    "seen": 1788294607.5357337,
+    "mtime": 1788290659.7052689,
+    "seen": 1788291136.1267083,
     "ast_hash": "146c201800352037e5f7ff5fa9225230",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/device-telemetry.png": {
-    "mtime": 1788294495.7094061,
-    "seen": 1788294607.535736,
-    "ast_hash": "fd4d7edfd3a0b2ffd8270ee760fbcb84",
+    "mtime": 1788290659.705506,
+    "seen": 1788291136.126709,
+    "ast_hash": "683af77c827adddc8d5df79397ff0690",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/file-browser.png": {
-    "mtime": 1788294495.7100499,
-    "seen": 1788294607.5357385,
+    "mtime": 1788290659.705763,
+    "seen": 1788291136.1267097,
     "ast_hash": "8ee8165075d46aa573d349d6efeb0ca2",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/mcp-tool-explorer.png": {
-    "mtime": 1788294495.7168562,
-    "seen": 1788294607.535754,
+    "mtime": 1788290659.7059674,
+    "seen": 1788291136.126716,
     "ast_hash": "eff29ba45f17f9bf91a83e02696bccfa",
     "semantic_hash": ""
   },
@@ -1788,51 +1788,51 @@
     "semantic_hash": ""
   },
   "mcp/dashboard/app/components/device/MetricGauge.vue": {
-    "mtime": 1788292716.2443414,
-    "seen": 1788294607.5355475,
-    "ast_hash": "393346e3c775351a223b271fa9bb9a36",
+    "mtime": 1788288948.7418444,
+    "seen": 1788291136.126635,
+    "ast_hash": "4f89a36b71bb6ad3ec61e7930acde379",
     "semantic_hash": ""
   },
   "mcp/dashboard/app/components/panels/AlarmsPanel.vue": {
-    "mtime": 1788293206.8854804,
-    "seen": 1788294607.5355515,
-    "ast_hash": "2e77da4fb05defd5c9c2ddec8d4bb63e",
+    "mtime": 1788289395.3405538,
+    "seen": 1788291136.1266358,
+    "ast_hash": "03c6cb855c10d1ead06e31365cf6b42b",
     "semantic_hash": ""
   },
   "mcp/dashboard/app/components/panels/AppsPanel.vue": {
-    "mtime": 1788293055.8750255,
-    "seen": 1788294607.5355525,
-    "ast_hash": "25dfda31cbb042a6a1b3b42d999408ca",
+    "mtime": 1788289446.3208544,
+    "seen": 1788291136.1266363,
+    "ast_hash": "c18516c85c5b15bcb7f1f4b7b8f36728",
     "semantic_hash": ""
   },
   "mcp/dashboard/app/components/panels/AudioPanel.vue": {
-    "mtime": 1788293116.1214476,
-    "seen": 1788294607.5355537,
-    "ast_hash": "a368839e943d96c518c54448d1ac2189",
+    "mtime": 1788289478.1682527,
+    "seen": 1788291136.1266367,
+    "ast_hash": "d8c27619b040b9ce66f229b6806226e0",
     "semantic_hash": ""
   },
   "mcp/dashboard/app/components/panels/ContactsPanel.vue": {
-    "mtime": 1788293177.8880227,
-    "seen": 1788294607.5355554,
-    "ast_hash": "9d5805f3c3ecd37e2d9055195aca1136",
+    "mtime": 1788289395.3239052,
+    "seen": 1788291136.1266372,
+    "ast_hash": "29aba0d8fd5836a19e73831daef8a878",
     "semantic_hash": ""
   },
   "mcp/dashboard/app/components/panels/LocationPanel.vue": {
-    "mtime": 1788293211.5806384,
-    "seen": 1788294607.5355566,
-    "ast_hash": "88faad7d21264d33b5bfe091876306fc",
+    "mtime": 1788289871.8033504,
+    "seen": 1788291136.126638,
+    "ast_hash": "4a395403b6ec23069998a51fd14c948d",
     "semantic_hash": ""
   },
   "mcp/dashboard/app/components/panels/MessagesPanel.vue": {
-    "mtime": 1788293236.6005735,
-    "seen": 1788294607.535558,
-    "ast_hash": "f0de4b16f3376d4fba480b939ec4e747",
+    "mtime": 1788289358.002551,
+    "seen": 1788291136.1266384,
+    "ast_hash": "3091c947d751abcca901d43308f8b251",
     "semantic_hash": ""
   },
   "mcp/dashboard/app/components/panels/NotificationsPanel.vue": {
-    "mtime": 1788293068.8217988,
-    "seen": 1788294607.5355587,
-    "ast_hash": "08c28644e06814bc6a8716b8443d1c93",
+    "mtime": 1788289358.0185513,
+    "seen": 1788291136.1266387,
+    "ast_hash": "f00219c1247ae7344ff39694f0378a33",
     "semantic_hash": ""
   },
   "mcp/dashboard/app/components/panels/PanelShell.vue": {
@@ -1842,21 +1842,21 @@
     "semantic_hash": ""
   },
   "mcp/dashboard/app/components/panels/ShellPanel.vue": {
-    "mtime": 1788293116.1020076,
-    "seen": 1788294607.5355613,
-    "ast_hash": "1a60cc8c8780b6365adb728657ef81cc",
+    "mtime": 1788289510.2007074,
+    "seen": 1788291136.1266396,
+    "ast_hash": "fc1d10a86a08b62851b55857ed604901",
     "semantic_hash": ""
   },
   "mcp/dashboard/app/components/panels/StoragePanel.vue": {
-    "mtime": 1788293151.9792953,
-    "seen": 1788294607.5355625,
-    "ast_hash": "8ba614f510002cf9ec87ddcb31b68285",
+    "mtime": 1788289446.331801,
+    "seen": 1788291136.12664,
+    "ast_hash": "2249691830e709ec4d25ff0b892f4004",
     "semantic_hash": ""
   },
   "mcp/dashboard/app/components/panels/UtilitiesPanel.vue": {
-    "mtime": 1788293218.8967693,
-    "seen": 1788294607.5355635,
-    "ast_hash": "a560edc7dcaec210bda6643a94385223",
+    "mtime": 1788289510.2047076,
+    "seen": 1788291136.1266403,
+    "ast_hash": "fc935f8f20e08148a3d5aa595c92524b",
     "semantic_hash": ""
   },
   "mcp/dashboard/app/composables/useDeviceTool.ts": {
@@ -1878,9 +1878,9 @@
     "semantic_hash": ""
   },
   "mcp/dashboard/app/pages/devices/[id]/panels.vue": {
-    "mtime": 1788292693.0117035,
-    "seen": 1788294607.5355732,
-    "ast_hash": "aaf7f3265c1c22915d0c573103c327e5",
+    "mtime": 1788289527.1053178,
+    "seen": 1788291136.1266441,
+    "ast_hash": "5bbd0c932843df5a54db7c6d2ae7cd72",
     "semantic_hash": ""
   },
   "mcp/dashboard/app/pages/devices/[id]/screen.vue": {
@@ -2052,15 +2052,15 @@
     "semantic_hash": ""
   },
   "tools/screenshots/capture.mjs": {
-    "mtime": 1788293621.9483423,
-    "seen": 1788294607.5356488,
-    "ast_hash": "d18a76be4af6a6ba810dc2a8d00bc329",
+    "mtime": 1788290217.5693023,
+    "seen": 1788291136.1266768,
+    "ast_hash": "6cc976d3d46cd7dafa0a5f30d2d79c05",
     "semantic_hash": ""
   },
   "tools/screenshots/fixture-server.mjs": {
-    "mtime": 1788293436.945232,
-    "seen": 1788294607.5356503,
-    "ast_hash": "d701845f7d7d0aa80fb700aceb850d68",
+    "mtime": 1788289809.9449031,
+    "seen": 1788291136.1266773,
+    "ast_hash": "3c92580bb5725fd021c16673c9bce15a",
     "semantic_hash": ""
   },
   "tools/screenshots/fixtures.mjs": {
@@ -2076,9 +2076,9 @@
     "semantic_hash": ""
   },
   "tools/screenshots/run.mjs": {
-    "mtime": 1788294512.0448945,
-    "seen": 1788294607.5356574,
-    "ast_hash": "bf4ebe0dcafb7401fd089128750f3c7a",
+    "mtime": 1788289799.4656103,
+    "seen": 1788291136.1266785,
+    "ast_hash": "759d700fdf9f89ceddfcb7fc44c1fadc",
     "semantic_hash": ""
   },
   "tools/screenshots/sync.mjs": {
@@ -2088,123 +2088,123 @@
     "semantic_hash": ""
   },
   "BACKLOG.md": {
-    "mtime": 1788294588.0610955,
-    "seen": 1788294607.5356648,
-    "ast_hash": "08cb0680b6faeb3618eea63522612ffa",
+    "mtime": 1788291124.985353,
+    "seen": 1788291136.1266806,
+    "ast_hash": "139bcba6aea7dc88819852d0ecc965e8",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/connect.png": {
-    "mtime": 1788294495.707664,
-    "seen": 1788294607.5357313,
+    "mtime": 1788290659.7049263,
+    "seen": 1788291136.1267073,
     "ast_hash": "7fd5f0bed48f3be1e087aa580a6bb00f",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/device-screen-control.png": {
-    "mtime": 1788294495.708865,
-    "seen": 1788294607.5357351,
+    "mtime": 1788290659.7053666,
+    "seen": 1788291136.1267085,
     "ast_hash": "bfc714a678073ab35e9a5e30ebc5196c",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/event-forwarding.png": {
-    "mtime": 1788294495.7098231,
-    "seen": 1788294607.5357375,
+    "mtime": 1788290659.70566,
+    "seen": 1788291136.1267095,
     "ast_hash": "2e703f9464e925237b5b0091c9f958f9",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/light/connect.png": {
-    "mtime": 1788294495.7178884,
-    "seen": 1788294607.5357397,
+    "mtime": 1788290659.7063377,
+    "seen": 1788291136.1267102,
     "ast_hash": "c092cf063a96e67fb93c38dfd26ed1d4",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/light/dashboard-overview.png": {
-    "mtime": 1788294495.7181377,
-    "seen": 1788294607.5357406,
+    "mtime": 1788290659.7067926,
+    "seen": 1788291136.126711,
     "ast_hash": "9c0e3cd422ddffbad21394124d0d5b85",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/light/device-registry.png": {
-    "mtime": 1788294495.718455,
-    "seen": 1788294607.5357418,
+    "mtime": 1788290659.7069702,
+    "seen": 1788291136.1267111,
     "ast_hash": "ac5e2e2530b3b67d807e1ec60c79d918",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/light/device-screen-control.png": {
-    "mtime": 1788294495.718632,
-    "seen": 1788294607.5357432,
+    "mtime": 1788290659.7083442,
+    "seen": 1788291136.1267116,
     "ast_hash": "bedf746c95e7d6f333594edf7108a496",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/light/device-telemetry.png": {
-    "mtime": 1788294495.71889,
-    "seen": 1788294607.5357444,
-    "ast_hash": "27b7cc219fc5e816977032b6af313b87",
+    "mtime": 1788290659.7084982,
+    "seen": 1788291136.126712,
+    "ast_hash": "1dd3bd6e8388ce80e841a303458ee670",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/light/event-forwarding.png": {
-    "mtime": 1788294495.7283041,
-    "seen": 1788294607.5357456,
+    "mtime": 1788290659.7086632,
+    "seen": 1788291136.1267123,
     "ast_hash": "42793f54240658254ce689a6f5adff11",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/light/file-browser.png": {
-    "mtime": 1788294495.7286446,
-    "seen": 1788294607.5357468,
+    "mtime": 1788290659.708767,
+    "seen": 1788291136.1267128,
     "ast_hash": "437af03014dd55320fab0416173d8086",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/light/logs.png": {
-    "mtime": 1788294495.7288442,
-    "seen": 1788294607.535748,
+    "mtime": 1788290659.7088552,
+    "seen": 1788291136.1267133,
     "ast_hash": "30ec7358521fd1beda450c4c9563b0c4",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/light/mcp-tool-explorer.png": {
-    "mtime": 1788294495.7290678,
-    "seen": 1788294607.535749,
+    "mtime": 1788290659.7089596,
+    "seen": 1788291136.1267135,
     "ast_hash": "0f8111f32a570ba4ff189831e61552b9",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/light/panel-apps.png": {
-    "mtime": 1788294495.7292445,
-    "seen": 1788294607.53575,
-    "ast_hash": "c68db37d885c9205297107ae882d07e6",
+    "mtime": 1788290659.7090402,
+    "seen": 1788291136.1267142,
+    "ast_hash": "61bdb3d97f889c2c7eefe58b04d60ea0",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/light/panel-messages.png": {
-    "mtime": 1788294495.729426,
-    "seen": 1788294607.5357509,
-    "ast_hash": "5df7a783e598867eb4da7107083e7dfd",
+    "mtime": 1788290659.7091196,
+    "seen": 1788291136.1267145,
+    "ast_hash": "95843dd9b5cbd59ef01d3023ba48ae1c",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/light/panel-storage.png": {
-    "mtime": 1788294495.7296166,
-    "seen": 1788294607.5357518,
-    "ast_hash": "46aa3f38ab5e3090abdb3de395c8170d",
+    "mtime": 1788290659.7091913,
+    "seen": 1788291136.126715,
+    "ast_hash": "0dea2a091e06b9fe36c4a2e255eda6f0",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/logs.png": {
-    "mtime": 1788294495.716532,
-    "seen": 1788294607.535753,
+    "mtime": 1788290659.7058542,
+    "seen": 1788291136.1267154,
     "ast_hash": "288fbab5ca8ef3b9d1b429a06d801138",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/panel-apps.png": {
-    "mtime": 1788294495.7171192,
-    "seen": 1788294607.5357556,
-    "ast_hash": "7538085eb1ba7a6f409a3b8a6f3efc16",
+    "mtime": 1788290659.706063,
+    "seen": 1788291136.1267161,
+    "ast_hash": "8777ef750e220c13583d62e18991517c",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/panel-messages.png": {
-    "mtime": 1788294495.7173655,
-    "seen": 1788294607.5357568,
-    "ast_hash": "820e2c343718e423ba00a8b4728be9a6",
+    "mtime": 1788290659.7061472,
+    "seen": 1788291136.1267166,
+    "ast_hash": "9769af0956da2e71cb84c073f197f3ee",
     "semantic_hash": ""
   },
   "docs/public/screenshots/dashboard/panel-storage.png": {
-    "mtime": 1788294495.71759,
-    "seen": 1788294607.5357575,
-    "ast_hash": "6ffea60cad8d28320f213e69694aa10f",
+    "mtime": 1788290659.706218,
+    "seen": 1788291136.126717,
+    "ast_hash": "11cc99657c93d0a990b0be4dd1670212",
     "semantic_hash": ""
   },
   "mcp/dashboard/public/favicon.svg": {
@@ -2226,171 +2226,153 @@
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/dark/connect.png": {
-    "mtime": 1788294446.5312662,
-    "seen": 1788294607.5357625,
+    "mtime": 1788290625.0073714,
+    "seen": 1788291136.1267188,
     "ast_hash": "7fd5f0bed48f3be1e087aa580a6bb00f",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/dark/dashboard-overview.png": {
-    "mtime": 1788294432.7971005,
-    "seen": 1788294607.5357635,
+    "mtime": 1788290615.6113493,
+    "seen": 1788291136.1267192,
     "ast_hash": "af68faee4590d4577c8ec86dfff95bab",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/dark/device-registry.png": {
-    "mtime": 1788294434.9645946,
-    "seen": 1788294607.5357645,
+    "mtime": 1788290617.0823658,
+    "seen": 1788291136.1267195,
     "ast_hash": "146c201800352037e5f7ff5fa9225230",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/dark/device-screen-control.png": {
-    "mtime": 1788294441.9462109,
-    "seen": 1788294607.5357654,
+    "mtime": 1788290621.989756,
+    "seen": 1788291136.12672,
     "ast_hash": "bfc714a678073ab35e9a5e30ebc5196c",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/dark/device-telemetry.png": {
-    "mtime": 1788294437.8734841,
-    "seen": 1788294607.5357666,
-    "ast_hash": "fd4d7edfd3a0b2ffd8270ee760fbcb84",
+    "mtime": 1788290618.6733832,
+    "seen": 1788291136.1267204,
+    "ast_hash": "683af77c827adddc8d5df79397ff0690",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/dark/event-forwarding.png": {
-    "mtime": 1788294462.9974656,
-    "seen": 1788294607.5357673,
+    "mtime": 1788290636.8725774,
+    "seen": 1788291136.126721,
     "ast_hash": "2e703f9464e925237b5b0091c9f958f9",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/dark/file-browser.png": {
-    "mtime": 1788294449.5473025,
-    "seen": 1788294607.5357683,
+    "mtime": 1788290627.267653,
+    "seen": 1788291136.1267214,
     "ast_hash": "8ee8165075d46aa573d349d6efeb0ca2",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/dark/logs.png": {
-    "mtime": 1788294444.1290321,
-    "seen": 1788294607.5357695,
+    "mtime": 1788290623.4597943,
+    "seen": 1788291136.1267219,
     "ast_hash": "288fbab5ca8ef3b9d1b429a06d801138",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/dark/mcp-tool-explorer.png": {
-    "mtime": 1788294452.9618416,
-    "seen": 1788294607.5357704,
+    "mtime": 1788290629.2475007,
+    "seen": 1788291136.126722,
     "ast_hash": "eff29ba45f17f9bf91a83e02696bccfa",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/dark/panel-apps.png": {
-    "mtime": 1788294458.1974072,
-    "seen": 1788294607.5357714,
-    "ast_hash": "7538085eb1ba7a6f409a3b8a6f3efc16",
+    "mtime": 1788290633.1767194,
+    "seen": 1788291136.1267226,
+    "ast_hash": "8777ef750e220c13583d62e18991517c",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/dark/panel-messages.png": {
-    "mtime": 1788294455.6370358,
-    "seen": 1788294607.535772,
-    "ast_hash": "820e2c343718e423ba00a8b4728be9a6",
+    "mtime": 1788290631.2133222,
+    "seen": 1788291136.126723,
+    "ast_hash": "9769af0956da2e71cb84c073f197f3ee",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/dark/panel-storage.png": {
-    "mtime": 1788294461.000748,
-    "seen": 1788294607.5357735,
-    "ast_hash": "6ffea60cad8d28320f213e69694aa10f",
+    "mtime": 1788290635.4275696,
+    "seen": 1788291136.1267233,
+    "ast_hash": "11cc99657c93d0a990b0be4dd1670212",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/light/connect.png": {
-    "mtime": 1788294479.2198482,
-    "seen": 1788294607.5357747,
+    "mtime": 1788290647.8247082,
+    "seen": 1788291136.1267238,
     "ast_hash": "c092cf063a96e67fb93c38dfd26ed1d4",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/light/dashboard-overview.png": {
-    "mtime": 1788294465.9076138,
-    "seen": 1788294607.5357757,
+    "mtime": 1788290638.528334,
+    "seen": 1788291136.1267242,
     "ast_hash": "9c0e3cd422ddffbad21394124d0d5b85",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/light/device-registry.png": {
-    "mtime": 1788294467.9364395,
-    "seen": 1788294607.5357769,
+    "mtime": 1788290640.0047467,
+    "seen": 1788291136.1267247,
     "ast_hash": "ac5e2e2530b3b67d807e1ec60c79d918",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/light/device-screen-control.png": {
-    "mtime": 1788294474.633509,
-    "seen": 1788294607.5357778,
+    "mtime": 1788290644.8530436,
+    "seen": 1788291136.1267252,
     "ast_hash": "bedf746c95e7d6f333594edf7108a496",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/light/device-telemetry.png": {
-    "mtime": 1788294470.52058,
-    "seen": 1788294607.5357788,
-    "ast_hash": "27b7cc219fc5e816977032b6af313b87",
+    "mtime": 1788290641.5754886,
+    "seen": 1788291136.1267257,
+    "ast_hash": "1dd3bd6e8388ce80e841a303458ee670",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/light/event-forwarding.png": {
-    "mtime": 1788294495.5139608,
-    "seen": 1788294607.53578,
+    "mtime": 1788290659.6538408,
+    "seen": 1788291136.126726,
     "ast_hash": "42793f54240658254ce689a6f5adff11",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/light/file-browser.png": {
-    "mtime": 1788294482.114605,
-    "seen": 1788294607.5357807,
+    "mtime": 1788290650.0923715,
+    "seen": 1788291136.1267264,
     "ast_hash": "437af03014dd55320fab0416173d8086",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/light/logs.png": {
-    "mtime": 1788294476.8468215,
-    "seen": 1788294607.5357816,
+    "mtime": 1788290646.312518,
+    "seen": 1788291136.1267269,
     "ast_hash": "30ec7358521fd1beda450c4c9563b0c4",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/light/mcp-tool-explorer.png": {
-    "mtime": 1788294485.360738,
-    "seen": 1788294607.5357828,
+    "mtime": 1788290652.0543745,
+    "seen": 1788291136.126727,
     "ast_hash": "0f8111f32a570ba4ff189831e61552b9",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/light/panel-apps.png": {
-    "mtime": 1788294490.5234704,
-    "seen": 1788294607.5357838,
-    "ast_hash": "c68db37d885c9205297107ae882d07e6",
+    "mtime": 1788290655.9547994,
+    "seen": 1788291136.1267276,
+    "ast_hash": "61bdb3d97f889c2c7eefe58b04d60ea0",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/light/panel-messages.png": {
-    "mtime": 1788294487.9287694,
-    "seen": 1788294607.5357847,
-    "ast_hash": "5df7a783e598867eb4da7107083e7dfd",
+    "mtime": 1788290653.9957054,
+    "seen": 1788291136.1267283,
+    "ast_hash": "95843dd9b5cbd59ef01d3023ba48ae1c",
     "semantic_hash": ""
   },
   "mcp/dashboard/screenshots/light/panel-storage.png": {
-    "mtime": 1788294493.4555547,
-    "seen": 1788294607.535786,
-    "ast_hash": "46aa3f38ab5e3090abdb3de395c8170d",
+    "mtime": 1788290658.2098246,
+    "seen": 1788291136.1267285,
+    "ast_hash": "0dea2a091e06b9fe36c4a2e255eda6f0",
     "semantic_hash": ""
   },
   "tools/screenshots/assets/device-screen.png": {
     "mtime": 1788289687.9242399,
     "seen": 1788291136.126729,
     "ast_hash": "4d99d1694f79276f192ca6be790eb7cf",
-    "semantic_hash": ""
-  },
-  "tools/screenshots/panelcheck.mjs": {
-    "mtime": 1788293276.3676996,
-    "seen": 1788294607.5356545,
-    "ast_hash": "29df4c2adfd92d095a02118c2f0810e4",
-    "semantic_hash": ""
-  },
-  "tools/screenshots/probe.mjs": {
-    "mtime": 1788292651.0421753,
-    "seen": 1788294607.5356562,
-    "ast_hash": "08f3566a9a2411ec7ff50e669e3ca044",
-    "semantic_hash": ""
-  },
-  "tools/screenshots/shot.mjs": {
-    "mtime": 1788293340.379721,
-    "seen": 1788294607.5356588,
-    "ast_hash": "5f3d207a0bb7593dedcd8609b4b72b8e",
     "semantic_hash": ""
   }
 }
