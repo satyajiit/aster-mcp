@@ -202,6 +202,78 @@ export function getAllLogs(limit: number = 100): LogEntry[] {
   return rows.map(mapLogFromDb);
 }
 
+export interface LogQuery {
+  deviceId?: string;
+  /** Restrict to these levels. Omitted or empty means all levels. */
+  levels?: LogEntry['level'][];
+  /** Case-insensitive substring match against message and the data payload. */
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface LogPage {
+  logs: LogEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Filtered, paginated log query.
+ *
+ * The dashboard previously had no way to narrow logs at all — `limit` was the
+ * only knob, so finding one error meant scrolling a firehose. Levels, device
+ * and free text are all pushed down to SQLite rather than filtered client-side.
+ */
+export function queryLogs(query: LogQuery = {}): LogPage {
+  const database = getDatabase();
+  const limit = Math.min(Math.max(query.limit ?? 100, 1), 1000);
+  const offset = Math.max(query.offset ?? 0, 0);
+
+  const where: string[] = [];
+  const params: unknown[] = [];
+
+  if (query.deviceId) {
+    where.push('device_id = ?');
+    params.push(query.deviceId);
+  }
+
+  if (query.levels && query.levels.length > 0) {
+    where.push(`level IN (${query.levels.map(() => '?').join(', ')})`);
+    params.push(...query.levels);
+  }
+
+  if (query.search) {
+    where.push(`(message LIKE ? ESCAPE '@' OR data LIKE ? ESCAPE '@')`);
+    // Escape LIKE wildcards so a search for "100%" matches a literal percent
+    // sign rather than everything. '@' is the escape char; escape it too.
+    const term = `%${query.search.replace(/[@%_]/g, (c) => `@${c}`)}%`;
+    params.push(term, term);
+  }
+
+  const clause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+
+  const { total } = database
+    .prepare(`SELECT COUNT(*) as total FROM logs ${clause}`)
+    .get(...params) as { total: number };
+
+  const rows = database
+    .prepare(`SELECT * FROM logs ${clause} ORDER BY timestamp DESC LIMIT ? OFFSET ?`)
+    .all(...params, limit, offset) as DbLogEntry[];
+
+  return { logs: rows.map(mapLogFromDb), total, limit, offset };
+}
+
+/** Distinct device ids present in the log table, for the log filter dropdown. */
+export function getLoggedDeviceIds(): string[] {
+  const database = getDatabase();
+  const rows = database
+    .prepare('SELECT DISTINCT device_id FROM logs ORDER BY device_id')
+    .all() as { device_id: string }[];
+  return rows.map((r) => r.device_id);
+}
+
 // Internal types for DB rows
 interface DbDevice {
   id: string;

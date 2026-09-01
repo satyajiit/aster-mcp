@@ -1,7 +1,18 @@
 import Fastify from 'fastify';
 import { consola } from 'consola';
-import type { ServerConfig } from '../types/index.js';
-import { getAllDevices, getDevice, getDeviceLogs, getAllLogs } from '../db/index.js';
+import type { LogEntry, ServerConfig } from '../types/index.js';
+import {
+  getAllDevices,
+  getDevice,
+  deleteDevice,
+  updateDeviceStatus,
+  queryLogs,
+  getLoggedDeviceIds,
+  type LogQuery,
+} from '../db/index.js';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 import {
   approveDevice,
   fetchAndCacheExtendedInfo,
@@ -19,6 +30,34 @@ import {
   testAgentEventForwardingConnection,
   type AgentEventForwardingConfig,
 } from '../event-forwarding/index.js';
+
+const STATUS_FILE = join(homedir(), '.aster', 'status.json');
+
+const LOG_LEVELS: LogEntry['level'][] = ['debug', 'info', 'warn', 'error'];
+
+interface LogQueryString {
+  limit?: string;
+  offset?: string;
+  /** Comma-separated subset of debug,info,warn,error. */
+  level?: string;
+  search?: string;
+  deviceId?: string;
+}
+
+function parseLogQuery(q: LogQueryString): LogQuery {
+  const levels = (q.level ?? '')
+    .split(',')
+    .map((l) => l.trim().toLowerCase())
+    .filter((l): l is LogEntry['level'] => (LOG_LEVELS as string[]).includes(l));
+
+  return {
+    limit: q.limit ? parseInt(q.limit, 10) : 100,
+    offset: q.offset ? parseInt(q.offset, 10) : 0,
+    levels: levels.length > 0 ? levels : undefined,
+    search: q.search?.trim() || undefined,
+    deviceId: q.deviceId || undefined,
+  };
+}
 
 export function createApiServer(config: ServerConfig) {
   const app = Fastify({
@@ -136,19 +175,23 @@ export function createApiServer(config: ServerConfig) {
     }
   });
 
-  // Get device logs
-  app.get<{ Params: { id: string }; Querystring: { limit?: string } }>(
+  // Get device logs. Supports level/search/offset filtering; returns a page
+  // envelope so the UI can paginate instead of guessing at `limit`.
+  app.get<{ Params: { id: string }; Querystring: LogQueryString }>(
     '/api/devices/:id/logs',
     async (request) => {
-      const limit = parseInt(request.query.limit || '100', 10);
-      return getDeviceLogs(request.params.id, limit);
+      return queryLogs({ ...parseLogQuery(request.query), deviceId: request.params.id });
     }
   );
 
-  // Get all logs
-  app.get<{ Querystring: { limit?: string } }>('/api/logs', async (request) => {
-    const limit = parseInt(request.query.limit || '100', 10);
-    return getAllLogs(limit);
+  // Get all logs, filtered.
+  app.get<{ Querystring: LogQueryString }>('/api/logs', async (request) => {
+    return queryLogs(parseLogQuery(request.query));
+  });
+
+  // Device ids that appear in the log table, for the log filter dropdown.
+  app.get('/api/logs/devices', async () => {
+    return getLoggedDeviceIds();
   });
 
   // Stats endpoint for dashboard
@@ -163,6 +206,67 @@ export function createApiServer(config: ServerConfig) {
       approvedDevices: devices.filter(d => d.status === 'approved').length,
     };
   });
+
+  // Runtime status. `~/.aster/status.json` already carries the MCP URL, the
+  // dashboard/WS URLs, ports and the Tailscale block, but nothing ever served
+  // it — users had to leave the dashboard and read terminal output to find the
+  // URL they paste into their MCP client.
+  app.get('/api/status', async () => {
+    let status: Record<string, unknown> = {};
+    try {
+      status = JSON.parse(readFileSync(STATUS_FILE, 'utf-8')) as Record<string, unknown>;
+    } catch {
+      // Not running under the daemon, or the file has not been written yet.
+      // Fall back to what this process knows for certain.
+    }
+
+    // startDaemon writes startedAt as an ISO string; older files carry an epoch
+    // number. Accept both, and never let a malformed value become NaN.
+    const startedAtMs = (() => {
+      if (typeof status.startedAt === 'number') return status.startedAt;
+      if (typeof status.startedAt === 'string') {
+        const parsed = Date.parse(status.startedAt);
+        return Number.isNaN(parsed) ? null : parsed;
+      }
+      return null;
+    })();
+
+    return {
+      ...status,
+      startedAt: startedAtMs,
+      wsPort: status.wsPort ?? config.wsPort,
+      apiPort: status.apiPort ?? config.dashboardPort,
+      dbPath: status.dbPath ?? config.dbPath,
+      serverTime: Date.now(),
+      uptimeMs: startedAtMs === null ? null : Date.now() - startedAtMs,
+    };
+  });
+
+  // Remove a device. `deleteDevice` has always existed but was CLI-only, so a
+  // stale device could not be cleared from the dashboard.
+  app.delete<{ Params: { id: string } }>('/api/devices/:id', async (request, reply) => {
+    const removed = deleteDevice(request.params.id);
+    if (!removed) {
+      reply.status(404);
+      return { error: 'Device not found' };
+    }
+    return { success: true };
+  });
+
+  // Return a rejected device to pending. Rejecting was previously a dead end:
+  // the UI could reject but never undo it.
+  app.post<{ Params: { id: string } }>(
+    '/api/devices/:id/unreject',
+    async (request, reply) => {
+      const device = getDevice(request.params.id);
+      if (!device) {
+        reply.status(404);
+        return { error: 'Device not found' };
+      }
+      updateDeviceStatus(request.params.id, 'pending');
+      return { success: true, status: 'pending' };
+    }
+  );
 
   // --- Agent Event Forwarding Configuration ---
 
@@ -247,12 +351,6 @@ export function createApiServer(config: ServerConfig) {
   app.post<{ Body: { endpoint: string; webhookPath: string; token?: string; channelType?: AgentEventForwardingConfig['channelType']; channel?: string } }>('/api/event-forwarding/test', testEventForwardingConnectionHandler);
   app.post<{ Body: { endpoint: string; webhookPath: string; token?: string; channelType?: AgentEventForwardingConfig['channelType']; channel?: string } }>('/api/openclaw/test', testEventForwardingConnectionHandler);
 
-  return app;
-}
-
-export async function startApiServer(config: ServerConfig): Promise<void> {
-  const app = createApiServer(config);
-
   // Register MCP HTTP routes
   registerMcpHttpRoutes(app);
 
@@ -292,6 +390,12 @@ export async function startApiServer(config: ServerConfig): Promise<void> {
       }
     }
   );
+
+  return app;
+}
+
+export async function startApiServer(config: ServerConfig): Promise<void> {
+  const app = createApiServer(config);
 
   await app.listen({ port: config.dashboardPort, host: '0.0.0.0' });
   consola.success(`API server listening on port ${config.dashboardPort}`);
