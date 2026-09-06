@@ -30,6 +30,7 @@ import com.aster.service.accessibility.SnapshotCache
 import com.aster.service.accessibility.WindowInfo
 import com.aster.service.input.InputResult
 import com.aster.service.input.InputRouter
+import com.aster.service.execution.ExecutionChildren
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ensureActive
@@ -1020,16 +1021,19 @@ class AsterAccessibilityService : AccessibilityService() {
             .build()
     }
 
-    private suspend fun performGesture(gesture: GestureDescription): Boolean =
-        suspendCancellableCoroutine { continuation ->
+    private suspend fun performGesture(gesture: GestureDescription): Boolean {
+        val child = coroutineContext[ExecutionChildren]?.begin()
+        return suspendCancellableCoroutine { continuation ->
             val callback = object : GestureResultCallback() {
                 override fun onCompleted(gestureDescription: GestureDescription?) {
+                    child?.complete()
                     if (continuation.isActive) {
                         continuation.resume(true)
                     }
                 }
 
                 override fun onCancelled(gestureDescription: GestureDescription?) {
+                    child?.complete()
                     if (continuation.isActive) {
                         continuation.resume(false)
                     }
@@ -1037,10 +1041,12 @@ class AsterAccessibilityService : AccessibilityService() {
             }
 
             val dispatched = dispatchGesture(gesture, callback, mainHandler)
-            if (!dispatched && continuation.isActive) {
-                continuation.resume(false)
+            if (!dispatched) {
+                child?.complete()
+                if (continuation.isActive) continuation.resume(false)
             }
         }
+    }
 
     /**
      * Input text into the currently focused editable field.

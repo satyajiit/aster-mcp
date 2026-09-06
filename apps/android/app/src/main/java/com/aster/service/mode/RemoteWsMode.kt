@@ -6,6 +6,9 @@ import com.aster.data.model.Command
 import com.aster.data.model.ConnectionState
 import com.aster.data.websocket.AsterWebSocketClient
 import com.aster.service.CommandHandler
+import com.aster.service.CommandResult
+import com.aster.service.execution.ExecutionCoordinator
+import com.aster.service.execution.ExecutionProtocol
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -15,6 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.Json
 
 /**
  * Wraps existing AsterWebSocketClient in the ConnectionMode interface.
@@ -22,7 +27,8 @@ import kotlinx.coroutines.launch
 class RemoteWsMode(
     private val webSocketClient: AsterWebSocketClient,
     private val commandHandlers: Map<String, CommandHandler>,
-    private val toolCallLogger: ToolCallLogger
+    private val toolCallLogger: ToolCallLogger,
+    private val executions: ExecutionCoordinator? = null,
 ) : ConnectionMode {
 
     companion object {
@@ -38,10 +44,12 @@ class RemoteWsMode(
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var observeJob: Job? = null
     private var commandJob: Job? = null
+    @Volatile private var executionOwner: String? = null
 
     override suspend fun start(config: ModeConfig) {
         val remoteConfig = config as? ModeConfig.RemoteConfig
             ?: throw IllegalArgumentException("RemoteWsMode requires RemoteConfig")
+        executionOwner = "ws:" + ExecutionProtocol.sha256(remoteConfig.serverUrl)
 
         _statusFlow.value = ModeStatus(
             state = ModeState.STARTING,
@@ -66,6 +74,7 @@ class RemoteWsMode(
     }
 
     override suspend fun stop() {
+        executionOwner = null
         _statusFlow.value = ModeStatus(state = ModeState.STOPPING, message = "Disconnecting...")
         observeJob?.cancel()
         commandJob?.cancel()
@@ -79,6 +88,14 @@ class RemoteWsMode(
     }
 
     private suspend fun handleCommand(incoming: Command) {
+        if (incoming.action in setOf("execution_capabilities", "execution_submit", "execution_status", "execution_seal_if_unstarted")) {
+            val owner = executionOwner ?: return
+            // Submit can await the physical worker. Keep the collector free
+            // for original status/seal reads and pin the response to this
+            // principal and socket generation, even after mode replacement.
+            scope.launch { handleExecution(incoming, owner) }
+            return
+        }
         // Normalise snake_case↔camelCase before dispatch, exactly as the IPC and
         // local-MCP paths do — a remote caller follows the published (snake_case)
         // tool schema while several handlers read camelCase. See [WireParams].
@@ -133,6 +150,39 @@ class RemoteWsMode(
                 success = false,
                 error = e.message ?: "Unknown error"
             )
+        }
+    }
+
+    private suspend fun handleExecution(command: Command, owner: String) {
+        if (executionOwner != owner || !webSocketClient.isCurrentCommand(command) ||
+            webSocketClient.connectionState.value != ConnectionState.APPROVED) return
+        try {
+            val coordinator = requireNotNull(executions) { "Tracked execution is unavailable" }
+            val body = JsonObject(command.params ?: emptyMap()).toString()
+            val response = when (command.action) {
+                "execution_capabilities" -> {
+                    require(command.params.isNullOrEmpty())
+                    coordinator.capabilities()
+                }
+                "execution_status" -> coordinator.status(body, owner)
+                "execution_seal_if_unstarted" -> coordinator.sealIfUnstarted(body, owner)
+                "execution_submit" -> coordinator.submit(body, owner, {
+                    executionOwner == owner && webSocketClient.isCurrentCommand(command) &&
+                        webSocketClient.connectionState.value == ConnectionState.APPROVED
+                }) { requested ->
+                    commandHandlers[requested.action]?.handle(requested)
+                        ?: CommandResult.failure("Unsupported tracked action")
+                }
+                else -> error("Unsupported execution operation")
+            }
+            webSocketClient.sendCommandResponse(command.id, true, Json.parseToJsonElement(response),
+                expectedGeneration = command.connectionGeneration)
+        } catch (_: Exception) {
+            // A transport failure is not a no-dispatch proof. Never create a
+            // substitute legacy command or disclose journal/result contents.
+            webSocketClient.sendCommandResponse(command.id, false,
+                error = "Original execution observation is unavailable",
+                expectedGeneration = command.connectionGeneration)
         }
     }
 

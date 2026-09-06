@@ -15,6 +15,12 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.aster.service.execution.ExecutionChildren
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
 
 /**
  * Non-blocking "the run is waiting for you" banner shown ON the controlled app —
@@ -83,6 +89,48 @@ class SignInWaitOverlay(private val context: Context) {
         mainHandler.post { showOnMain(aiName, kind, message) }
     }
 
+    /** Acknowledges the banner's attachment, not the owner's sign-in/payment. */
+    suspend fun showAwaited(aiName: String?, kind: String?, message: String? = null): Boolean {
+        val children = coroutineContext[ExecutionChildren]
+        return withContext(NonCancellable + Dispatchers.Main.immediate) {
+            val previous = rootView
+            if (previous != null && builtForHandoff != isHandoffKind(kind)) {
+                val child = if (attached) children?.begin() else null
+                val listener = object : View.OnAttachStateChangeListener {
+                    override fun onViewAttachedToWindow(view: View) = Unit
+                    override fun onViewDetachedFromWindow(view: View) {
+                        child?.complete()
+                        view.removeOnAttachStateChangeListener(this)
+                    }
+                }
+                previous.addOnAttachStateChangeListener(listener)
+                remove(immediate = true)
+                if (!previous.isAttachedToWindow) {
+                    child?.complete()
+                    previous.removeOnAttachStateChangeListener(listener)
+                }
+            }
+            if (!showOnMain(aiName, kind, message)) return@withContext false
+            val view = checkNotNull(rootView)
+            if (view.isAttachedToWindow) return@withContext true
+            val presented = CompletableDeferred<Boolean>()
+            val listener = object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(view: View) {
+                    presented.complete(true)
+                }
+                override fun onViewDetachedFromWindow(view: View) {
+                    presented.complete(false)
+                }
+            }
+            view.addOnAttachStateChangeListener(listener)
+            try {
+                presented.await()
+            } finally {
+                view.removeOnAttachStateChangeListener(listener)
+            }
+        }
+    }
+
     /** Tear the banner down immediately (e.g. on detach). */
     fun clear() {
         mainHandler.post { remove() }
@@ -94,10 +142,10 @@ class SignInWaitOverlay(private val context: Context) {
     private fun isHandoffKind(kind: String?): Boolean =
         kind == "payment" || kind == "handoff" || kind == "explicit_handoff"
 
-    private fun showOnMain(aiName: String?, kind: String?, message: String?) {
+    private fun showOnMain(aiName: String?, kind: String?, message: String?): Boolean {
         if (!Settings.canDrawOverlays(context)) {
             Log.w(TAG, "Overlay permission not granted; wait banner suppressed")
-            return
+            return false
         }
         val handoff = isHandoffKind(kind)
         // Rebuild if the layout mode flipped since the view was last built.
@@ -117,6 +165,7 @@ class SignInWaitOverlay(private val context: Context) {
         }
         mainHandler.removeCallbacks(dismissRunnable)
         mainHandler.postDelayed(dismissRunnable, dismissMsFor(kind))
+        return attached
     }
 
     /**
@@ -266,12 +315,14 @@ class SignInWaitOverlay(private val context: Context) {
             WindowManager.LayoutParams.TYPE_PHONE
         }
 
-    private fun remove() {
+    private fun remove(immediate: Boolean = false) {
         mainHandler.removeCallbacks(dismissRunnable)
         if (attached) {
             try {
-                windowManager.removeView(rootView)
+                if (immediate) windowManager.removeViewImmediate(rootView)
+                else windowManager.removeView(rootView)
             } catch (e: Exception) {
+                if (immediate) throw e
                 Log.w(TAG, "Failed to remove wait banner", e)
             }
             attached = false

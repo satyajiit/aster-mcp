@@ -49,4 +49,13 @@ interface IAsterService {
 
     /** APPEND-ONLY versioned semantic face-state snapshot. UTF-8 JSON, max 4 KiB. */
     oneway void pushCompanionState(in byte[] state);
+
+    /** APPEND-ONLY v2 original execution/closure lane. Authenticated, no legacy fallback. */
+    String getExecutionCapabilities();
+    String executeTracked(String requestJson);
+    String getExecutionStatus(String queryJson);
+    String sealExecutionIfUnstarted(String queryJson);
+
+    /** APPEND-ONLY bounded UTF-8 transport for escaped v2 request envelopes. */
+    String executeTrackedFromPipe(in ParcelFileDescriptor request);
 }

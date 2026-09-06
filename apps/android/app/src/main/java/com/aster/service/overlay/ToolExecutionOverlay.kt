@@ -23,13 +23,18 @@ import androidx.core.content.res.ResourcesCompat
 import com.aster.R
 import com.aster.data.local.db.ToolCallLogger
 import com.aster.data.local.db.ToolEvent
+import com.aster.service.execution.ExecutionChildren
 import com.aster.service.safety.KillSwitchController
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.coroutineContext
 
 /**
  * "AI is controlling your screen" overlay for on-device screen-control runs.
@@ -132,9 +137,15 @@ class ToolExecutionOverlay @Inject constructor(
     fun detach() {
         collectJob?.cancel()
         collectJob = null
-        mainHandler.post { removeOverlay() }
-        windowManager = null
-        context = null
+        val teardown = Runnable {
+            // Retain the actual manager until removal has been submitted. A
+            // queued removal with windowManager=null cannot close its children.
+            removeOverlay()
+            windowManager = null
+            context = null
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) teardown.run()
+        else mainHandler.post(teardown)
         Log.d(TAG, "Detached")
     }
 
@@ -146,6 +157,37 @@ class ToolExecutionOverlay @Inject constructor(
      */
     fun clearActive() {
         mainHandler.post { removeOverlay() }
+    }
+
+    /** The original tracked banner waits for actual border/footer detachment. */
+    suspend fun clearActiveAwaited() {
+        val children = coroutineContext[ExecutionChildren]
+        withContext(NonCancellable + Dispatchers.Main.immediate) {
+            val pending = listOfNotNull(
+                borderView?.takeIf { borderAttached },
+                footerView?.takeIf { footerAttached },
+            ).map { view ->
+                val child = children?.begin()
+                val listener = object : View.OnAttachStateChangeListener {
+                    override fun onViewAttachedToWindow(view: View) = Unit
+                    override fun onViewDetachedFromWindow(view: View) {
+                        child?.complete()
+                        view.removeOnAttachStateChangeListener(this)
+                    }
+                }
+                view.addOnAttachStateChangeListener(listener)
+                Triple(view, child, listener)
+            }
+            // A failed removal retains its child and the original execution
+            // fence; success cannot race a later posted WindowManager removal.
+            removeOverlay(immediate = true)
+            pending.forEach { (view, child, listener) ->
+                if (!view.isAttachedToWindow) {
+                    child?.complete()
+                    view.removeOnAttachStateChangeListener(listener)
+                }
+            }
+        }
     }
 
     private fun handleEvent(event: ToolEvent) {
@@ -495,21 +537,31 @@ class ToolExecutionOverlay @Inject constructor(
 
     // ---- Teardown ----------------------------------------------------------
 
-    private fun removeOverlay() {
+    private fun removeOverlay(immediate: Boolean = false) {
         mainHandler.removeCallbacks(dismissRunnable)
         stopPulse()
         if (borderAttached) {
             try {
-                windowManager?.removeView(borderView)
+                if (immediate) {
+                    checkNotNull(windowManager).removeViewImmediate(borderView)
+                } else {
+                    windowManager?.removeView(borderView)
+                }
             } catch (e: Exception) {
+                if (immediate) throw e
                 Log.w(TAG, "Failed to remove border overlay view", e)
             }
             borderAttached = false
         }
         if (footerAttached) {
             try {
-                windowManager?.removeView(footerView)
+                if (immediate) {
+                    checkNotNull(windowManager).removeViewImmediate(footerView)
+                } else {
+                    windowManager?.removeView(footerView)
+                }
             } catch (e: Exception) {
+                if (immediate) throw e
                 Log.w(TAG, "Failed to remove footer overlay view", e)
             }
             footerAttached = false

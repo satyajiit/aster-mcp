@@ -234,10 +234,25 @@ class ContactHandler(
                 ContactsContract.Contacts.CONTACT_LAST_UPDATED_TIMESTAMP
             )
             // Fetch limit+1 to detect whether more pages exist.
-            val sortOrder = "${ContactsContract.Contacts._ID} ASC LIMIT ${limit + 1}"
+            //
+            // The row cap rides on LIMIT_PARAM_KEY, NOT on a "… ASC LIMIT n"
+            // sortOrder string. Appending LIMIT to sortOrder is a well-known
+            // hack that ContactsProvider2 happens to accept on AOSP, but a
+            // hardened provider running SQLiteQueryBuilder in strict mode
+            // rejects a sortOrder containing SQL — which would surface here as
+            // "Failed to list contacts: …" and abort the whole index sync on
+            // exactly the vendor ROMs (MIUI / HyperOS among them) we cannot
+            // test against. The query parameter is the sanctioned API.
+            val pagedUri = ContactsContract.Contacts.CONTENT_URI.buildUpon()
+                .appendQueryParameter(
+                    ContactsContract.LIMIT_PARAM_KEY,
+                    (limit + 1).toString()
+                )
+                .build()
+            val sortOrder = "${ContactsContract.Contacts._ID} ASC"
 
             context.contentResolver.query(
-                ContactsContract.Contacts.CONTENT_URI,
+                pagedUri,
                 projection,
                 "${ContactsContract.Contacts._ID} > ?",
                 arrayOf(cursorId.toString()),
@@ -246,7 +261,26 @@ class ContactHandler(
                 val idIdx = c.getColumnIndexOrThrow(ContactsContract.Contacts._ID)
                 val nameIdx = c.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY)
                 val updatedIdx = c.getColumnIndexOrThrow(ContactsContract.Contacts.CONTACT_LAST_UPDATED_TIMESTAMP)
-                while (c.moveToNext() && fetched < limit) {
+                // ★ `hasMore` is decided INSIDE the walk, not after it.
+                //
+                // The old shape was `while (c.moveToNext() && fetched < limit)`
+                // followed by `val hasMore = c.moveToNext()`. Kotlin evaluates
+                // `moveToNext()` first, so the check that ended the loop had
+                // already consumed the limit+1 sentinel row; the trailing call
+                // then asked for row limit+2, which LIMIT limit+1 guarantees
+                // does not exist. `has_more` was therefore ALWAYS false, and the
+                // kernel's sync — which stops on `!has_more` — would have
+                // indexed only the first page (200 contacts) of any address
+                // book, silently. Never observed in the field only because
+                // nothing ever called the sync (ticket OA-2026-0207).
+                var hasMore = false
+                while (c.moveToNext()) {
+                    if (fetched >= limit) {
+                        // We already have a full page and the cursor just
+                        // advanced onto the sentinel → at least one more row.
+                        hasMore = true
+                        break
+                    }
                     val contactId = c.getLong(idIdx)
                     val displayName = c.getString(nameIdx) ?: "Unknown"
                     val lastUpdated = c.getLong(updatedIdx)
@@ -264,9 +298,6 @@ class ContactHandler(
                     lastId = contactId
                     fetched++
                 }
-                // After consuming `limit` rows, if the cursor can still advance
-                // there is at least one more row → another page exists.
-                val hasMore = c.moveToNext()
                 val data = buildJsonObject {
                     put("contacts", buildJsonArray { contacts.forEach { add(it) } })
                     put("next_cursor", lastId)

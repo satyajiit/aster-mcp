@@ -8,6 +8,9 @@ import com.aster.data.model.Command
 import com.aster.ipc.IAsterCallback
 import com.aster.ipc.IAsterService
 import com.aster.service.CommandHandler
+import com.aster.service.CommandResult
+import com.aster.service.execution.ExecutionCoordinator
+import com.aster.service.execution.ExecutionProtocol
 import com.aster.service.overlay.CompanionFaceOverlay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +33,8 @@ import java.util.concurrent.ConcurrentHashMap
 class IpcMode(
     private val commandHandlers: Map<String, CommandHandler>,
     private val toolCallLogger: ToolCallLogger,
-    private val companionFaceOverlay: CompanionFaceOverlay
+    private val companionFaceOverlay: CompanionFaceOverlay,
+    private val executions: ExecutionCoordinator? = null,
 ) : ConnectionMode {
 
     companion object {
@@ -89,6 +93,7 @@ class IpcMode(
     private val authenticatedUids = ConcurrentHashMap<Int, Long>()
     private val callbacks = ConcurrentHashMap<Int, IAsterCallback>()
     private val largeResults = ConcurrentHashMap<String, ByteArray>()
+    private val trackedLargeResults = ConcurrentHashMap<Int, String>()
     private var currentToken: String = ""
 
     /** Kill-switch flag (P7). Set true on STOP; cleared on the next start(). */
@@ -98,6 +103,49 @@ class IpcMode(
     val token: String get() = currentToken
 
     val binder: IAsterService.Stub = object : IAsterService.Stub() {
+
+        override fun getExecutionCapabilities(): String {
+            requireAuthenticated(Binder.getCallingUid())
+            return requireNotNull(executions) { "Tracked execution is unavailable" }.capabilities()
+        }
+
+        override fun executeTracked(requestJson: String): String {
+            val uid = Binder.getCallingUid()
+            requireAuthenticated(uid)
+            return executeTrackedForUid(requestJson, uid)
+        }
+
+        override fun executeTrackedFromPipe(request: ParcelFileDescriptor): String {
+            val uid = Binder.getCallingUid()
+            requireAuthenticated(uid)
+            val limit = ExecutionProtocol.MAX_PAYLOAD_BYTES * 6 + 4096
+            val bytes = ParcelFileDescriptor.AutoCloseInputStream(request).use { input ->
+                val out = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    require(out.size() + count <= limit) { "Tracked request is too large" }
+                    out.write(buffer, 0, count)
+                }
+                buffer.fill(0)
+                out.toByteArray()
+            }
+            return try { executeTrackedForUid(bytes.toString(Charsets.UTF_8), uid) }
+            finally { bytes.fill(0) }
+        }
+
+        override fun getExecutionStatus(queryJson: String): String {
+            val uid = Binder.getCallingUid()
+            requireAuthenticated(uid)
+            return transferTrackedResult(requireNotNull(executions) { "Tracked execution is unavailable" }.status(queryJson, "ipc:$uid"), uid)
+        }
+
+        override fun sealExecutionIfUnstarted(queryJson: String): String {
+            val uid = Binder.getCallingUid()
+            requireAuthenticated(uid)
+            return transferTrackedResult(requireNotNull(executions) { "Tracked execution is unavailable" }.sealIfUnstarted(queryJson, "ipc:$uid"), uid)
+        }
 
         override fun authenticate(token: String): String {
             val callingUid = Binder.getCallingUid()
@@ -270,8 +318,13 @@ class IpcMode(
             val callingUid = Binder.getCallingUid()
             requireAuthenticated(callingUid)
 
-            val data = largeResults.remove(resultId)
-                ?: throw IllegalArgumentException("No large result found for ID: $resultId")
+            val data = synchronized(trackedLargeResults) {
+                val owner = trackedLargeResults.entries.firstOrNull { it.value == resultId }?.key
+                require(owner == null || owner == callingUid) { "Original result belongs to another caller" }
+                if (owner != null) trackedLargeResults.remove(owner)
+                largeResults.remove(resultId)
+                    ?: throw IllegalArgumentException("No large result found for ID: $resultId")
+            }
 
             val pipe = ParcelFileDescriptor.createPipe()
             val readSide = pipe[0]
@@ -284,7 +337,7 @@ class IpcMode(
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to write large result to pipe", e)
-                }
+                } finally { data.fill(0) }
             }.start()
 
             Log.d(TAG, "Streaming large result $resultId (${data.size} bytes) via PFD pipe")
@@ -399,7 +452,11 @@ class IpcMode(
         takeDownCompanionFace("ipc_stopped")
         authenticatedUids.clear()
         callbacks.clear()
-        largeResults.clear()
+        synchronized(trackedLargeResults) {
+            largeResults.values.forEach { it.fill(0) }
+            largeResults.clear()
+            trackedLargeResults.clear()
+        }
         scope.coroutineContext.cancelChildren()
         _statusFlow.value = ModeStatus(state = ModeState.IDLE)
         Log.i(TAG, "IPC mode stopped")
@@ -466,6 +523,36 @@ class IpcMode(
         if (!authenticatedUids.containsKey(uid)) {
             throw SecurityException("Caller UID=$uid is not authenticated")
         }
+    }
+
+    private fun executeTrackedForUid(requestJson: String, uid: Int): String {
+        // Only this Binder response waits. The coordinator owns the execution
+        // independently; other Binder threads can still read or seal it.
+        val result = runBlocking {
+            requireNotNull(executions) { "Tracked execution is unavailable" }.submit(
+                requestJson, "ipc:$uid", { !killed && authenticatedUids.containsKey(uid) },
+            ) { command ->
+                commandHandlers[command.action]?.handle(command)
+                    ?: CommandResult.failure("Unsupported tracked action")
+            }
+        }
+        return transferTrackedResult(result, uid)
+    }
+
+    private fun transferTrackedResult(result: String, uid: Int): String {
+        // Nested result_json escaping and Binder UTF-16 can exceed the inline
+        // transaction budget even when the original UTF-8 result is bounded.
+        val bytes = result.toByteArray(Charsets.UTF_8)
+        if (bytes.size <= 131_072) return result
+        val resultId = java.util.UUID.randomUUID().toString()
+        synchronized(trackedLargeResults) {
+            // A lost transfer can always reread the immutable journal. Retain
+            // at most one transport copy per authenticated caller, not one per tap.
+            val previous = trackedLargeResults.put(uid, resultId)
+            if (previous != null) largeResults.remove(previous)?.fill(0)
+            largeResults[resultId] = bytes
+        }
+        return """{"_largeResult":"$resultId"}"""
     }
 
     private fun constantTimeEquals(a: String, b: String): Boolean {

@@ -17,9 +17,9 @@ import kotlinx.serialization.json.put
  *  - `screen_handoff` — a clean step-back hand-off such as payment (`kind` =
  *    `payment` | `explicit_handoff`, with the owner-facing `message`).
  *
- * The automation replay engine fires these (fire-and-forget) when a run pauses
+ * The automation replay engine sends these when a run pauses
  * for the human: a small non-focusable banner appears over the controlled app and
- * the call returns IMMEDIATELY — the run does NOT block on it. For a sign-in wall
+ * the call waits for banner presentation, never for the owner's task. For a sign-in wall
  * the EA polls `automation_run` until it clears (then the run continues in place);
  * a hand-off is terminal (the owner finishes the payment themselves). Reads the
  * kernel-stamped `ai_name` (the assistant's name; overlay falls back to a neutral
@@ -47,8 +47,12 @@ class SignInWaitHandler(
         val message = (params["message"] as? JsonPrimitive)?.contentOrNull
         // The AI has handed control back — clear the "controlling your screen"
         // overlay so it doesn't sit under/over this wait banner.
-        toolExecutionOverlay.clearActive()
-        overlay.show(aiName, kind, message)
-        return CommandResult.success(buildJsonObject { put("ok", true) })
+        toolExecutionOverlay.clearActiveAwaited()
+        val shown = overlay.showAwaited(aiName, kind, message)
+        return CommandResult.success(buildJsonObject {
+            put("ok", true)
+            put("shown", shown)
+            put("owner_task_completed", false)
+        })
     }
 }

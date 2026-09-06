@@ -4,6 +4,7 @@ import android.content.Context
 import com.aster.data.local.db.ToolCallLogger
 import com.aster.data.websocket.AsterWebSocketClient
 import com.aster.service.CommandHandler
+import com.aster.service.execution.ExecutionCoordinator
 import com.aster.service.handlers.AccessibilityHandler
 import com.aster.service.handlers.AlarmHandler
 import com.aster.service.handlers.CameraHandler
@@ -56,6 +57,10 @@ object ModeModule {
 
     @Provides
     @Singleton
+    fun provideExecutions(@ApplicationContext context: Context): ExecutionCoordinator = ExecutionCoordinator(context)
+
+    @Provides
+    @Singleton
     @CommandHandlerMap
     fun provideCommandHandlers(
         @ApplicationContext context: Context,
@@ -63,7 +68,8 @@ object ModeModule {
         interactiveOverlayController: InteractiveOverlayController,
         toolExecutionOverlay: ToolExecutionOverlay,
         companionFaceOverlay: CompanionFaceOverlay,
-        callStateMonitor: CallStateMonitor
+        callStateMonitor: CallStateMonitor,
+        executions: ExecutionCoordinator,
     ): Map<String, @JvmSuppressWildcards CommandHandler> {
         val handlers = mutableMapOf<String, CommandHandler>()
 
@@ -107,7 +113,7 @@ object ModeModule {
         // check used to live. `GuardedCommandHandler.supportedActions()`
         // delegates, so the map is keyed exactly as before.
         allHandlers.forEach { handler ->
-            val guarded = GuardedCommandHandler(handler, packagePolicyGuard)
+            val guarded = GuardedCommandHandler(handler, packagePolicyGuard, executions)
             handler.supportedActions().forEach { action ->
                 handlers[action] = guarded
             }
@@ -121,9 +127,10 @@ object ModeModule {
     fun provideIpcMode(
         @CommandHandlerMap commandHandlers: Map<String, @JvmSuppressWildcards CommandHandler>,
         toolCallLogger: ToolCallLogger,
-        companionFaceOverlay: CompanionFaceOverlay
+        companionFaceOverlay: CompanionFaceOverlay,
+        executions: ExecutionCoordinator,
     ): IpcMode {
-        return IpcMode(commandHandlers, toolCallLogger, companionFaceOverlay)
+        return IpcMode(commandHandlers, toolCallLogger, companionFaceOverlay, executions)
     }
 
     @Provides
@@ -141,8 +148,9 @@ object ModeModule {
     fun provideRemoteWsMode(
         webSocketClient: AsterWebSocketClient,
         @CommandHandlerMap commandHandlers: Map<String, @JvmSuppressWildcards CommandHandler>,
-        toolCallLogger: ToolCallLogger
+        toolCallLogger: ToolCallLogger,
+        executions: ExecutionCoordinator,
     ): RemoteWsMode {
-        return RemoteWsMode(webSocketClient, commandHandlers, toolCallLogger)
+        return RemoteWsMode(webSocketClient, commandHandlers, toolCallLogger, executions)
     }
 }

@@ -295,7 +295,7 @@ class AsterWebSocketClient @Inject constructor(
             override fun onMessage(webSocket: WebSocket, text: String) {
                 if (ReconnectPolicy.shouldIgnoreStale(generation, connectionGeneration.get())) return
                 if (BuildConfig.DEBUG) Log.d(TAG, "Received message (type: ${extractMessageType(text)})")
-                handleMessage(text)
+                handleMessage(text, generation)
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
@@ -372,7 +372,7 @@ class AsterWebSocketClient @Inject constructor(
         }
     }
 
-    private fun handleMessage(text: String) {
+    private fun handleMessage(text: String, generation: Int) {
         try {
             val incoming = json.decodeFromString<IncomingMessage>(text)
 
@@ -382,7 +382,7 @@ class AsterWebSocketClient @Inject constructor(
                     handleAuthResult(authResult)
                 }
                 "command" -> {
-                    val command = json.decodeFromString<Command>(text)
+                    val command = json.decodeFromString<Command>(text).copy(connectionGeneration = generation)
                     if (BuildConfig.DEBUG) Log.d(TAG, "Received command: ${command.action}")
                     scope.launch {
                         _incomingCommands.emit(command)
@@ -473,7 +473,9 @@ class AsterWebSocketClient @Inject constructor(
         }
     }
 
-    fun sendCommandResponse(id: String, success: Boolean, data: kotlinx.serialization.json.JsonElement? = null, error: String? = null) {
+    fun isCurrentCommand(command: Command): Boolean = command.connectionGeneration == connectionGeneration.get()
+
+    fun sendCommandResponse(id: String, success: Boolean, data: kotlinx.serialization.json.JsonElement? = null, error: String? = null, expectedGeneration: Int? = null) {
         val response = CommandResponse(
             id = id,
             success = success,
@@ -482,7 +484,10 @@ class AsterWebSocketClient @Inject constructor(
         )
         val messageJson = json.encodeToString(response)
         if (BuildConfig.DEBUG) Log.d(TAG, "Sending response for command: $id (success: $success)")
-        val sent = webSocket?.send(messageJson) ?: false
+        val destination = synchronized(socketLock) {
+            if (expectedGeneration != null && expectedGeneration != connectionGeneration.get()) null else webSocket
+        }
+        val sent = destination?.send(messageJson) ?: false
         if (!sent) {
             Log.w(TAG, "Failed to send command response for: $id")
         }

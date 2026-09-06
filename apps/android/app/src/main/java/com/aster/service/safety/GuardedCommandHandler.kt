@@ -3,6 +3,7 @@ package com.aster.service.safety
 import com.aster.data.model.Command
 import com.aster.service.CommandHandler
 import com.aster.service.CommandResult
+import com.aster.service.execution.ExecutionCoordinator
 
 /**
  * Decorator that runs [PackagePolicyGuard] in front of EVERY command handler.
@@ -24,11 +25,18 @@ import com.aster.service.CommandResult
 class GuardedCommandHandler(
     private val delegate: CommandHandler,
     private val guard: PackagePolicyGuard,
+    private val executions: ExecutionCoordinator? = null,
 ) : CommandHandler {
 
     override fun supportedActions(): List<String> = delegate.supportedActions()
 
     override suspend fun handle(command: Command): CommandResult {
+        val execution = executions
+        return if (execution == null) handleGuarded(command)
+        else execution.legacy(command.action) { handleGuarded(command) }
+    }
+
+    private suspend fun handleGuarded(command: Command): CommandResult {
         guard.checkAllowed(command.action, PackagePolicyGuard.targetPackageOf(command))
             ?.let { refusal -> return CommandResult.failure(refusal) }
         return delegate.handle(command)

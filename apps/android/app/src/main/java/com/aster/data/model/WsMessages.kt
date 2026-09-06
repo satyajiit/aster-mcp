@@ -2,6 +2,7 @@ package com.aster.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.json.JsonElement
 
 /**
@@ -60,7 +61,9 @@ data class Command(
     val type: String,
     val id: String,
     val action: String,
-    val params: Map<String, JsonElement>? = null
+    val params: Map<String, JsonElement>? = null,
+    /** Native provenance only; never accepted from a peer's JSON. */
+    @Transient val connectionGeneration: Int? = null,
 )
 
 @Serializable

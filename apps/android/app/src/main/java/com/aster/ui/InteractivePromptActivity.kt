@@ -1,6 +1,7 @@
 package com.aster.ui
 
 import android.os.Bundle
+import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -65,12 +66,16 @@ class InteractivePromptActivity : ComponentActivity() {
 
     /** The epoch of the prompt this Activity rendered (review F4/F6). */
     private var promptEpoch: Long = -1
+    private val promptInstance = Any()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
         promptEpoch = intent.getLongExtra(InteractiveOverlayController.EXTRA_EPOCH, -1)
+        // Register even a late, already-cancelled launch. Its onDestroy is the
+        // original execution's child closure, rather than the finish() call.
+        controller.registerActivityFinisher(promptEpoch, promptInstance) { finish() }
         val prompt = controller.pendingPrompt
         if (prompt == null || promptEpoch != controller.liveEpoch) {
             // The prompt resolved (timeout/kill) before we could show, or a newer
@@ -80,7 +85,6 @@ class InteractivePromptActivity : ComponentActivity() {
         }
         // Let the controller's teardown finish us (single finish path). If the
         // prompt already resolved or this is a stale epoch, this finishes now.
-        controller.registerActivityFinisher(promptEpoch) { finish() }
 
         setContent {
             AsterTheme {
@@ -120,8 +124,22 @@ class InteractivePromptActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        controller.clearActivityFinisher(promptEpoch)
         super.onDestroy()
+        val finished = isFinishing && !isChangingConfigurations
+        val decor = window.decorView
+        if (finished && decor.isAttachedToWindow) {
+            // ActivityThread removes the window after onDestroy returns. The
+            // callback alone cannot release the original execution's UI child.
+            decor.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(view: View) = Unit
+                override fun onViewDetachedFromWindow(view: View) {
+                    view.removeOnAttachStateChangeListener(this)
+                    controller.clearActivityFinisher(promptEpoch, promptInstance, finished = true)
+                }
+            })
+        } else {
+            controller.clearActivityFinisher(promptEpoch, promptInstance, finished = finished)
+        }
     }
 }
 

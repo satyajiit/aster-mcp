@@ -21,14 +21,19 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import com.aster.service.execution.ExecutionChildren
 import com.aster.service.overlay.InteractiveOverlayModel.InteractivePrompt
 import com.aster.ui.InteractivePromptActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.coroutineContext
 
 /**
  * App Automations /goal R-C — the blocking interactive-overlay round-trip.
@@ -83,6 +88,8 @@ class InteractiveOverlayController @Inject constructor(
 
     /** Live scrim view (touched on the main thread only). */
     private var overlayView: View? = null
+    private var overlayEpoch: Long = -1
+    private var overlayChild: ExecutionChildren.Child? = null
 
     /**
      * The prompt the [InteractivePromptActivity] fallback should render, and the
@@ -100,6 +107,9 @@ class InteractiveOverlayController @Inject constructor(
     /** The live fallback Activity's finisher, tagged with its prompt epoch. */
     @Volatile private var activityFinisher: (() -> Unit)? = null
     @Volatile private var finisherEpoch: Long = -1
+    private var activityInstance: Any? = null
+    private var activityChild: ExecutionChildren.Child? = null
+    private var activityChildEpoch: Long = -1
 
     /**
      * Show [prompt] and suspend until the owner acts, the kill switch fires, or
@@ -116,14 +126,24 @@ class InteractiveOverlayController @Inject constructor(
             liveEpoch
         }
         try {
-            present(prompt, epoch)
+            val children = coroutineContext[ExecutionChildren]
+            withContext(NonCancellable + Dispatchers.Main.immediate) {
+                present(prompt, epoch, children)
+            }
             return withTimeoutOrNull(prompt.timeoutMs) { deferred.await() }
                 ?: prompt.timeoutResult()
         } finally {
-            teardownUi(epoch)
-            synchronized(lock) {
-                inFlight = null
-                if (liveEpoch == epoch) pendingPrompt = null
+            try {
+                withContext(NonCancellable + Dispatchers.Main.immediate) {
+                    teardownUiOnMain(epoch)
+                }
+            } finally {
+                synchronized(lock) {
+                    if (liveEpoch == epoch) {
+                        inFlight = null
+                        pendingPrompt = null
+                    }
+                }
             }
         }
     }
@@ -154,8 +174,9 @@ class InteractiveOverlayController @Inject constructor(
      * (`inFlight == null`) or this is a stale epoch, the Activity is finished
      * immediately instead.
      */
-    fun registerActivityFinisher(epoch: Long, finisher: () -> Unit) {
+    fun registerActivityFinisher(epoch: Long, instance: Any? = null, finisher: () -> Unit) {
         val finishNow = synchronized(lock) {
+            if (activityChildEpoch == epoch) activityInstance = instance
             if (inFlight == null || epoch != liveEpoch) {
                 true
             } else {
@@ -169,24 +190,39 @@ class InteractiveOverlayController @Inject constructor(
 
     /** Cleared by the fallback Activity in `onDestroy`, but only if it still owns
      *  the slot (a newer prompt's finisher must not be clobbered). */
-    fun clearActivityFinisher(epoch: Long) {
+    fun clearActivityFinisher(epoch: Long, instance: Any? = null, finished: Boolean = true) {
         synchronized(lock) {
+            if (activityInstance != instance) return
             if (finisherEpoch == epoch) {
                 activityFinisher = null
                 finisherEpoch = -1
+            }
+            // Rotation can recreate the same original prompt. Only actual
+            // finishing destruction closes its child, never configuration loss.
+            if (finished && activityChildEpoch == epoch) {
+                activityChild?.complete()
+                activityChild = null
+                activityChildEpoch = -1
+                activityInstance = null
             }
         }
     }
 
     // ── presentation ────────────────────────────────────────────────────────
 
-    private fun present(prompt: InteractivePrompt, epoch: Long) {
+    private fun present(prompt: InteractivePrompt, epoch: Long, children: ExecutionChildren?) {
         if (Settings.canDrawOverlays(context)) {
-            mainHandler.post { showOverlay(prompt) }
+            showOverlay(prompt, epoch, children)
         } else {
             // Fallback surface: a transparent Activity that renders the same
             // prompt and bridges the result back through this singleton. The
             // epoch rides in the Intent so a stale Activity self-finishes.
+            val child = children?.begin()
+            synchronized(lock) {
+                activityChild = child
+                activityChildEpoch = epoch
+                activityInstance = null
+            }
             try {
                 context.startActivity(
                     Intent(context, InteractivePromptActivity::class.java)
@@ -194,6 +230,13 @@ class InteractiveOverlayController @Inject constructor(
                         .putExtra(EXTRA_EPOCH, epoch)
                 )
             } catch (e: Exception) {
+                synchronized(lock) {
+                    if (activityChildEpoch == epoch) {
+                        child?.complete()
+                        activityChild = null
+                        activityChildEpoch = -1
+                    }
+                }
                 Log.w(TAG, "Failed to launch fallback prompt activity", e)
                 deliver(prompt.cancelResult())
             }
@@ -201,6 +244,13 @@ class InteractiveOverlayController @Inject constructor(
     }
 
     private fun teardownUi(epoch: Long) {
+        mainHandler.post {
+            runCatching { teardownUiOnMain(epoch) }
+                .onFailure { Log.w(TAG, "Failed to remove prompt UI", it) }
+        }
+    }
+
+    private fun teardownUiOnMain(epoch: Long) {
         val finisher = synchronized(lock) {
             if (finisherEpoch == epoch) {
                 val f = activityFinisher
@@ -211,26 +261,44 @@ class InteractiveOverlayController @Inject constructor(
                 null
             }
         }
-        mainHandler.post {
+        if (overlayEpoch == epoch) {
             overlayView?.let { v ->
-                try {
-                    windowManager.removeView(v)
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to remove overlay", e)
-                }
+                windowManager.removeViewImmediate(v)
+                // A window removed before its first attachment has no detach
+                // callback. Successful immediate removal also closes that case.
+                if (!v.isAttachedToWindow) overlayChild?.complete()
             }
             overlayView = null
-            finisher?.invoke()
+            overlayEpoch = -1
+            overlayChild = null
         }
+        finisher?.invoke()
     }
 
-    private fun showOverlay(prompt: InteractivePrompt) {
+    private fun showOverlay(prompt: InteractivePrompt, epoch: Long, children: ExecutionChildren?) {
         if (overlayView != null) return
         val root = buildScrim(prompt)
+        val child = children?.begin()
+        root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(view: View) = Unit
+            override fun onViewDetachedFromWindow(view: View) {
+                child?.complete()
+                view.removeOnAttachStateChangeListener(this)
+            }
+        })
         try {
             windowManager.addView(root, scrimLayoutParams())
             overlayView = root
+            overlayEpoch = epoch
+            overlayChild = child
         } catch (e: Exception) {
+            if (!root.isAttachedToWindow) {
+                child?.complete()
+            } else {
+                overlayView = root
+                overlayEpoch = epoch
+                overlayChild = child
+            }
             Log.w(TAG, "Failed to add overlay", e)
             deliver(prompt.cancelResult())
         }
