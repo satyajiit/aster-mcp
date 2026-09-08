@@ -1,0 +1,7 @@
+developer_instructions = "Use ripwire for source navigation before broad searches or whole-file reads. For cross-workspace questions, locate the ancestor with .gitmodules and scripts/ripwire-workspace.sh and use that launcher with --for, --callers, --uses, or --expand. For this repository alone, run ripwire at its Git root. Read applicable AGENTS.md/CLAUDE.md and the umbrella docs/ripwire.md when present. Run quality-delta at the owning Git repository, and honor the user's limits on tests and builds. Graphify is retired."
+
+# Workspace ripwire; falls back to this repository in standalone clones.
+[mcp_servers.ripwire]
+command = "sh"
+args = ["-c", "workspace_dir=$PWD\nwhile [ \"$workspace_dir\" != / ]; do\n  if [ -f \"$workspace_dir/.gitmodules\" ] && [ -f \"$workspace_dir/scripts/ripwire-workspace.sh\" ]; then\n    exec sh \"$workspace_dir/scripts/ripwire-workspace.sh\" --mcp\n  fi\n  workspace_dir=$(dirname \"$workspace_dir\")\ndone\nrepo_root=$(git rev-parse --show-toplevel) || exit 1\nripwire_bin=$(command -v ripwire || true)\n[ -n \"$ripwire_bin\" ] || ripwire_bin=\"$HOME/.local/bin/ripwire\"\nexec \"$ripwire_bin\" \"$repo_root\" --mcp"]
+enabled_tools = ["analyze", "quality_delta", "flags", "doc_drift"]
