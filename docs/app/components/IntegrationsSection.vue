@@ -17,7 +17,12 @@
         <li v-for="client in CLIENTS" :key="client.id">
           <ACard variant="hero" class="!p-6">
             <div class="flex items-start gap-4">
-              <AIconTile :icon="client.icon" :accent="client.accent" :size="40" aria-hidden="true" />
+              <!-- The real mark wins over a generic tile where we own one. The
+                   component carries role="img" aria-label="OpenAlly" of its own, so
+                   aria-hidden is essential here: the client's name is the <h3> right
+                   beside it and a screen reader would otherwise say it twice. -->
+              <OpenAllyMark v-if="client.brand === 'openally'" :size="40" aria-hidden="true" />
+              <AIconTile v-else :icon="client.icon" :accent="client.accent" :size="40" aria-hidden="true" />
               <div class="min-w-0 flex-1">
                 <h3 class="text-base font-semibold text-text-primary">{{ client.name }}</h3>
                 <p class="mt-1.5 text-sm text-text-secondary leading-relaxed">{{ client.body }}</p>

@@ -104,7 +104,7 @@
                 rel="noopener"
                 class="inline-flex items-center gap-1.5 min-h-8 text-text-secondary hover:text-aster transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-aster"
               >
-                <img src="/openally-mark.svg" alt="" width="16" height="16" class="w-4 h-4" />
+                <OpenAllyMark :size="16" aria-hidden="true" />
                 OpenAlly
               </a>
             </li>
@@ -119,8 +119,22 @@
           built by
           <a :href="SITE.authorUrl" target="_blank" rel="noopener" class="text-text-secondary hover:text-aster transition-colors">{{ SITE.author }}</a>
         </p>
-        <p class="text-xs text-text-tertiary">
-          A <a :href="SITE.publisherUrl" target="_blank" rel="noopener" class="text-text-secondary hover:text-aster transition-colors">{{ SITE.publisher }}</a> project
+        <!-- The publisher gets its mark for the same reason OpenAlly does in the
+             list above: "A Matterward Labs project" was the one attribution on the
+             site carrying no visual identity. alt="" because the company name is
+             already the adjacent link text — a name on the mark would make a
+             screen reader say it twice. -->
+        <p class="text-xs text-text-tertiary inline-flex items-center gap-1.5">
+          A
+          <a
+            :href="SITE.publisherUrl"
+            target="_blank"
+            rel="noopener"
+            class="inline-flex items-center gap-1.5 text-text-secondary hover:text-aster transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-aster rounded"
+          >
+            <img src="/matterward-mark.svg" alt="" width="14" height="14" class="w-3.5 h-3.5 shrink-0" />
+            {{ SITE.publisher }}</a>
+          project
         </p>
       </div>
     </div>

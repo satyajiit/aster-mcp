@@ -44,8 +44,19 @@
   </section>
 
   <EmbraceSection />
+
+  <!-- How it works, then what it costs you, then where to go next.
+       Home answered "what is Aster" and "what can it do" and stopped: it named
+       Binder IPC once inside a table, said "no telemetry" once in the closing
+       CTA, and linked to three of its seven child routes not at all. All three
+       sections below render data that already exists — CONNECTION_MODES,
+       SECURITY_PILLARS and the route registry — rather than restating it, so
+       none of them can drift from the pages they summarise. -->
+  <HomeConnectionModes />
   <FeaturesGrid />
+  <HomeSecurityPosture />
   <ScreenshotsSection />
+  <HomeRouteGrid />
   <AuthorSection />
 
   <!-- Closing CTA -->
@@ -91,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-import { routeByPath } from '~/data/routes'
+import { NAV_ROUTES, routeByPath } from '~/data/routes'
 import { DISAMBIGUATION, ENDPOINTS, FACTS, LINKS, QUICK_FACTS, SITE, TOOL_COUNTS, TOOL_PREFIX } from '~/data/site'
 
 const route = routeByPath('/')
@@ -205,6 +216,22 @@ useRouteSeo({
         name: SITE.publisher,
         url: SITE.publisherUrl,
       },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'ItemList',
+      '@id': `${abs('/')}#start-here`,
+      name: 'Aster documentation',
+      description: 'The seven documentation pages, each answering one question end to end.',
+      itemListOrder: 'https://schema.org/ItemListOrderAscending',
+      numberOfItems: NAV_ROUTES.length,
+      itemListElement: NAV_ROUTES.map((r, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        name: r.nav,
+        description: r.description,
+        url: abs(r.path),
+      })),
     },
     {
       '@context': 'https://schema.org',

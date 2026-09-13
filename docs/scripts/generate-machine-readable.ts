@@ -330,6 +330,28 @@ ${FEATURES.map((f) => `### ${f.title}\n\n${f.description}`).join('\n\n')}
 
 ${QUICK_FACTS.map((f) => `- **${f.term}**: ${f.def}`).join('\n')}
 
+## How a command reaches the phone
+
+The phone never accepts a connection — it dials out and holds the socket open, which is why Aster works behind a home router with nothing forwarded. Three transports, and which one you use decides which tool names your client sees.
+
+${CONNECTION_MODES.map((m, i) => `${i + 1}. **${m.name}** (${m.badge}) — ${m.summary} Tools it sees: ${m.toolNamespace}.`).join('\n')}
+
+Each transport is walked end to end, with measured latencies, at ${absUrl('/architecture.md')}.
+
+## What it protects, and what it does not
+
+Aster's own security claims, protections and admitted limits in one list. Each line is a section heading at ${absUrl('/security.md')}, where it is explained in full.
+
+**What it protects:**
+
+${SECURITY_PILLARS.filter((x) => x.kind === 'protection').map((x) => `- ${x.title}`).join('\n')}
+
+**What it does not:**
+
+${SECURITY_PILLARS.filter((x) => x.kind === 'limit').map((x) => `- ${x.title}`).join('\n')}
+
+Both limits are fixable, and ${absUrl('/security.md')} carries the ${HARDENING_STEPS.length} hardening steps plus the reason for each of the ${PERMISSIONS.length} Android permissions.
+
 ## What ships with it
 
 ${INDEX_DASHBOARD_SENTENCE}

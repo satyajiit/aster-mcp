@@ -46,6 +46,21 @@ export interface ClientDef {
   icon: string
   /** CSS colour for the icon tile. A design token, never a raw hex. */
   accent: string
+  /**
+   * Render this client's real brand mark instead of the generic icon tile.
+   *
+   * A discriminator, NOT a file path: the geometry lives in the shared layer's
+   * brand components (packages/aster-ui/app/components/brand/), which are the
+   * single source of truth — OpenAllyMark's path is byte-identical to
+   * OpenAllyWeb's Logo.tsx. Naming a URL here would fork that geometry into a
+   * second copy that nothing keeps in sync.
+   *
+   * Only for marks we actually own. Claude, OpenClaw and AnythingLLM keep a
+   * generic lucide tile on purpose — drawing our own approximation of someone
+   * else's wordmark and shipping it as their brand is not ours to do. `icon`
+   * stays required so every card has a fallback and the twins have a name.
+   */
+  brand?: 'openally'
   href?: string
 }
 
@@ -214,6 +229,7 @@ curl -O ${LINKS.skillRaw}`,
     body: `OpenAlly runs on the same phone and drives Aster over Android Binder IPC — no server, no network hop, nothing to configure. Install both apps, approve the on-device handshake once, and OpenAlly has the full on-device action catalog (${TOOL_COUNTS.onDevice} actions, unprefixed). This is the only path that needs no MCP endpoint at all.`,
     icon: 'lucide:smartphone',
     accent: 'var(--color-primary)',
+    brand: 'openally',
     href: LINKS.openally,
   },
 ]

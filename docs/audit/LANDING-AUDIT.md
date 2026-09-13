@@ -2504,3 +2504,82 @@ non-Google answer engines and for developer ergonomics.
   search engines every other route is a duplicate of the homepage.
 - **Anything published — canonical, `og:url`, sitemap, JSON-LD item URLs, nav hrefs — goes through
   `href()`.** Router paths are for matching and prerendering only.
+
+---
+
+# Round 4 — home length and brand marks
+
+Three owner requests after reviewing the shipped site.
+
+## Home was the shortest page on the site
+
+Measured on the artifact, home was **1,032 words** — shorter than all seven of its own children, on the
+one route that has to answer "what is Aster" for a reader and an answer engine alike. Worse, it
+carried **zero in-content links** to `/use-cases`, `/architecture` and `/faq`: those three were
+reachable only through the top nav (which collapses into a JS drawer on mobile) and the footer.
+
+The round-1 route map had specified "a compact 'Start here' link grid to the seven child routes — also
+guarantees crawlLinks reachability". It was never built. That, plus two genuine content gaps, is what
+went in:
+
+| Section | What it renders | Why it is not duplication |
+|---|---|---|
+| `HomeConnectionModes` | `CONNECTION_MODES` | Home named Binder IPC once, inside the Quick facts table, and never explained the mechanism. This is the same array the twins read |
+| `HomeSecurityPosture` | `SECURITY_PILLARS` titles, split by `kind` | Home said "no telemetry" once, in the closing CTA. Titles only — every description stays on `/security`, so it is a table of contents, not a second copy |
+| `HomeRouteGrid` | `NAV_ROUTES` | Card copy is `description` straight from the route registry — already the meta description, the sitemap entry and the twin front matter for each route |
+
+Every one of the three renders data that already exists rather than restating it, which is the
+property the round-1 audit demanded when it rejected seo-first's nine hand-written teaser blocks as
+"a new maintenance surface and a worse landing page".
+
+`SecurityPillar` gained a `kind: 'protection' | 'limit'` field to make the posture split honest. The
+two limits are deliberately interleaved with the five protections in the source list so that
+`/security` cannot render the wins without the costs; slicing by array index would have silently
+relabelled every pillar the first time someone reordered it.
+
+`twinIndex()` gained both new sections, so `/index.md` still matches the page it twins.
+
+**Result:** home 1,032 → **1,690 words**, 7 → 13 `h2`, and every child route now has at least one
+in-content link from home. A `SiteNavigationElement`-style `ItemList` node was added for the grid.
+
+## Brand marks
+
+- **OpenAlly.** The site already had a forked copy of the mark at `docs/public/openally-mark.svg`
+  while the shared layer shipped `brand/OpenAllyMark.vue`, whose path is byte-identical to
+  OpenAllyWeb's `Logo.tsx`. Two copies of one geometry with nothing keeping them in sync. Both call
+  sites now use the component and the forked SVG is deleted. `ClientDef` gained
+  `brand?: 'openally'` — a **discriminator, not a URL**, so the data layer never forks the geometry
+  again.
+- **Matterward Labs.** "A Matterward Labs project" was the one attribution on the site with no visual
+  identity. `mark-on-dark.svg` copied from `TheAppStackLabsWeb/public/brand/matterward/` into
+  `docs/public/matterward-mark.svg`, `<title>` stripped since it renders decoratively beside its own
+  name.
+
+Both marks are hidden from assistive tech (`aria-hidden` on the component, `alt=""` on the img)
+because the brand name is the adjacent link text in each case — without that, a screen reader says
+"OpenAlly OpenAlly".
+
+Marks are placed **only where the brand is an entity in a visual slot** — the footer links and the
+`/setup` client card. OpenAlly is also named in prose on six routes; those stay plain text. An inline
+logo in the middle of a sentence is noise, and it would not survive into the markdown twins at all.
+Claude, OpenClaw and AnythingLLM keep generic lucide tiles on purpose: drawing our own approximation
+of someone else's wordmark and shipping it as their brand is not ours to do.
+
+## Verified
+
+Re-measured on the artifact, and in a real browser at 1280px and 375px:
+
+```
+defects 0 · broken links 0 · would-301 links 0 · missing images 0
+JSON-LD fragments 168 (0 dangling) · [verify-facts] 4/4 passed
+home: 1 h1, 0 heading-level skips
+horizontal overflow at 375px: none · side gutters 24px on all three new sections
+contrast failures in the new sections: 0 of 0 (WCAG 1.4.3 AA, measured against
+  the composited background, large-text floor applied where it applies)
+OpenAlly mark: 40x40 in the client card — the same slot the other three clients'
+  icon tiles occupy — and aria-hidden in both placements
+```
+
+The three small tap targets in the new sections are inline links inside sentences, which WCAG 2.5.8
+exempts ("the target is in a sentence or its size is otherwise constrained by the line-height of
+non-target text").

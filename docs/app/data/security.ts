@@ -42,6 +42,15 @@ export interface SecurityPillar {
   icon: string
   /** Accent key. SecuritySection.vue maps it to literal Tailwind classes. */
   accent: string
+  /**
+   * Whether this claim is a protection or an admitted limit.
+   *
+   * The list deliberately mixes both, and /security renders them in one run so
+   * the limits cannot be skipped. The home summary needs to tell them apart to
+   * label them honestly, and deriving that from array position would silently
+   * mislabel every pillar the moment someone reorders the list.
+   */
+  kind: 'protection' | 'limit'
 }
 
 export interface PermissionRow {
@@ -69,6 +78,7 @@ export const SECURITY_PILLARS: SecurityPillar[] = [
       'Aster drives the phone through the official Android Accessibility Service API — the same system that powers TalkBack and every screen reader. There is no rooting step, no unlocked bootloader, no shell exploit and no ADB persistence. The service is a toggle in Android Settings that you turn on yourself and can turn off at any time, and Android shows its own warning screen before it will let you enable it.',
     icon: 'lucide:shield-check',
     accent: 'green',
+    kind: 'protection',
   },
   {
     title: 'Self-hosted, no account, no telemetry',
@@ -76,6 +86,7 @@ export const SECURITY_PILLARS: SecurityPillar[] = [
       'The server is an npm package you run on your own machine. There is no sign-up, no licence check, no vendor relay and no analytics call: device records, approvals and logs live in a local SQLite file on that machine. What Aster does not send, nobody can leak. There is exactly one outbound call Aster can make, and it is off until you turn it on: the optional event-forwarding webhook (`aster set-event-forwarding`). Know what it carries before you enable it — six event kinds, to the URL you supply and to nothing else: notification text, SMS sender and body, incoming-call number and resolved contact name, and device connected / disconnected / pairing-required status. Incoming calls in particular default to ON once forwarding is enabled; switch them off with `events.incomingCalls: false` in `~/.aster/event-forwarding.json`. Note the boundary carefully — this is a statement about Aster, not about your AI client. Whatever you type into Claude, OpenClaw or any other MCP client, and whatever the phone returns to it, is sent to that client’s own model provider under that provider’s terms. Aster neither sees nor governs that hop.',
     icon: 'lucide:server',
     accent: 'aster',
+    kind: 'protection',
   },
   {
     title: 'An unapproved device connects, but cannot be commanded',
@@ -83,6 +94,7 @@ export const SECURITY_PILLARS: SecurityPillar[] = [
       'Approval is a gate on commands, not on the socket. A new phone that reaches the server is registered with status “pending”, keeps its WebSocket open and is told the handshake succeeded — it can be listed and named in the dashboard, which is how you recognise it well enough to approve it. What it cannot do is act: every command dispatch checks the device status first and refuses a device that is not approved. Nothing runs on the phone until you press approve.',
     icon: 'lucide:fingerprint',
     accent: 'amber',
+    kind: 'protection',
   },
   {
     title: 'A kill switch you can always reach',
@@ -90,6 +102,7 @@ export const SECURITY_PILLARS: SecurityPillar[] = [
       'While the AI is driving the screen, Aster posts a persistent high-importance notification reading “AI is controlling your phone” with a STOP action. One tap severs the control session and aborts the agent loop within a single action. The notification is deliberately the primary control rather than the on-screen overlay, because the overlay depends on the draw-over-other-apps permission and the notification does not.',
     icon: 'lucide:octagon-x',
     accent: 'rose',
+    kind: 'protection',
   },
   {
     title: 'Banking and payment apps are refused by default',
@@ -97,6 +110,7 @@ export const SECURITY_PILLARS: SecurityPillar[] = [
       'A companion-side guard blocks screen-control actions — tap, type, scroll, gestures, key presses and app launches — whenever the foreground app matches its bundled banking and payments denylist (bank, upi, wallet, payment, phonepe, paytm, paypal, venmo, cashapp, revolut, coinbase, binance and similar). It is fail-closed: if the live foreground package cannot be read at all, a gated action is refused rather than allowed. The guard ships with that denylist already loaded, so it protects a phone that has never synced a policy. Screen reads, device info and Aster’s own prompts stay ungated, because blinding the agent is not the same as protecting you.',
     icon: 'lucide:shield-ban',
     accent: 'red',
+    kind: 'protection',
   },
   {
     title: 'The file tools are not path-scoped — know this before you approve',
@@ -104,6 +118,7 @@ export const SECURITY_PILLARS: SecurityPillar[] = [
       `This is the sharpest edge in Aster, and the previous version of this page described it wrongly. On an approved device the MCP file tools reach any path the app itself can read. ${TOOL_PREFIX}list_files, ${TOOL_PREFIX}read_file, ${TOOL_PREFIX}write_file and ${TOOL_PREFIX}delete_file each take only a device id and a path; there is no folder parameter to narrow, and the app holds MANAGE_EXTERNAL_STORAGE, so an absolute path is used as given. Owner-approved folders are real, but they scope a different surface: the on-device IPC host-directory feature, which serves its own files.read and files.list actions to a local agent such as OpenAlly. Approving a device for MCP is therefore a grant over that device’s storage, not over one folder in it. Approve devices you own, on networks you trust.`,
     icon: 'lucide:folder-open',
     accent: 'orange',
+    kind: 'limit',
   },
   {
     title: 'The device link is plain ws:// by default',
@@ -111,6 +126,7 @@ export const SECURITY_PILLARS: SecurityPillar[] = [
       'The phone-to-server WebSocket is unencrypted. The server opens a plain ws:// listener and terminates no TLS of its own, and the Android app ships a network-security config that permits cleartext, because Android cannot pin a certificate to a bare LAN IP literal. On a home or office network you control, that is a considered trade rather than an oversight. Off it, it is not acceptable: put the phone and the server on a Tailscale tailnet, which carries the same traffic inside an encrypted WireGuard tunnel, needs no port forwarding, and exposes nothing to the public internet. Aster detects the Tailscale CLI and reports the tailnet address for you to use.',
     icon: 'lucide:unlock',
     accent: 'sky',
+    kind: 'limit',
   },
 ]
 
