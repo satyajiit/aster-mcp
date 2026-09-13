@@ -56,6 +56,7 @@
   <FeaturesGrid />
   <HomeSecurityPosture />
   <ScreenshotsSection />
+  <HomeAndroidApp />
   <HomeRouteGrid />
   <AuthorSection />
 
@@ -187,8 +188,12 @@ useRouteSeo({
       applicationCategory: 'UtilitiesApplication',
       operatingSystem: FACTS.androidMinLabel,
       softwareVersion: FACTS.appVersion,
-      downloadUrl: LINKS.releases,
-      installUrl: LINKS.releases,
+      // The same target the visible "Get the APK" button uses. Structured data
+      // that points somewhere the page does not is the kind of mismatch a
+      // rich-result check flags, and it is pointless besides.
+      downloadUrl: LINKS.releasesLatest,
+      installUrl: LINKS.releasesLatest,
+      softwareRequirements: `${FACTS.androidMinLabel}. No root. Sideloaded from GitHub Releases; not distributed through the Google Play Store.`,
       license: 'https://opensource.org/licenses/MIT',
       isAccessibleForFree: true,
       offers: {

@@ -28,6 +28,18 @@ export const SITE = {
 export const LINKS = {
   repo: 'https://github.com/satyajiit/aster-mcp',
   releases: 'https://github.com/satyajiit/aster-mcp/releases',
+  /**
+   * The download target for the companion APK.
+   *
+   * Deliberately /releases/latest and NOT a version-pinned asset URL. The tag
+   * is `v${FACTS.appVersion}` and the asset is `app-release.apk` today, so a
+   * direct link is constructible — but it would 404 for real visitors during
+   * the window where build.gradle.kts has been bumped and the release is not
+   * cut yet, and nothing in the build could catch that (verify-facts.ts is
+   * hermetic and makes no network calls). /releases/latest always resolves, and
+   * it is the page a sideloader wants anyway: release notes beside the APK.
+   */
+  releasesLatest: 'https://github.com/satyajiit/aster-mcp/releases/latest',
   issues: 'https://github.com/satyajiit/aster-mcp/issues',
   npm: 'https://www.npmjs.com/package/aster-mcp',
   clawhub: 'https://clawhub.ai/satyajit/aster',
@@ -70,6 +82,21 @@ export const PORTS = [
   { port: 5988, name: 'API + MCP HTTP', detail: 'Streamable-HTTP MCP endpoint at /mcp; REST API at /api.' },
   { port: 5989, name: 'Web dashboard', detail: 'Device registry, approvals, live screen control, logs.' },
 ] as const
+
+/**
+ * The on-device MCP server's default listening port.
+ *
+ * Not in PORTS above: those three are the Node server's, and in on-device mode
+ * none of them exists. This one belongs to the app.
+ *
+ * Source of truth is the Android app — SettingsDataStore.kt reads
+ * `prefs[Keys.MCP_PORT] ?: 8080` and ConnectionMode.kt declares
+ * `McpConfig(val port: Int = 8080)`. It is a DEFAULT, not a fixed port: the
+ * user can change it on the on-device MCP panel, so always say "default".
+ * scripts/verify-facts.ts re-reads it from the Kotlin, because it was written
+ * out by hand in five separate places before this constant existed.
+ */
+export const ON_DEVICE_PORT = 8080
 
 export const ENDPOINTS = {
   mcp: 'http://localhost:5988/mcp',
@@ -187,7 +214,7 @@ export const CONNECTION_MODES = [
     name: 'On-device MCP server',
     badge: 'Standalone',
     summary:
-      'The app runs its own Streamable-HTTP MCP server (Ktor, default port 8080) on the phone. No desktop server involved.',
+      `The app runs its own Streamable-HTTP MCP server (Ktor, default port ${ON_DEVICE_PORT}) on the phone. No desktop server involved.`,
     toolNamespace: `unprefixed actions (${TOOL_COUNTS.onDevice} in the on-device catalog)`,
   },
   {

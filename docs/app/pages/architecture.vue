@@ -146,7 +146,7 @@
 
         <p class="mt-6 text-[14px] text-text-secondary leading-relaxed max-w-2xl">
           The on-device MCP server is the exception: it runs inside the app on the phone and listens
-          on port 8080, so none of the three ports above exist in that mode. Binder IPC opens no
+          on port {{ ON_DEVICE_PORT }} by default, so none of the three ports above exist in that mode. Binder IPC opens no
           port at all. Installing the server and pointing a client at it is covered on the
           <NuxtLink to="/setup/" class="text-aster underline underline-offset-4 hover:text-text-primary">setup page</NuxtLink>.
         </p>
@@ -158,7 +158,7 @@
 <script setup lang="ts">
 import { WORKED_EXAMPLES } from '~/data/architecture'
 import { routeByPath, href } from '~/data/routes'
-import { ENDPOINTS, FACTS, LINKS, PORTS, SITE, TOOL_COUNTS } from '~/data/site'
+import { ENDPOINTS, FACTS, LINKS, ON_DEVICE_PORT, PORTS, SITE, TOOL_COUNTS } from '~/data/site'
 
 const portsRegion = useScrollableRegion('Ports the Aster server opens')
 

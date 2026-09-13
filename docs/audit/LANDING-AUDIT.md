@@ -2583,3 +2583,65 @@ OpenAlly mark: 40x40 in the client card — the same slot the other three client
 The three small tap targets in the new sections are inline links inside sentences, which WCAG 2.5.8
 exempts ("the target is in a sentence or its size is otherwise constrained by the line-height of
 non-target text").
+
+---
+
+# Round 5 — the standalone Android app
+
+Home described Aster as "an MCP server plus an app" throughout and never said the app is
+independently useful. Measured on the artifact: the **only** link to GitHub Releases anywhere on the
+home route was the footer's "Releases" list item, and no sentence on the page said the phone can
+serve MCP without a Node server. A reader who wanted just the app had no path and no download.
+
+`HomeAndroidApp` covers the artifact rather than the transport — what the APK gives you alone, what
+installing it costs, and where it is. It does not restate `HomeConnectionModes` above it, which is
+about which transport a command travels over.
+
+The download target is **`/releases/latest`**, deliberately not a version-pinned asset URL. The tag
+is `v${FACTS.appVersion}` and the asset is `app-release.apk` today, so a direct link is
+constructible — but it would 404 for real visitors during the window where `build.gradle.kts` has
+been bumped and the release is not cut yet, and nothing in the build could catch it (`verify-facts.ts`
+is hermetic and makes no network calls). `/releases/latest` always resolves and is the page a
+sideloader wants anyway: release notes beside the APK.
+
+Verified over the network before linking: `/releases/latest` → 200, latest tag `v1.7.1` (matching the
+gated `FACTS.appVersion`), one asset `app-release.apk`. The `MobileApplication` JSON-LD node was
+repointed at the same URL, so the structured data and the visible button agree.
+
+## ON_DEVICE_PORT — a sixth number that had drifted into five copies
+
+The on-device MCP port was typed out by hand in **five** places (`architecture.ts`, `site.ts`,
+`architecture.vue`, the generator, and the new section). That is precisely how the 67 got in. It is
+now one constant, and `verify-facts.ts` re-reads it from `SettingsDataStore.kt`
+(`prefs[Keys.MCP_PORT] ?: 8080`), which is the shipped default.
+
+The gate was **negative-tested**, not assumed: setting `ON_DEVICE_PORT = 8081` fails the build with
+`ON_DEVICE_PORT is 8081 but SettingsDataStore.kt defaults the on-device MCP port to 8080`. The check
+count is now 5/5, and it is derived from `EXPECTED.length` rather than a hardcoded `4`, so adding the
+next probe cannot leave the summary line lying.
+
+Note the wording discipline: 8080 is a **default**, not a fixed port — the user can change it on the
+on-device MCP panel — so every surface says "default".
+
+## README correction
+
+`README.md:766` still claimed OpenAlly "has the full 49-tool surface locally" over Binder IPC. That
+is the same 49-vs-77 error corrected everywhere else in round 2; the IPC path exposes the **77**
+unprefixed on-device actions, not the 49 `aster_*` tools. Corrected, and stated as a different set
+rather than a superset.
+
+## Verified
+
+```
+[verify-facts] 5/5 source checks ran and passed
+defects 0 · broken links 0 · would-301 0 · missing images 0 · placeholders 0
+JSON-LD fragments 168 (0 dangling)
+home: 1,690 -> 1,983 words, 14 h2
+CTA: 48px tall, target=_blank rel=noopener, href .../releases/latest
+contrast failures in the new section: 0 · no horizontal overflow at 375px or 1280px
+```
+
+**One defect found in review and fixed:** the facts `<dl>` had only an `sm:`-scoped rule clearing the
+final row's bottom border, so at mobile — where the grid is one column — the last row drew a stray
+rule against the rounded container's edge. It needed both `last:` (one column) and
+`sm:[&:nth-last-child(-n+2)]:` (two columns). Confirmed at both widths after the fix.

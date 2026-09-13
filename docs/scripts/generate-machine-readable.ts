@@ -1,12 +1,13 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { ROUTES, href } from '../app/data/routes'
-import { SITE, LINKS, FACTS, PORTS, ENDPOINTS, PATHS, TOOL_COUNTS, TOOL_PREFIX, CONNECTION_MODES, QUICK_FACTS, DISAMBIGUATION } from '../app/data/site'
+import { SITE, LINKS, FACTS, PORTS, ENDPOINTS, PATHS, TOOL_COUNTS, TOOL_PREFIX, CONNECTION_MODES, QUICK_FACTS, DISAMBIGUATION, ON_DEVICE_PORT } from '../app/data/site'
 import { TOOL_CATEGORIES, ALL_TOOLS } from '../app/data/tools'
 import { ON_DEVICE_CATEGORIES } from '../app/data/on-device'
 import { FEATURES } from '../app/data/features'
 import { USE_CASES, USE_CASES_LEDE, USE_CASES_DISCLAIMER } from '../app/data/use-cases'
 import { PROACTIVE_EVENTS, AI_PHONE_SCENARIOS } from '../app/data/proactive'
+import { ANDROID_APP_FACTS, ANDROID_APP_LEDE, ANDROID_APP_STANDALONE } from '../app/data/android-app'
 import {
   AI_PHONE_LEDE,
   AI_PHONE_NEEDS,
@@ -352,6 +353,16 @@ ${SECURITY_PILLARS.filter((x) => x.kind === 'limit').map((x) => `- ${x.title}`).
 
 Both limits are fixable, and ${absUrl('/security.md')} carries the ${HARDENING_STEPS.length} hardening steps plus the reason for each of the ${PERMISSIONS.length} Android permissions.
 
+## The Android app on its own
+
+${ANDROID_APP_LEDE}
+
+${ANDROID_APP_STANDALONE.map((c) => `### ${c.title}\n\n${c.detail}`).join('\n\n')}
+
+${ANDROID_APP_FACTS.map((f) => `- **${f.term}**: ${f.def}`).join('\n')}
+
+Download: ${LINKS.releasesLatest}
+
 ## What ships with it
 
 ${INDEX_DASHBOARD_SENTENCE}
@@ -563,7 +574,7 @@ const ENDPOINT_ROWS: { term: string; def: string }[] = [
 ]
 
 const PORTS_CAVEAT =
-  'The on-device MCP server is the exception: it runs inside the app on the phone and listens on port 8080, so none of the three ports above exist in that mode. Binder IPC opens no port at all.'
+  `The on-device MCP server is the exception: it runs inside the app on the phone and listens on port ${ON_DEVICE_PORT} by default, so none of the three ports above exist in that mode. Binder IPC opens no port at all.`
 
 function twinArchitecture(): string {
   return `${frontMatter('/architecture')}

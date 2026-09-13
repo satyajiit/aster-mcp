@@ -28,7 +28,7 @@
 // module from Node during the nitro build, where the Nuxt `~` alias does not
 // exist. The generator itself imports the data dir relatively for the same
 // reason. A `~` here builds in dev and fails the production generate.
-import { ENDPOINTS, PORTS, TOOL_COUNTS, TOOL_PREFIX } from './site'
+import { ENDPOINTS, ON_DEVICE_PORT, PORTS, TOOL_COUNTS, TOOL_PREFIX } from './site'
 
 export interface TraceStep {
   /** Who is acting at this hop. */
@@ -130,7 +130,7 @@ export const TRANSPORTS: Transport[] = [
   {
     id: 'mcp',
     name: 'On-device MCP server',
-    host: 'Ktor plus the MCP Kotlin SDK, embedded in the app and running on the phone itself. Default port 8080. No Node server in the middle.',
+    host: `Ktor plus the MCP Kotlin SDK, embedded in the app and running on the phone itself. Default port ${ON_DEVICE_PORT}. No Node server in the middle.`,
     namespace: `unprefixed actions — ${TOOL_COUNTS.onDevice} in the on-device catalog`,
     when: 'You want a client to reach the phone directly, on the LAN or over a private mesh. Trust is whatever your own network controls give you.',
   },

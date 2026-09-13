@@ -763,7 +763,7 @@ Aster automatically detects Tailscale and prints a `wss://<magicdns>` URL for th
   <a href="https://openally.ai"><strong>OpenAlly.ai</strong></a> — the cross-platform AI agent platform Aster was built alongside.
 </p>
 
-Aster also ships as the **end-to-end companion** for the [**OpenAlly.ai**](https://openally.ai) app. OpenAlly drives the phone entirely on-device through Aster's [IPC (Binder) mode](#connection-modes) — no server, no network, nothing leaves the device. It works **out of the box**: install both, approve the on-device handshake once, and OpenAlly has the full 49-tool surface locally.
+Aster also ships as the **end-to-end companion** for the [**OpenAlly.ai**](https://openally.ai) app. OpenAlly drives the phone entirely on-device through Aster's [IPC (Binder) mode](#connection-modes) — no server, no network, nothing leaves the device. It works **out of the box**: install both, approve the on-device handshake once, and OpenAlly has the full on-device surface locally — all **77** unprefixed actions, which is a different and larger set than the 49 `aster_*` tools the Node server registers.
 
 ## Star the repo
 

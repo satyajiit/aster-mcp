@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { FACTS, TOOL_COUNTS, TOOL_PREFIX } from '../app/data/site'
+import { FACTS, ON_DEVICE_PORT, TOOL_COUNTS, TOOL_PREFIX } from '../app/data/site'
 import { ALL_TOOLS } from '../app/data/tools'
 import { ALL_ON_DEVICE_ACTIONS } from '../app/data/on-device'
 
@@ -287,6 +287,23 @@ export async function verifyFacts(publicDir: string): Promise<void> {
     skip('android-versions', 'apps/android/app/build.gradle.kts not found')
   }
 
+  // ------------------------------------------------- on-device MCP port ---
+  // Stated as a default on four surfaces. Before ON_DEVICE_PORT existed it was
+  // typed out by hand in five places, which is exactly how a number drifts.
+  const settings = await read(
+    'apps/android/app/src/main/java/com/aster/data/local/SettingsDataStore.kt',
+  )
+  if (settings) {
+    // `prefs[Keys.MCP_PORT] ?: 8080` — the elvis default is the shipped default.
+    const port = settings.match(/Keys\.MCP_PORT\]\s*\?:\s*(\d+)/)?.[1]
+    check(
+      port === String(ON_DEVICE_PORT),
+      `ON_DEVICE_PORT is ${ON_DEVICE_PORT} but SettingsDataStore.kt defaults the on-device MCP port to ${port ?? '(not found)'}`,
+    )
+  } else {
+    skip('on-device-port', 'SettingsDataStore.kt not found')
+  }
+
   const pkg = await read('mcp/package.json')
   if (pkg) {
     const version = JSON.parse(pkg).version
@@ -330,7 +347,7 @@ export async function verifyFacts(publicDir: string): Promise<void> {
     }
   }
 
-  const EXPECTED = ['mcp-tools', 'on-device-catalogue', 'android-versions', 'server-version']
+  const EXPECTED = ['mcp-tools', 'on-device-catalogue', 'android-versions', 'on-device-port', 'server-version']
   for (const name of EXPECTED) if (!skipped.some((k) => k.startsWith(name))) ran.add(name)
   if (skipped.length && process.env.ASTER_STRICT_FACTS === 'true') {
     problems.push(`${skipped.length} check(s) could not run and ASTER_STRICT_FACTS is set: ${skipped.join('; ')}`)
@@ -343,7 +360,7 @@ export async function verifyFacts(publicDir: string): Promise<void> {
     )
   }
   console.log(
-    `[verify-facts] ${ran.size}/4 source checks ran and passed` +
-      (skipped.length ? ` — NOT VERIFIED: ${skipped.join('; ')}` : ': MCP tools, on-device catalogue, versions, Android floor'),
+    `[verify-facts] ${ran.size}/${EXPECTED.length} source checks ran and passed` +
+      (skipped.length ? ` — NOT VERIFIED: ${skipped.join('; ')}` : ': MCP tools, on-device catalogue, versions, Android floor, on-device port'),
   )
 }
