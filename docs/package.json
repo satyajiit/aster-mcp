@@ -20,7 +20,8 @@
   },
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.88",
-    "@iconify-json/mdi": "^1.2.3"
+    "@iconify-json/mdi": "^1.2.3",
+    "@iconify-json/ph": "^1.2.2"
   },
   "pnpm": {
     "overrides": {

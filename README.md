@@ -17,11 +17,11 @@
   <a href="https://aster.matterwardlabs.com"><img src="https://img.shields.io/badge/website-aster.matterwardlabs.com-2dd4bf?style=flat-square" alt="Website" /></a>
   <a href="https://www.npmjs.com/package/aster-mcp"><img src="https://img.shields.io/npm/v/aster-mcp?style=flat-square&color=blue" alt="npm version" /></a>
   <a href="https://www.npmjs.com/package/aster-mcp"><img src="https://img.shields.io/npm/dm/aster-mcp?style=flat-square&color=green" alt="npm downloads" /></a>
-  <a href="https://github.com/satyajiit/aster-mcp/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" /></a>
+  <a href="https://github.com/satyajiit/aster-mcp/blob/main/mcp/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" /></a>
   <a href="https://clawhub.ai/satyajit/aster"><img src="https://img.shields.io/badge/ClawHub-skill-purple?style=flat-square" alt="ClawHub" /></a>
   <a href="https://openclaw.ai"><img src="https://img.shields.io/badge/OpenClaw-compatible-orange?style=flat-square" alt="OpenClaw" /></a>
   <img src="https://img.shields.io/badge/49-MCP_tools-2dd4bf?style=flat-square" alt="49 MCP tools" />
-  <img src="https://img.shields.io/badge/Android_7%2B-supported-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android 7+" />
+  <img src="https://img.shields.io/badge/Android_8%2B-supported-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android 8+" />
   <img src="https://img.shields.io/badge/no_root-required-ff6b6b?style=flat-square" alt="No root required" />
   <img src="https://img.shields.io/badge/self--hosted-privacy_first-gold?style=flat-square" alt="Self-hosted" />
 </p>
@@ -57,7 +57,7 @@
 
 ---
 
-**Aster** bridges any Android device to AI assistants like Claude through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). Use it as your AI CoPilot on mobile — or plug a spare Android into a charger, install Aster, and give your AI its own device. It can call you, text you, monitor notifications, and act on its own. Screenshots, UI automation, file management, media search, and 49 tools — all through natural language.
+**Aster** bridges any Android device to AI assistants like Claude through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). Use it as your AI CoPilot on mobile — or plug a spare Android into a charger, install Aster, and give your AI its own device. It can call you, text you, monitor notifications, and act on its own. Screenshots, UI automation, file management, media search, and 49 MCP tools — all through natural language.
 
 <table align="center">
   <tr>
@@ -480,7 +480,7 @@ The diagram above is the *default* path, but it's not the only one. The companio
 | **Local MCP Server** | The phone runs its **own** MCP server on-device — embedded **Ktor** + the **MCP Kotlin SDK** (Streamable HTTP), default port `8080`. No Node server in the middle. | You want an MCP client (local, or remote over [Tailscale](#tailscale-support)) to hit the phone **directly**. |
 | **IPC (Binder)** | An app **on the same device** — e.g. the [OpenAlly.ai](https://openally.ai) app — drives Aster over Android **Binder IPC**, with 32-char token auth (constant-time check) plus an on-device approval prompt. Never touches the network. | An on-device agent (like [OpenAlly.ai](https://openally.ai)) controls the phone locally — lowest latency, fully offline. |
 
-All three share the same **49 tools** and the same `CommandHandler` registry — they differ only in *how a client reaches the phone* and *how it's trusted*: the server's device-approval gate (Remote WS), a token + approval prompt (IPC), or your own network controls (Local MCP). The on-device **Kill Switch** and **PackagePolicyGuard** (below) apply in every mode.
+All three run on the same `CommandHandler` registry, but they do **not** expose the same catalogue. Remote WebSocket goes through the Node server, which registers **49 tools**, every one prefixed `aster_`. Local MCP Server and IPC talk to the handler map directly and expose **77 unprefixed actions** instead — a different set, not a superset: 47 names overlap, 29 on-device actions have no `aster_*` equivalent (`observe`, `tap`, `scroll`, the `screen_*` human-in-the-loop verbs, the overlay and companion-face verbs), and exactly one server tool has no on-device action behind it (`aster_list_devices`, which brokers between phones and so means nothing on the phone itself). Full catalogues: <https://aster.matterwardlabs.com/tools/>. They also differ in *how a client reaches the phone* and *how it's trusted*: the server's device-approval gate (Remote WS), a token + approval prompt (IPC), or your own network controls (Local MCP). The on-device **Kill Switch** and **PackagePolicyGuard** (below) apply in every mode.
 
 ## Security & Privacy
 
@@ -652,7 +652,7 @@ Aster/
 ## Requirements
 
 - **Server**: Node.js >= 20
-- **Android**: Android 7.0+ with Accessibility Service enabled
+- **Android**: Android 8.0+ (API 26) with Accessibility Service enabled
 - **Network**: Device and server on same network (or Tailscale)
 
 ## Troubleshooting & FAQ

@@ -129,22 +129,20 @@ body {
 .delay-700 { animation-delay: 700ms; }
 .delay-800 { animation-delay: 800ms; }
 
-/* Terminal styling */
-.terminal {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1.7;
-}
+/* Motion opt-out.
+   tokens.css already clamps every animation to 0.01ms under reduce, which is
+   enough to stop the rotation but still schedules a cycle and leaves the intent
+   implicit in another repo's file. These two decorations carry no information,
+   so state plainly that they do not move — and drop the smooth scroll, which
+   the anchor shim and the in-page nav both trigger. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 
-.terminal .prompt {
-  color: var(--color-aster);
-}
-
-.terminal .comment {
-  color: var(--color-text-tertiary);
-}
-
-.terminal .string {
-  color: #fbbf24;
+  .gradient-border::before,
+  .animate-fade-up {
+    animation: none;
+  }
 }
 

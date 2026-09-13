@@ -1,126 +1,40 @@
 <template>
-  <section id="features" class="relative py-32 px-6">
+  <section id="features" class="relative py-20 sm:py-28 px-6">
     <div class="max-w-6xl mx-auto">
-      <!-- Section header -->
-      <div class="text-center mb-16">
-        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-aster mb-4 block">Capabilities</span>
+      <div class="text-center mb-12">
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-aster mb-4">Capabilities</p>
         <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-primary">
-          49 tools. Your phone or theirs.
+          {{ TOOL_COUNTS.mcpServer }} tools. Your phone, or its own.
         </h2>
-        <p class="mt-4 text-text-secondary max-w-xl mx-auto">
-          Screen control, file management, media intelligence, calls, SMS, and device automation &mdash; whether it's your CoPilot on mobile or your AI is running its own phone.
+        <p class="mt-4 text-text-secondary max-w-2xl mx-auto">
+          Every tool an MCP client sees is namespaced <code class="font-mono text-text-primary">{{ TOOL_PREFIX }}*</code>, so
+          nothing here collides with the other servers you have connected. Eight capability groups are below;
+          <NuxtLink to="/tools/" class="text-aster underline underline-offset-4 hover:text-aster-light">the full list of {{ TOOL_COUNTS.mcpServer }} tools lives on the tools page</NuxtLink>.
         </p>
       </div>
 
-      <!-- Feature cards -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <ul class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <FeatureCard
-          v-for="feature in features"
-          :key="feature.title"
-          v-bind="feature"
+          v-for="feature in FEATURES"
+          :key="feature.id"
+          :icon="feature.icon"
+          :title="feature.title"
+          :description="feature.description"
+          :accent="feature.accent"
         />
-      </div>
+      </ul>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-const features = [
-  {
-    icon: 'lucide:monitor-smartphone',
-    title: 'Screen Control',
-    description: 'Capture screenshots, read the UI tree, tap, swipe, type, and navigate — all through natural language.',
-    accent: 'from-aster to-cyan-400',
-  },
-  {
-    icon: 'lucide:folder-search',
-    title: 'File Management',
-    description: 'List, read, write, delete files. Analyze storage, find large files, and manage your device filesystem.',
-    accent: 'from-amber-400 to-orange-400',
-  },
-  {
-    icon: 'lucide:images',
-    title: 'Media Intelligence',
-    description: 'Search photos with natural language — "trip to Mumbai last month" or "sunset photos near the beach".',
-    accent: 'from-violet-400 to-purple-400',
-  },
-  {
-    icon: 'lucide:bell-ring',
-    title: 'Notifications & SMS',
-    description: 'Read notifications in real-time, access SMS threads, or let your AI monitor its own phone and alert you when something matters.',
-    accent: 'from-rose-400 to-pink-400',
-  },
-  {
-    icon: 'lucide:terminal',
-    title: 'Shell Execution',
-    description: 'Run shell commands within the app sandbox. Launch intents, manage packages, and automate workflows.',
-    accent: 'from-green-400 to-emerald-400',
-  },
-  {
-    icon: 'lucide:volume-2',
-    title: 'Audio & Haptics',
-    description: 'Text-to-speech, audio playback, custom vibration patterns, toast messages, and overlay displays.',
-    accent: 'from-blue-400 to-indigo-400',
-  },
-  {
-    icon: 'lucide:map-pin',
-    title: 'Location & Battery',
-    description: 'GPS coordinates, geocoding, battery health and charge level — all accessible to your AI assistant.',
-    accent: 'from-teal-400 to-cyan-400',
-  },
-  {
-    icon: 'lucide:phone-call',
-    title: 'Calls, SMS & Voice',
-    description: 'Make calls, send SMS, or use make_call_with_voice to dial someone and speak a message via TTS on speakerphone — fully autonomous.',
-    accent: 'from-sky-400 to-blue-400',
-  },
-  {
-    icon: 'lucide:radio',
-    title: 'Proactive Events',
-    description: 'Your AI doesn\'t just wait for commands — it reacts to incoming SMS, notifications, calls, and device events in real-time. Webhooks to OpenClaw or Mattermost.',
-    accent: 'from-fuchsia-400 to-pink-400',
-  },
-  {
-    icon: 'lucide:camera',
-    title: 'Camera & Video',
-    description: 'Take photos or record video remotely. Pet cam, home security, package delivery — your AI\'s eyes are always on.',
-    accent: 'from-orange-400 to-red-400',
-  },
-  {
-    icon: 'lucide:smile',
-    title: 'Companion Face',
-    description: 'An animated on-screen companion that talks along with TTS and reacts to your music — built on a privacy-focused pulse classifier.',
-    accent: 'from-pink-400 to-rose-400',
-  },
-  {
-    icon: 'lucide:clapperboard',
-    title: 'App Automations',
-    description: 'Record a flow on-device — taps, text, even scrolls — with the recording overlay, then let your AI replay it as an automation.',
-    accent: 'from-cyan-400 to-sky-400',
-  },
-  {
-    icon: 'lucide:shield-alert',
-    title: 'Safety Rails',
-    description: 'A persistent kill-switch notification while the AI controls the screen, and a fail-closed policy that blocks banking apps by default.',
-    accent: 'from-red-400 to-rose-400',
-  },
-  {
-    icon: 'lucide:folder-lock',
-    title: 'Owner-Approved Folders',
-    description: 'Share exactly the directories you choose — the AI reads and lists only folders you\'ve explicitly approved.',
-    accent: 'from-lime-400 to-green-400',
-  },
-  {
-    icon: 'lucide:cable',
-    title: 'Three Connection Modes',
-    description: 'Remote WebSocket server, on-device MCP server (Ktor), or zero-network Binder IPC for same-device agents like OpenAlly.',
-    accent: 'from-indigo-400 to-violet-400',
-  },
-  {
-    icon: 'lucide:hand-metal',
-    title: '"Ask All Together"',
-    description: 'One tap on the Permissions screen batches every runtime permission and walks each special-access grant in a guided flow.',
-    accent: 'from-yellow-400 to-amber-400',
-  },
-]
+/**
+ * Eight cards, down from sixteen. The two that were cut outright — "Safety
+ * Rails" and "Owner-Approved Folders" — restated /security almost word for
+ * word, and a visitor asking whether this is safe should be reading that page,
+ * not a card. The rest of what was here is covered on /tools and /architecture.
+ * The card copy itself lives in app/data/features.ts.
+ */
+import { FEATURES } from '~/data/features'
+import { TOOL_COUNTS, TOOL_PREFIX } from '~/data/site'
 </script>

@@ -1,90 +1,69 @@
 <template>
-  <section id="setup" class="relative py-32 px-6">
+  <section id="setup" class="relative py-20 sm:py-24 px-6 scroll-mt-20">
     <div class="max-w-3xl mx-auto">
-      <div class="text-center mb-16">
-        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-aster mb-4 block">Getting Started</span>
-        <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-primary">
-          Up and running in minutes
+      <div class="mb-12">
+        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-aster mb-3 block">Install</span>
+        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight text-text-primary">
+          Six steps, start to first tool call
         </h2>
-        <p class="mt-4 text-text-secondary max-w-xl mx-auto">
-          Four steps to connect any Android device &mdash; your daily phone or a spare one dedicated to your AI.
+        <p class="mt-3 text-text-secondary max-w-2xl">
+          The server runs on your machine, the companion runs on the phone, and your AI client
+          talks to the server. Do them in this order. Step five is the one people skip: an
+          unapproved device connects happily and then times out on every single tool call.
         </p>
       </div>
 
-      <!-- Steps -->
-      <div class="space-y-12">
+      <ol class="space-y-10">
         <SetupStep
-          v-for="(step, i) in steps"
-          :key="i"
+          v-for="(step, i) in SETUP_STEPS"
+          :id="step.id"
+          :key="step.id"
           :number="i + 1"
           :title="step.title"
-          :description="step.description"
-          :is-last="i === steps.length - 1"
+          :body="step.body"
+          :note="step.note"
+          :is-last="i === SETUP_STEPS.length - 1"
         >
-          <!-- Custom description for step 2: companion app with download link -->
-          <p v-if="step.hasCustomDescription" class="text-sm text-text-secondary leading-relaxed -mt-1 mb-1">
-            Download the latest APK from
-            <a href="https://github.com/satyajiit/aster-mcp/releases" target="_blank" rel="noopener" class="text-aster hover:underline font-medium">GitHub Releases</a>
-            or build from source. Grant Accessibility Service permission when prompted.
+          <ACodeBlock v-if="step.command" class="mt-4" :code="step.command" :label="labelFor(step.id)" />
+
+          <p v-if="step.id === 'install-app'" class="mt-4">
+            <a
+              :href="LINKS.releases"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-surface-raised border border-border-subtle text-sm font-medium text-text-primary hover:border-aster transition-colors"
+            >
+              <Icon name="lucide:download" aria-hidden="true" />
+              Download the APK from GitHub Releases
+            </a>
           </p>
 
-          <div v-if="step.code" class="mt-4 rounded-xl bg-surface border border-border-dim overflow-hidden">
-            <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-dim">
-              <span class="w-2.5 h-2.5 rounded-full bg-red-500/60" />
-              <span class="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
-              <span class="w-2.5 h-2.5 rounded-full bg-green-500/60" />
-              <span class="ml-2 text-xs text-text-tertiary font-mono">{{ step.filename }}</span>
-            </div>
-            <pre class="terminal p-4 overflow-x-auto"><code v-html="step.code" /></pre>
-          </div>
+          <p v-if="step.id === 'connect-client'" class="mt-3 text-sm text-text-secondary">
+            Per-client instructions —
+            <a href="#integrations" class="text-aster underline underline-offset-2">Claude, OpenClaw, AnythingLLM and OpenAlly</a>
+            — are below.
+          </p>
         </SetupStep>
-      </div>
+      </ol>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-const steps = [
-  {
-    title: 'Install & start the MCP server',
-    description: 'Install the aster-mcp package from npm globally and start the server. It launches a WebSocket on port 5987 and an MCP HTTP endpoint on port 5988.',
-    filename: 'terminal',
-    code: `<span class="prompt">$</span> <span class="text-text-primary">npm install -g aster-mcp</span>
-<span class="prompt">$</span> <span class="text-text-primary">aster start</span>
-<span class="comment">
-# Server running:
-#   WebSocket  → ws://192.168.1.x:5987
-#   MCP HTTP   → http://localhost:5988/mcp
-#   Dashboard  → http://localhost:5989</span>`,
-  },
-  {
-    title: 'Install the Android companion app',
-    description: '',
-    hasCustomDescription: true,
-    filename: 'permissions',
-    code: `<span class="comment"># Required permissions:</span>
-<span class="text-aster">✓</span> <span class="text-text-secondary">Accessibility Service</span>  <span class="comment">— UI automation</span>
-<span class="text-aster">✓</span> <span class="text-text-secondary">Notification Access</span>   <span class="comment">— read notifications</span>
-<span class="text-aster">✓</span> <span class="text-text-secondary">Location</span>              <span class="comment">— GPS & geocoding</span>
-<span class="text-aster">✓</span> <span class="text-text-secondary">Storage</span>               <span class="comment">— file management</span>
-<span class="text-aster">✓</span> <span class="text-text-secondary">SMS & Phone</span>           <span class="comment">— messages & calls</span>`,
-  },
-  {
-    title: 'Connect device to server',
-    description: 'Open the Aster app, enter your server\'s WebSocket URL, and tap Connect. Approve the device from the web dashboard. Works with your daily phone or a spare Android plugged into a charger as your AI\'s dedicated device.',
-  },
-  {
-    title: 'Configure your AI client',
-    description: 'Add the Aster MCP endpoint to Claude Desktop, Claude Code, or any MCP-compatible client.',
-    filename: '.mcp.json',
-    code: `<span class="text-text-tertiary">{</span>
-  <span class="text-aster">"mcpServers"</span><span class="text-text-tertiary">:</span> <span class="text-text-tertiary">{</span>
-    <span class="text-aster">"aster"</span><span class="text-text-tertiary">:</span> <span class="text-text-tertiary">{</span>
-      <span class="text-violet-400">"type"</span><span class="text-text-tertiary">:</span> <span class="string">"http"</span><span class="text-text-tertiary">,</span>
-      <span class="text-violet-400">"url"</span><span class="text-text-tertiary">:</span> <span class="string">"http://localhost:5988/mcp"</span>
-    <span class="text-text-tertiary">}</span>
-  <span class="text-text-tertiary">}</span>
-<span class="text-text-tertiary">}</span>`,
-  },
-]
+/**
+ * The install procedure, as a real <ol>.
+ *
+ * It used to be a stack of divs holding v-html'd terminal markup, which meant
+ * the page shipped no extractable procedure at all — no list element, and the
+ * commands were unselectable spans rather than copyable code. Every command now
+ * goes through ACodeBlock from the shared aster-ui layer, which carries a copy
+ * button.
+ */
+import { SETUP_STEPS } from '~/data/setup'
+import { LINKS } from '~/data/site'
+
+/** The one step whose "command" is a config file rather than a shell line. */
+function labelFor(id: string): string {
+  return id === 'connect-client' ? '.mcp.json' : 'terminal'
+}
 </script>

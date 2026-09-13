@@ -1,160 +1,97 @@
 <template>
-  <section id="tools" class="relative py-32 px-6">
+  <section id="tools" class="relative py-24 px-6">
     <div class="absolute inset-0 bg-gradient-to-b from-transparent via-aster/[0.015] to-transparent" />
 
     <div class="relative max-w-5xl mx-auto">
-      <div class="text-center mb-16">
-        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-aster mb-4 block">MCP Tools</span>
+      <div class="mb-12 max-w-2xl">
+        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-aster mb-4 block">MCP tools</span>
         <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-primary">
-          49 tools at your AI's fingertips
+          {{ TOOL_COUNTS.mcpServer }} tools, grouped by what they touch
         </h2>
-        <p class="mt-4 text-text-secondary max-w-xl mx-auto">
-          Every tool is exposed via the Model Context Protocol &mdash; compatible with Claude, OpenClaw, and any MCP client.
+        <p class="mt-4 text-text-secondary">
+          Every tool is registered with the <code class="font-mono text-text-primary">{{ TOOL_PREFIX }}</code> prefix, so
+          the callable name is <code class="font-mono text-text-primary">{{ TOOL_PREFIX }}take_screenshot</code> &mdash;
+          <code class="font-mono text-text-primary">take_screenshot</code> on its own will not resolve.
         </p>
       </div>
 
-      <!-- Tool categories -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div
-          v-for="category in categories"
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <section
+          v-for="category in TOOL_CATEGORIES"
           :key="category.name"
-          class="p-5 rounded-2xl bg-surface-raised border border-border-dim"
+          class="p-6 rounded-2xl bg-surface-raised border border-border-dim"
         >
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="category.bg">
-              <Icon :name="category.icon" class="text-sm" :class="category.color" />
-            </div>
-            <h3 class="text-sm font-semibold text-text-primary">{{ category.name }}</h3>
-          </div>
-          <div class="flex flex-wrap gap-1.5">
-            <span
-              v-for="tool in category.tools"
-              :key="tool"
-              class="px-2.5 py-1 rounded-md bg-surface border border-border-dim text-xs font-mono text-text-tertiary hover:text-aster hover:border-aster/20 transition-colors cursor-default"
+          <div class="flex items-start gap-3">
+            <div
+              class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center"
+              :class="ACCENTS[category.accent]?.tile"
             >
-              {{ tool }}
-            </span>
+              <Icon :name="category.icon" class="text-base" :class="ACCENTS[category.accent]?.mark" aria-hidden="true" />
+            </div>
+            <div>
+              <h3 class="text-base font-semibold text-text-primary">
+                {{ category.name }}
+                <span class="ml-1 text-sm font-normal text-text-tertiary">({{ category.tools.length }})</span>
+              </h3>
+              <p class="mt-1 text-sm text-text-secondary">{{ category.blurb }}</p>
+            </div>
           </div>
-        </div>
+
+          <ul class="mt-5 space-y-3">
+            <!-- The id is what makes the ItemList's per-tool `url` resolve, and
+                 what lets anyone (or any answer engine) link to one tool rather
+                 than to a page of 49. -->
+            <li
+              v-for="tool in category.tools"
+              :id="`tool-${TOOL_PREFIX}${tool.name}`"
+              :key="tool.name"
+              class="scroll-mt-24 border-t border-border-dim pt-3"
+            >
+              <code class="block font-mono text-sm text-aster break-all">{{ TOOL_PREFIX }}{{ tool.name }}</code>
+              <p class="mt-1 text-sm text-text-secondary">{{ tool.summary }}</p>
+              <!-- The arguments an MCP client must actually send. /architecture
+                   promised these were here long before they were; without them
+                   "what arguments does aster_send_sms take" was unanswerable on
+                   the one page that should own the answer. Required names are
+                   emphasised, optional ones are not, and a screen reader is told
+                   which is which rather than being left to infer it from weight.
+                   Names come from each tool's inputSchema and are re-checked
+                   against it at build time by scripts/verify-facts.ts. -->
+              <p v-if="tool.args.length" class="mt-1.5 text-xs text-text-tertiary">
+                <span class="sr-only">Arguments: </span>
+                <template v-for="(arg, i) in tool.args" :key="arg.name">
+                  <span v-if="i > 0" aria-hidden="true">, </span><code
+                    class="font-mono"
+                    :class="arg.required ? 'text-text-secondary font-semibold' : 'text-text-tertiary'"
+                  >{{ arg.name }}</code><span class="sr-only">{{ arg.required ? ' (required)' : ' (optional)' }}</span>
+                </template>
+              </p>
+              <p v-else class="mt-1.5 text-xs text-text-tertiary">No arguments.</p>
+            </li>
+          </ul>
+        </section>
       </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-const categories = [
-  {
-    name: 'Screen & Input',
-    icon: 'lucide:monitor',
-    bg: 'bg-aster/10',
-    color: 'text-aster',
-    tools: [
-      'take_screenshot',
-      'get_screen_hierarchy',
-      'find_element',
-      'input_gesture',
-      'input_text',
-      'click_by_text',
-      'click_by_id',
-    ],
-  },
-  {
-    name: 'Navigation & Apps',
-    icon: 'lucide:compass',
-    bg: 'bg-violet-500/10',
-    color: 'text-violet-400',
-    tools: [
-      'global_action',
-      'launch_intent',
-      'list_packages',
-      'list_installed_apps',
-      'execute_shell',
-    ],
-  },
-  {
-    name: 'Files & Storage',
-    icon: 'lucide:hard-drive',
-    bg: 'bg-amber-500/10',
-    color: 'text-amber-400',
-    tools: [
-      'list_files',
-      'read_file',
-      'write_file',
-      'delete_file',
-      'analyze_storage',
-      'find_large_files',
-    ],
-  },
-  {
-    name: 'Media & Camera',
-    icon: 'lucide:image',
-    bg: 'bg-rose-500/10',
-    color: 'text-rose-400',
-    tools: [
-      'search_media',
-      'index_media_metadata',
-      'take_photo',
-      'record_video',
-    ],
-  },
-  {
-    name: 'Communication',
-    icon: 'lucide:message-circle',
-    bg: 'bg-blue-500/10',
-    color: 'text-blue-400',
-    tools: [
-      'read_notifications',
-      'read_sms',
-      'send_sms',
-      'post_notification',
-      'make_call',
-      'make_call_with_voice',
-    ],
-  },
-  {
-    name: 'Contacts',
-    icon: 'lucide:users',
-    bg: 'bg-teal-500/10',
-    color: 'text-teal-400',
-    tools: [
-      'search_contacts',
-      'list_contacts_full',
-      'delete_contacts',
-    ],
-  },
-  {
-    name: 'Audio & Alarms',
-    icon: 'lucide:volume-2',
-    bg: 'bg-green-500/10',
-    color: 'text-green-400',
-    tools: [
-      'speak_tts',
-      'play_audio',
-      'stop_audio',
-      'vibrate',
-      'get_volume',
-      'set_volume',
-      'get_alarms',
-      'set_alarm',
-      'dismiss_alarm',
-      'delete_alarm',
-    ],
-  },
-  {
-    name: 'Device & UI',
-    icon: 'lucide:cpu',
-    bg: 'bg-cyan-500/10',
-    color: 'text-cyan-400',
-    tools: [
-      'list_devices',
-      'get_device_info',
-      'get_battery',
-      'get_location',
-      'get_clipboard',
-      'set_clipboard',
-      'show_overlay',
-      'show_toast',
-    ],
-  },
-]
+import { TOOL_CATEGORIES } from '~/data/tools'
+import { TOOL_PREFIX, TOOL_COUNTS } from '~/data/site'
+
+/**
+ * Palette key → class pair. Kept here, as literal strings, so Tailwind's source
+ * scan sees them; a class assembled from data at runtime would never be built.
+ * Opacity modifiers are on the tile FILL only — never on the icon or on text.
+ */
+const ACCENTS: Record<string, { tile: string; mark: string }> = {
+  aster: { tile: 'bg-aster/10', mark: 'text-aster' },
+  violet: { tile: 'bg-violet-500/10', mark: 'text-violet-400' },
+  amber: { tile: 'bg-amber-500/10', mark: 'text-amber-400' },
+  rose: { tile: 'bg-rose-500/10', mark: 'text-rose-400' },
+  blue: { tile: 'bg-blue-500/10', mark: 'text-blue-400' },
+  teal: { tile: 'bg-teal-500/10', mark: 'text-teal-400' },
+  green: { tile: 'bg-green-500/10', mark: 'text-green-400' },
+  cyan: { tile: 'bg-cyan-500/10', mark: 'text-cyan-400' },
+}
 </script>

@@ -1,137 +1,88 @@
 <template>
-  <section id="integrations" class="relative py-32 px-6">
-    <div class="absolute inset-0 bg-gradient-to-b from-transparent via-violet-500/[0.015] to-transparent" />
-
-    <div class="relative max-w-5xl mx-auto">
-      <div class="text-center mb-16">
-        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-aster mb-4 block">Integrations</span>
-        <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-primary">
-          Works with your favorite AI clients
+  <section id="integrations" class="relative py-20 sm:py-24 px-6 scroll-mt-20">
+    <div class="max-w-3xl mx-auto">
+      <div class="mb-10">
+        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-aster mb-3 block">Clients</span>
+        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight text-text-primary">
+          Connecting your AI client
         </h2>
-        <p class="mt-4 text-text-secondary max-w-xl mx-auto">
-          Aster is compatible with any MCP client. Give Claude, OpenClaw, MoltBot, or ClawBot a CoPilot for your phone &mdash; or let them own one.
+        <p class="mt-3 text-text-secondary max-w-2xl">
+          Aster speaks standard MCP, so there is no Aster-specific plugin to install anywhere.
+          Three of these four paths are the same endpoint written in a different file; the
+          fourth needs no endpoint at all.
         </p>
       </div>
 
-      <!-- Client cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div
-          v-for="client in clients"
-          :key="client.name"
-          class="group p-5 rounded-2xl bg-surface-raised border border-border-dim hover:border-border-subtle transition-all text-center"
-        >
-          <div class="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3" :class="client.bg">
-            <Icon :name="client.icon" class="text-xl" :class="client.color" />
-          </div>
-          <h3 class="text-sm font-semibold text-text-primary mb-1">{{ client.name }}</h3>
-          <p class="text-xs text-text-tertiary leading-relaxed">{{ client.description }}</p>
-        </div>
-      </div>
+      <ul class="space-y-5">
+        <li v-for="client in CLIENTS" :key="client.id">
+          <ACard variant="hero" class="!p-6">
+            <div class="flex items-start gap-4">
+              <AIconTile :icon="client.icon" :accent="client.accent" :size="40" aria-hidden="true" />
+              <div class="min-w-0 flex-1">
+                <h3 class="text-base font-semibold text-text-primary">{{ client.name }}</h3>
+                <p class="mt-1.5 text-sm text-text-secondary leading-relaxed">{{ client.body }}</p>
 
-      <!-- OpenAlly highlight -->
-      <a
-        href="https://openally.ai"
-        target="_blank"
-        rel="noopener"
-        class="group flex flex-col sm:flex-row items-center gap-4 p-5 rounded-2xl bg-surface-raised border border-aster/20 hover:border-aster/40 transition-all mb-12"
-      >
-        <img src="/openally-mark.svg" alt="OpenAlly" class="w-10 h-10 flex-shrink-0" />
-        <div class="text-center sm:text-left">
-          <h3 class="text-sm font-semibold text-text-primary mb-1">OpenAlly — zero-setup, fully on-device</h3>
-          <p class="text-xs text-text-tertiary leading-relaxed">
-            The <span class="text-aster">OpenAlly.ai</span> app drives Aster directly over Android Binder IPC: no server, no network, the full 49-tool surface locally. Install both, approve the handshake once, done.
-          </p>
-        </div>
-        <Icon name="lucide:arrow-up-right" class="text-aster/60 group-hover:text-aster transition-colors ml-auto hidden sm:block" />
-      </a>
+                <ACodeBlock
+                  v-if="client.snippet"
+                  class="mt-4"
+                  :code="client.snippet"
+                  :label="labelFor(client)"
+                />
 
-      <!-- Install methods -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- ClawHub install -->
-        <div class="p-6 rounded-2xl bg-surface-raised border border-border-dim">
-          <div class="flex items-center gap-2 mb-4">
-            <div class="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-              <Icon name="lucide:package" class="text-sm text-purple-400" />
+                <p v-if="client.href" class="mt-4">
+                  <a
+                    :href="client.href"
+                    target="_blank"
+                    rel="noopener"
+                    class="inline-flex items-center gap-1.5 px-3 py-2 -mx-1 rounded-lg text-sm font-medium text-aster hover:bg-aster/10 transition-colors"
+                  >
+                    {{ linkLabel(client) }}
+                    <Icon name="lucide:arrow-up-right" aria-hidden="true" />
+                  </a>
+                </p>
+              </div>
             </div>
-            <h3 class="text-sm font-semibold text-text-primary">Install via ClawHub</h3>
-          </div>
-          <p class="text-xs text-text-secondary mb-3">
-            Available as a skill on <a href="https://clawhub.ai/satyajit/aster" target="_blank" rel="noopener" class="text-aster hover:underline">ClawHub</a> for OpenClaw, MoltBot, and ClawBot.
-          </p>
-          <div class="rounded-lg bg-surface border border-border-dim overflow-hidden">
-            <div class="flex items-center gap-2 px-3 py-2 border-b border-border-dim">
-              <span class="w-2 h-2 rounded-full bg-red-500/60" />
-              <span class="w-2 h-2 rounded-full bg-yellow-500/60" />
-              <span class="w-2 h-2 rounded-full bg-green-500/60" />
-            </div>
-            <pre class="terminal p-3 text-xs"><code><span class="prompt">$</span> <span class="text-text-primary">clawhub install aster</span></code></pre>
-          </div>
-        </div>
+          </ACard>
+        </li>
+      </ul>
 
-        <!-- Direct skill install -->
-        <div class="p-6 rounded-2xl bg-surface-raised border border-border-dim">
-          <div class="flex items-center gap-2 mb-4">
-            <div class="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center">
-              <Icon name="lucide:link" class="text-sm text-orange-400" />
-            </div>
-            <h3 class="text-sm font-semibold text-text-primary">Install via direct link</h3>
-          </div>
-          <p class="text-xs text-text-secondary mb-3">
-            Install the skill directly from the GitHub repository raw link for any compatible client.
-          </p>
-          <div class="rounded-lg bg-surface border border-border-dim overflow-hidden">
-            <div class="flex items-center gap-2 px-3 py-2 border-b border-border-dim">
-              <span class="w-2 h-2 rounded-full bg-red-500/60" />
-              <span class="w-2 h-2 rounded-full bg-yellow-500/60" />
-              <span class="w-2 h-2 rounded-full bg-green-500/60" />
-            </div>
-            <pre class="terminal p-3 text-xs overflow-x-auto"><code><span class="comment"># Raw skill link:</span>
-<span class="text-text-secondary break-all">https://raw.githubusercontent.com/satyajiit/Aster/main/skill/SKILL.md</span></code></pre>
-          </div>
-        </div>
-      </div>
-
-      <!-- npm badge -->
-      <div class="mt-8 text-center">
-        <div class="inline-flex flex-wrap items-center justify-center gap-2 sm:gap-3 px-4 sm:px-5 py-3 rounded-xl bg-surface-raised border border-border-dim max-w-full">
-          <Icon name="lucide:box" class="text-aster" />
-          <span class="text-sm text-text-secondary">Also available on npm:</span>
-          <code class="text-sm font-mono text-aster break-all">npm install -g aster-mcp</code>
-        </div>
-      </div>
+      <p class="mt-8 text-sm text-text-tertiary">
+        Every path above reaches the same {{ TOOL_COUNTS.mcpServer }} server-side tools except
+        OpenAlly, which talks to the phone directly and therefore sees the on-device catalog
+        instead. The server itself is on npm as
+        <a :href="LINKS.npm" target="_blank" rel="noopener" class="text-aster underline underline-offset-2">{{ FACTS.npmPackage }}</a>.
+      </p>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-const clients = [
-  {
-    name: 'Claude',
-    icon: 'lucide:brain',
-    bg: 'bg-amber-500/10',
-    color: 'text-amber-400',
-    description: 'Claude Desktop & Claude Code via MCP',
-  },
-  {
-    name: 'OpenClaw',
-    icon: 'lucide:terminal-square',
-    bg: 'bg-orange-500/10',
-    color: 'text-orange-400',
-    description: 'Install as a ClawHub skill',
-  },
-  {
-    name: 'MoltBot',
-    icon: 'lucide:bot',
-    bg: 'bg-blue-500/10',
-    color: 'text-blue-400',
-    description: 'Add via ClawHub or direct skill link',
-  },
-  {
-    name: 'ClawBot',
-    icon: 'lucide:cog',
-    bg: 'bg-purple-500/10',
-    color: 'text-purple-400',
-    description: 'Compatible via MCP or ClawHub skill',
-  },
-]
+/**
+ * The client matrix for /setup.
+ *
+ * The previous version hard-coded a raw ClawHub SKILL.md URL under a
+ * capital-Aster repo path as one of only two documented install paths for
+ * OpenClaw-family clients. No such repo exists — the repo is `aster-mcp` — so
+ * that URL was a hard 404. The working one lives in LINKS.skillRaw, which is
+ * now the only place it is written down; do not re-spell it here.
+ */
+import { CLIENTS, type ClientDef } from '~/data/setup'
+import { FACTS, LINKS, TOOL_COUNTS } from '~/data/site'
+
+function labelFor(client: ClientDef): string {
+  if (client.lang === 'json') return '.mcp.json'
+  if (client.lang === 'text') return 'endpoint'
+  return 'terminal'
+}
+
+function linkLabel(client: ClientDef): string {
+  switch (client.id) {
+    case 'openally':
+      return 'OpenAlly.ai'
+    case 'openclaw':
+      return 'The Aster skill on ClawHub'
+    default:
+      return client.name
+  }
+}
 </script>

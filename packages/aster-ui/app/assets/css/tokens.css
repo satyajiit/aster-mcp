@@ -26,7 +26,7 @@
   /* ---- Foreground ---- */
   --color-fg: #ecf0f6;
   --color-fg-subtle: #7b8ba2;
-  --color-fg-muted: #4a5670;
+  --color-fg-muted: #8a93a8;   /* WCAG 1.4.3: 6.56:1 on --color-bg, 5.39:1 on --color-surface-3 */
 
   /* ---- Brand accent ---- */
   --color-primary: #2dd4bf;
@@ -171,7 +171,7 @@
 
   --color-fg: #0c1222;
   --color-fg-subtle: #4a5568;
-  --color-fg-muted: #90a1b5;
+  --color-fg-muted: #5c6b80;   /* WCAG 1.4.3: 5.18:1 on --color-bg */
 
   --color-primary: #0d9488;
   --color-accent: #10b981;
@@ -191,7 +191,7 @@
 
     --color-fg: #0c1222;
     --color-fg-subtle: #4a5568;
-    --color-fg-muted: #90a1b5;
+    --color-fg-muted: #5c6b80;   /* WCAG 1.4.3: 5.18:1 on --color-bg */
 
     --color-primary: #0d9488;
     --color-accent: #10b981;

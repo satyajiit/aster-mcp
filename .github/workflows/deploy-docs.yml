@@ -3,7 +3,16 @@ name: Deploy Docs to GitHub Pages
 on:
   push:
     branches: [main]
-    paths: [docs/**, .github/workflows/deploy-docs.yml]
+    # The site quotes tool names, counts and versions straight out of these
+    # trees, and docs/scripts/verify-facts.ts fails the build when they drift —
+    # so a change to the product has to be able to trigger a docs rebuild.
+    paths:
+      - docs/**
+      - .github/workflows/deploy-docs.yml
+      - mcp/package.json
+      - mcp/src/mcp/tools.ts
+      - apps/android/app/build.gradle.kts
+      - apps/android/app/src/main/java/com/aster/service/handlers/**
   workflow_dispatch:
 
 permissions:
@@ -40,6 +49,11 @@ jobs:
         working-directory: docs
         env:
           GITHUB_PAGES: 'true'
+          # actions/checkout gives us mcp/ and apps/android/, so every source
+          # probe in docs/scripts/verify-facts.ts must resolve. Strict mode turns
+          # a skipped check into a build failure, so the gate cannot quietly
+          # degrade to verifying nothing.
+          ASTER_STRICT_FACTS: 'true'
 
       - uses: actions/upload-pages-artifact@v3
         with:
