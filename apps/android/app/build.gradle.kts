@@ -77,6 +77,14 @@ android {
         unitTests {
             // Robolectric: real android.graphics (Rect/Paint/Color) for the Screen* JVM tests.
             isIncludeAndroidResources = true
+            // Print a failing test's exception message and cause in CI logs,
+            // not just the class and line.
+            all {
+                it.testLogging {
+                    events("failed")
+                    exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+                }
+            }
         }
     }
 }
