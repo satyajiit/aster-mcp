@@ -67,7 +67,9 @@ internal class ExecutionJournal internal constructor(
         try {
             db.rawQuery("PRAGMA journal_mode=DELETE", null).use { it.moveToFirst() }
             db.execSQL("PRAGMA synchronous=FULL")
-            db.execSQL("PRAGMA busy_timeout=5000")
+            // busy_timeout answers with a row, and execSQL throws on any statement
+            // that returns one ("Queries can be performed using ... rawQuery").
+            db.rawQuery("PRAGMA busy_timeout=5000", null).use { it.moveToFirst() }
             db.execSQL("CREATE TABLE IF NOT EXISTS execution_meta (key TEXT PRIMARY KEY,value TEXT NOT NULL)")
             db.execSQL("CREATE TABLE IF NOT EXISTS executions (id TEXT PRIMARY KEY,owner TEXT NOT NULL,query_json TEXT NOT NULL,state TEXT NOT NULL,closed_at_ms INTEGER,result_hash TEXT,result_cipher BLOB,result_bytes INTEGER NOT NULL DEFAULT 0)")
             db.execSQL("CREATE TABLE IF NOT EXISTS legacy_flight (id TEXT PRIMARY KEY,boot_id TEXT NOT NULL)")
