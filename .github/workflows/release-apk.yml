@@ -56,6 +56,12 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # The unit and AIDL-contract tests gate the release: a companion that
+      # fails them must never reach the Releases page users install from.
+      - name: Run unit tests
+        working-directory: apps/android
+        run: ./gradlew testDebugUnitTest
+
       - name: Decode keystore
         run: echo "$KEYSTORE_B64" | base64 -d > apps/android/aster-release.jks
         env:
