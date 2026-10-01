@@ -240,7 +240,10 @@ internal class ExecutionJournal internal constructor(
     companion object {
         private fun stabilizeFile(file: File) {
             RandomAccessFile(file, "rw").use { it.fd.sync() }
-            val descriptor = Os.open(file.parentFile!!.absolutePath, OsConstants.O_RDONLY or OsConstants.O_DIRECTORY, 0)
+            // android.system.OsConstants has no O_DIRECTORY; Linux opens a
+            // directory read-only without it, and fsync on that descriptor is
+            // what makes the rename durable.
+            val descriptor = Os.open(file.parentFile!!.absolutePath, OsConstants.O_RDONLY, 0)
             try { Os.fsync(descriptor) } finally { Os.close(descriptor) }
         }
     }
