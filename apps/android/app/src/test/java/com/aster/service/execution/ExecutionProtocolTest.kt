@@ -34,7 +34,10 @@ class ExecutionProtocolTest {
         assertTrue(allowed("{\"action\":\"launch_intent\",\"params\":{\"package\":\"org.example\"}}"))
         assertFalse(allowed("{\"action\":\"launch_intent\",\"params\":{\"package\":\"org.example\",\"data\":\"secret\"}}"))
         assertFalse(allowed("{\"action\":\"execute_shell\",\"params\":{}}"))
-        assertFalse(allowed("{\"action\":\"screen_approve\",\"params\":{}}"))
+        // The four owner dialogs are audited tracked actions (the kernel's
+        // is_tracked_device_action lists them); unaudited verbs are not.
+        assertTrue(allowed("{\"action\":\"screen_approve\",\"params\":{}}"))
+        assertFalse(allowed("{\"action\":\"read_sms\",\"params\":{}}"))
     }
 
     @Test fun byteBoundAppliesToDecodedUnicodePayload() {
