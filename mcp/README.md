@@ -340,7 +340,7 @@ aster set-event-forwarding
 | **Device** | `list_devices`, `get_device_info`, `get_battery`, `get_location` |
 | **Notifications & SMS** | `read_notifications`, `read_sms`, `send_sms`, `post_notification` |
 | **Calls** | `make_call`, `make_call_with_voice` |
-| **Contacts** | `search_contacts`, `list_contacts_full`, `delete_contacts` |
+| **Contacts** | `search_contacts`, `list_contacts_full`, `delete_contacts`, `delete_contacts_verified` |
 | **Files** | `list_files`, `read_file`, `write_file`, `delete_file` |
 | **Storage & Media** | `analyze_storage`, `find_large_files`, `index_media_metadata`, `search_media` |
 | **Camera** | `take_photo`, `record_video` |

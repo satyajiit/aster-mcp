@@ -21,7 +21,7 @@
  * payment), CapabilityHandler.kt serves `screen_capability` (preflight) and
  * PolicyHandler.kt serves `screen_set_policy`. The replay engine that drives
  * them lives in OpenAlly's kernel, not in Aster. All six are on-device only —
- * they are in the 77-action catalogue and NOT among the 49 MCP tools, so the
+ * they are in the 78-action catalogue and NOT among the 49 MCP tools, so the
  * card must not imply an MCP client can call them.
  *
  * Tool names printed in a description MUST carry the aster_ prefix — that is

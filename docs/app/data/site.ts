@@ -112,14 +112,14 @@ export const ENDPOINTS = {
  * - mcpServer: `grep -c "name: 'aster_" mcp/src/mcp/tools.ts` → 49. These are
  *   the names an MCP client displays, and they all carry the `aster_` prefix.
  *
- * - onDevice: 77. The authority is NOT ToolCatalog.kt (that file only carries
+ * - onDevice: 78. The authority is NOT ToolCatalog.kt (that file only carries
  *   display metadata, 69 rows, and is used to label the app's own dashboard).
  *   It is the handler map built in apps/android/.../di/ModeModule.kt →
  *   provideCommandHandlers(), which registers 24 handlers and keys the map by
- *   every name each one returns from supportedActions(); the union is 77 unique
+ *   every name each one returns from supportedActions(); the union is 78 unique
  *   actions. Both on-device surfaces expose exactly that map: McpMode calls
  *   McpToolRegistry.registerTools(commandHandlers.keys) so the on-device Ktor
- *   MCP server advertises all 77, and IpcMode dispatches Binder calls through
+ *   MCP server advertises all 78, and IpcMode dispatches Binder calls through
  *   the same map.
  *
  *   Do NOT re-derive this by eye. docs/scripts/verify-facts.ts recomputes it
@@ -135,16 +135,18 @@ export const ENDPOINTS = {
  *        with an aster_* tool, and click_by_view_id is reached by
  *        aster_click_by_id, which is a rename rather than an extra capability
  *        (mcp/src/mcp/handler.ts → sendCommand(deviceId, 'click_by_view_id', …)).
- *     29 on-device actions no MCP client can reach — observe, tap, scroll,
+ *     30 on-device actions no MCP client can reach — observe, tap, scroll,
  *        set_text, set_toggle, perform, press_key, wait_for, wait_for_idle,
  *        long_press, get_now_playing, count_sms, the notification-dismissal
  *        pair, three of the four overlay verbs (show_overlay IS reachable), the
  *        four companion_overlay_* verbs, the six screen_* control verbs, and
- *        the two dotted files.* host-directory actions.
+ *        the two dotted files.* host-directory actions, and
+ *        delete_contacts_verified (the name-checked delete OpenAlly sends
+ *        after its owner approves a contacts clean-up).
  *      1 server tool has no on-device action behind it: aster_list_devices (it
  *        brokers between phones, which is meaningless on the phone itself).
  *
- *   Both sums close: 48 + 29 = 77, and 48 + 1 = 49. An earlier revision defined
+ *   Both sums close: 48 + 30 = 78, and 48 + 1 = 49. An earlier revision defined
  *   `shared` as name equality (47), which made the published prose read
  *   "47 appear in both … 29 unreachable … 1 server-only" — 76 and 48, neither of
  *   which is a catalogue size. verify-facts.ts now derives `shared` from the
@@ -153,14 +155,14 @@ export const ENDPOINTS = {
  */
 export const TOOL_COUNTS = {
   mcpServer: 49,
-  onDevice: 77,
+  onDevice: 78,
   /**
    * On-device actions an MCP client can reach. Counted by reachability, not by
    * name: 47 identical names plus click_by_view_id via aster_click_by_id.
    */
   shared: 48,
   /** On-device actions with no `aster_*` equivalent. */
-  onDeviceOnly: 29,
+  onDeviceOnly: 30,
   /** Server tools with no on-device action behind them: aster_list_devices. */
   serverOnly: 1,
 } as const

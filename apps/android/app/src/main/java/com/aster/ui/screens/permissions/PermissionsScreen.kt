@@ -309,12 +309,15 @@ fun PermissionsScreen(
                     PermissionItem(
                         icon = FeatherIcons.Users,
                         name = "Contacts",
-                        description = "Search and read device contacts",
+                        description = "Search contacts and remove duplicates you approve",
                         isGranted = permissionResult.permissions[PermissionType.CONTACTS] == true,
                         accentColor = colors.info,
                         onGrant = {
                             permissionLauncher.launch(
-                                arrayOf(Manifest.permission.READ_CONTACTS)
+                                arrayOf(
+                                    Manifest.permission.READ_CONTACTS,
+                                    Manifest.permission.WRITE_CONTACTS
+                                )
                             )
                         }
                     )

@@ -1,5 +1,6 @@
 package com.aster.service.handlers
 
+import android.content.ContentProviderOperation
 import android.content.Context
 import android.net.Uri
 import android.provider.ContactsContract
@@ -16,7 +17,8 @@ class ContactHandler(
     override fun supportedActions() = listOf(
         "search_contacts",
         "list_contacts_full",
-        "delete_contacts"
+        "delete_contacts",
+        "delete_contacts_verified"
     )
 
     override suspend fun handle(command: Command): CommandResult {
@@ -24,6 +26,7 @@ class ContactHandler(
             "search_contacts" -> searchContacts(command)
             "list_contacts_full" -> listContactsFull(command)
             "delete_contacts" -> deleteContacts(command)
+            "delete_contacts_verified" -> deleteContactsVerified(command)
             else -> CommandResult.failure("Unknown action: ${command.action}")
         }
     }
@@ -340,9 +343,11 @@ class ContactHandler(
      * delete every `RawContacts` row whose `CONTACT_ID` matches (a contact is
      * an aggregate of raw contacts), which removes the contact device-wide.
      * Requires `WRITE_CONTACTS`. Returns the count deleted plus a per-id
-     * failure list so a partial batch surfaces honestly. This is the
-     * companion leg behind the kernel's owner-confirmed `contacts_delete`
-     * (the kernel re-validates and only fires this on an owner Confirm in P7).
+     * failure list so a partial batch surfaces honestly.
+     *
+     * The MCP server's `aster_delete_contacts` (a human at the dashboard).
+     * OpenAlly never calls this one: it uses [deleteContactsVerified], which
+     * checks who each id is before deleting it.
      */
     private fun deleteContacts(command: Command): CommandResult {
         if (ContextCompat.checkSelfPermission(
@@ -396,5 +401,197 @@ class ContactHandler(
             put("deleted", deleted)
             put("failed", buildJsonArray { failed.forEach { add(it) } })
         })
+    }
+
+    /**
+     * `delete_contacts_verified` — the delete OpenAlly sends after its owner
+     * tapped **Delete** on a card that listed every contact by name
+     * (OA-2026-0207). Params: `ids` and `expect` (`[{id, display_name}]`, one
+     * per id). Answers `{deleted_ids, failed: [{id, reason}], permission_needed}`
+     * with `reason` from [ContactDeletePlanner]'s closed set.
+     *
+     * - **Permission.** Needs `WRITE_CONTACTS` (and `READ_CONTACTS` to check
+     *   names first). A missing grant deletes nothing and says so with a typed
+     *   `permission_needed` flag rather than a sentence, so OpenAlly can tell
+     *   the owner to open Aster and allow Contacts.
+     * - **Identity.** Each id is re-read (`LOOKUP_KEY`, display name) and
+     *   deleted only if its name still matches what the owner approved, through
+     *   `Contacts.getLookupUri(id, lookupKey)` — the provider's stable handle
+     *   for a contact whose `_ID` may have changed.
+     * - **Batch.** One `applyBatch` with a yield point after every contact: the
+     *   Contacts Provider guide recommends batch mode, and a yield point makes
+     *   each contact its own atomic unit ("all accesses between two yield points
+     *   will either succeed or fail as a single unit") while keeping the
+     *   provider's 500-operations-between-yield-points ceiling out of reach. If
+     *   a chunk throws, it is retried one contact at a time so the report says
+     *   exactly which ones went.
+     *
+     * Deleting a contact removes all its raw contacts; account sync adapters
+     * (e.g. Google) then remove them server-side too — OpenAlly's card says so.
+     * https://developer.android.com/identity/providers/contacts-provider
+     */
+    private fun deleteContactsVerified(command: Command): CommandResult {
+        val params = command.params
+            ?: return CommandResult.failure("Provide 'ids' and 'expect'")
+        val ids = params["ids"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }
+            ?: return CommandResult.failure("Provide 'ids' (array of contact ids)")
+        val expectByIdMap = params["expect"]?.jsonArray
+            ?.mapNotNull { entry ->
+                val obj = entry as? JsonObject ?: return@mapNotNull null
+                val id = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                // Nested keys are not covered by WireParams' top-level aliasing.
+                val name = (obj["display_name"] ?: obj["displayName"])
+                    ?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                id to name
+            }
+            ?.toMap()
+            ?: return CommandResult.failure("Provide 'expect' (array of {id, display_name})")
+        if (ids.isEmpty()) return CommandResult.failure("'ids' must not be empty")
+        if (ids.size > MAX_VERIFIED_DELETE) {
+            return CommandResult.failure("At most $MAX_VERIFIED_DELETE contacts per call")
+        }
+        // Every id must carry the name the owner approved. An id without one is
+        // refused outright rather than deleted unchecked.
+        val missingExpectation = ids.filter { it !in expectByIdMap }
+        if (missingExpectation.isNotEmpty()) {
+            return CommandResult.failure("Every id needs an 'expect' entry")
+        }
+
+        val canRead = granted(android.Manifest.permission.READ_CONTACTS)
+        val canWrite = granted(android.Manifest.permission.WRITE_CONTACTS)
+        if (!canRead || !canWrite) {
+            return CommandResult.success(verifiedReply(
+                deleted = emptyList(),
+                failed = ids.distinct().map { it to ContactDeletePlanner.PERMISSION_NEEDED },
+                permissionNeeded = true
+            ))
+        }
+
+        return try {
+            val expected = ids.distinct().map { it to expectByIdMap.getValue(it) }
+            val plan = ContactDeletePlanner.plan(expected, currentContacts(expected.map { it.first }))
+            val deleted = mutableListOf<String>()
+            val failed = plan.refused.map { it.id to it.reason }.toMutableList()
+            var permissionNeeded = false
+            for (chunk in plan.toDelete.chunked(DELETE_CHUNK)) {
+                val outcome = applyDeletes(chunk)
+                deleted += outcome.first
+                failed += outcome.second
+                if (outcome.second.any { it.second == ContactDeletePlanner.PERMISSION_NEEDED }) {
+                    permissionNeeded = true
+                }
+            }
+            CommandResult.success(verifiedReply(deleted, failed, permissionNeeded && deleted.isEmpty()))
+        } catch (e: SecurityException) {
+            CommandResult.success(verifiedReply(
+                deleted = emptyList(),
+                failed = ids.distinct().map { it to ContactDeletePlanner.PERMISSION_NEEDED },
+                permissionNeeded = true
+            ))
+        } catch (e: Exception) {
+            CommandResult.failure("Failed to delete contacts: ${e.message}")
+        }
+    }
+
+    private fun granted(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(context, permission) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    /** `_ID → (LOOKUP_KEY, DISPLAY_NAME_PRIMARY)` for the ids that still exist. */
+    private fun currentContacts(ids: List<String>): Map<String, ContactDeletePlanner.CurrentContact> {
+        val out = mutableMapOf<String, ContactDeletePlanner.CurrentContact>()
+        // Bounded by MAX_VERIFIED_DELETE, far below SQLite's bound-parameter cap.
+        val placeholders = ids.joinToString(",") { "?" }
+        context.contentResolver.query(
+            ContactsContract.Contacts.CONTENT_URI,
+            arrayOf(
+                ContactsContract.Contacts._ID,
+                ContactsContract.Contacts.LOOKUP_KEY,
+                ContactsContract.Contacts.DISPLAY_NAME_PRIMARY
+            ),
+            "${ContactsContract.Contacts._ID} IN ($placeholders)",
+            ids.toTypedArray(),
+            null
+        )?.use { c ->
+            val idIdx = c.getColumnIndexOrThrow(ContactsContract.Contacts._ID)
+            val keyIdx = c.getColumnIndexOrThrow(ContactsContract.Contacts.LOOKUP_KEY)
+            val nameIdx = c.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY)
+            while (c.moveToNext()) {
+                out[c.getLong(idIdx).toString()] = ContactDeletePlanner.CurrentContact(
+                    lookupKey = c.getString(keyIdx),
+                    displayName = c.getString(nameIdx)
+                )
+            }
+        }
+        return out
+    }
+
+    private fun lookupUri(p: ContactDeletePlanner.Planned): Uri =
+        ContactsContract.Contacts.getLookupUri(p.id.toLong(), p.lookupKey)
+
+    /**
+     * Delete one chunk in a single batch; on any batch failure, fall back to
+     * one-at-a-time so each contact gets its own answer.
+     */
+    private fun applyDeletes(
+        chunk: List<ContactDeletePlanner.Planned>
+    ): Pair<List<String>, List<Pair<String, String>>> {
+        val deleted = mutableListOf<String>()
+        val failed = mutableListOf<Pair<String, String>>()
+        try {
+            val ops = ArrayList<ContentProviderOperation>(chunk.size)
+            for (p in chunk) {
+                ops += ContentProviderOperation.newDelete(lookupUri(p))
+                    .withYieldAllowed(true)
+                    .build()
+            }
+            val results = context.contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
+            chunk.forEachIndexed { i, p ->
+                val count = results.getOrNull(i)?.count ?: 0
+                if (count > 0) deleted += p.id else failed += p.id to ContactDeletePlanner.NOT_FOUND
+            }
+            return deleted to failed
+        } catch (e: SecurityException) {
+            return emptyList<String>() to chunk.map { it.id to ContactDeletePlanner.PERMISSION_NEEDED }
+        } catch (e: Exception) {
+            // Fall through to one-at-a-time. Contacts committed before a
+            // yield point stay deleted; a second delete of them finds nothing
+            // and reports `not_found`, which OpenAlly treats as gone.
+        }
+        for (p in chunk) {
+            try {
+                val rows = context.contentResolver.delete(lookupUri(p), null, null)
+                if (rows > 0) deleted += p.id else failed += p.id to ContactDeletePlanner.NOT_FOUND
+            } catch (e: SecurityException) {
+                failed += p.id to ContactDeletePlanner.PERMISSION_NEEDED
+            } catch (e: Exception) {
+                failed += p.id to ContactDeletePlanner.FAILED
+            }
+        }
+        return deleted to failed
+    }
+
+    private fun verifiedReply(
+        deleted: List<String>,
+        failed: List<Pair<String, String>>,
+        permissionNeeded: Boolean
+    ): JsonObject = buildJsonObject {
+        put("deleted_ids", buildJsonArray { deleted.forEach { add(JsonPrimitive(it)) } })
+        put("failed", buildJsonArray {
+            failed.forEach { (id, reason) ->
+                add(buildJsonObject {
+                    put("id", id)
+                    put("reason", reason)
+                })
+            }
+        })
+        put("permission_needed", permissionNeeded)
+    }
+
+    private companion object {
+        /** OpenAlly stages at most 100 contacts per card. */
+        const val MAX_VERIFIED_DELETE = 100
+        /** Operations per `applyBatch`; far below the provider's 500 ceiling. */
+        const val DELETE_CHUNK = 50
     }
 }

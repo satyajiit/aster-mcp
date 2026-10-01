@@ -158,7 +158,17 @@ object PermissionUtils {
                 Manifest.permission.READ_PHONE_STATE,
                 Manifest.permission.READ_CALL_LOG
             )
-            PermissionType.CONTACTS -> listOf(Manifest.permission.READ_CONTACTS)
+            // Both, as one Contacts grant. Since Android 8.0 an app holds only
+            // the permissions it explicitly requested, but a request for a
+            // permission in a group the user already allowed is granted without
+            // a dialog — so an owner who allowed reading contacts is not asked
+            // again for writing them. WRITE_CONTACTS backs OpenAlly's confirmed
+            // duplicate clean-up (delete_contacts_verified, OA-2026-0207).
+            // https://developer.android.com/about/versions/oreo/android-8.0-changes
+            PermissionType.CONTACTS -> listOf(
+                Manifest.permission.READ_CONTACTS,
+                Manifest.permission.WRITE_CONTACTS
+            )
             PermissionType.CAMERA -> listOf(Manifest.permission.CAMERA)
             PermissionType.STORAGE ->
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
@@ -325,10 +335,20 @@ object PermissionUtils {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    /**
+     * Contacts counts as granted only when Aster can both read and change
+     * contacts. Reading alone used to count, which left WRITE_CONTACTS declared
+     * but never requested — so a delete could never succeed and the Contacts
+     * row still showed as done.
+     */
     fun checkContactsPermission(context: Context): Boolean {
         return ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.READ_CONTACTS
+        ) == PackageManager.PERMISSION_GRANTED &&
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.WRITE_CONTACTS
         ) == PackageManager.PERMISSION_GRANTED
     }
 }

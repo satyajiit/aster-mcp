@@ -274,7 +274,7 @@ export const PERMISSIONS: PermissionRow[] = [
   },
   {
     name: 'WRITE_CONTACTS',
-    why: 'Required by exactly one tool, and it is the destructive one: aster_delete_contacts, which permanently removes contacts from the address book. There is no save or edit path — ContactHandler.kt dispatches only search_contacts, list_contacts_full and delete_contacts, and checks this permission solely inside the delete. Decline it and the contact tools become read-only.',
+    why: 'Required only by the two delete actions, which permanently remove contacts from the address book: delete_contacts (aster_delete_contacts) and delete_contacts_verified (what OpenAlly sends after its owner approves a duplicate clean-up; it re-checks each name before deleting). There is no save or edit path — ContactHandler.kt dispatches only search_contacts, list_contacts_full and the two deletes, and checks this permission solely inside them. It is requested together with READ_CONTACTS as one Contacts grant. Decline it and the contact tools become read-only.',
     required: false,
   },
   {

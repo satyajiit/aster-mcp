@@ -89,7 +89,7 @@ export const ROUTES: RouteDef[] = [
     nav: 'Tools',
     title: 'All 49 Aster MCP tools, with arguments',
     description:
-      'All 49 aster_* MCP tools with their exact names and arguments, plus the separate catalogue of 77 unprefixed actions the Android app dispatches on-device.',
+      'All 49 aster_* MCP tools with their exact names and arguments, plus the separate catalogue of 78 unprefixed actions the Android app dispatches on-device.',
     twin: '/tools.md',
     intent: 'aster mcp tools list, android mcp server tools, what arguments does aster_send_sms take, on-device action catalog',
     topics: ['Model Context Protocol', 'Tool catalogue', 'Android device control', 'Binder IPC'],
