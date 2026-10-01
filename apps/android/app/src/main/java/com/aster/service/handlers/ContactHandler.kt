@@ -406,8 +406,9 @@ class ContactHandler(
     /**
      * `delete_contacts_verified` — the delete OpenAlly sends after its owner
      * tapped **Delete** on a card that listed every contact by name
-     * (OA-2026-0207). Params: `ids` and `expect` (`[{id, display_name}]`, one
-     * per id). Answers `{deleted_ids, failed: [{id, reason}], permission_needed}`
+     * (OA-2026-0207). Params: `ids`, `expect` (`[{id, display_name}]`, one
+     * per id) and optional `keep` (`[{id, display_name}]`, the copies the card
+     * said stay — if any of them is gone or renamed, nothing is deleted). Answers `{deleted_ids, failed: [{id, reason}], permission_needed}`
      * with `reason` from [ContactDeletePlanner]'s closed set.
      *
      * - **Permission.** Needs `WRITE_CONTACTS` (and `READ_CONTACTS` to check
@@ -436,18 +437,14 @@ class ContactHandler(
         val ids = params["ids"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }
             ?: return CommandResult.failure("Provide 'ids' (array of contact ids)")
         val expectByIdMap = params["expect"]?.jsonArray
-            ?.mapNotNull { entry ->
-                val obj = entry as? JsonObject ?: return@mapNotNull null
-                val id = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                // Nested keys are not covered by WireParams' top-level aliasing.
-                val name = (obj["display_name"] ?: obj["displayName"])
-                    ?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                id to name
-            }
+            ?.let { namedIds(it) }
             ?.toMap()
             ?: return CommandResult.failure("Provide 'expect' (array of {id, display_name})")
+        // The copies the owner was told are kept. Optional: a delete that is
+        // not a duplicate clean-up keeps nobody.
+        val keep = params["keep"]?.jsonArray?.let { namedIds(it) } ?: emptyList()
         if (ids.isEmpty()) return CommandResult.failure("'ids' must not be empty")
-        if (ids.size > MAX_VERIFIED_DELETE) {
+        if (ids.size > MAX_VERIFIED_DELETE || keep.size > MAX_VERIFIED_DELETE) {
             return CommandResult.failure("At most $MAX_VERIFIED_DELETE contacts per call")
         }
         // Every id must carry the name the owner approved. An id without one is
@@ -469,7 +466,8 @@ class ContactHandler(
 
         return try {
             val expected = ids.distinct().map { it to expectByIdMap.getValue(it) }
-            val plan = ContactDeletePlanner.plan(expected, currentContacts(expected.map { it.first }))
+            val lookupIds = (expected.map { it.first } + keep.map { it.first }).distinct()
+            val plan = ContactDeletePlanner.plan(expected, currentContacts(lookupIds), keep)
             val deleted = mutableListOf<String>()
             val failed = plan.refused.map { it.id to it.reason }.toMutableList()
             var permissionNeeded = false
@@ -493,6 +491,17 @@ class ContactHandler(
         }
     }
 
+    /** `[{id, display_name}]` → `(id, name)` pairs; malformed entries are dropped. */
+    private fun namedIds(entries: kotlinx.serialization.json.JsonArray): List<Pair<String, String>> =
+        entries.mapNotNull { entry ->
+            val obj = entry as? JsonObject ?: return@mapNotNull null
+            val id = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            // Nested keys are not covered by WireParams' top-level aliasing.
+            val name = (obj["display_name"] ?: obj["displayName"])
+                ?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            id to name
+        }
+
     private fun granted(permission: String): Boolean =
         ContextCompat.checkSelfPermission(context, permission) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -500,7 +509,8 @@ class ContactHandler(
     /** `_ID → (LOOKUP_KEY, DISPLAY_NAME_PRIMARY)` for the ids that still exist. */
     private fun currentContacts(ids: List<String>): Map<String, ContactDeletePlanner.CurrentContact> {
         val out = mutableMapOf<String, ContactDeletePlanner.CurrentContact>()
-        // Bounded by MAX_VERIFIED_DELETE, far below SQLite's bound-parameter cap.
+        // At most 2 x MAX_VERIFIED_DELETE (targets plus kept copies), well below
+        // the 999 bound-parameter cap of older Android SQLite builds.
         val placeholders = ids.joinToString(",") { "?" }
         context.contentResolver.query(
             ContactsContract.Contacts.CONTENT_URI,

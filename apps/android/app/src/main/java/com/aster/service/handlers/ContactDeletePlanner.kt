@@ -50,10 +50,25 @@ object ContactDeletePlanner {
      * @param current what the provider holds for those ids; a missing key means
      *   the contact no longer exists.
      */
-    fun plan(expected: List<Pair<String, String>>, current: Map<String, CurrentContact>): Plan {
+    fun plan(
+        expected: List<Pair<String, String>>,
+        current: Map<String, CurrentContact>,
+        keep: List<Pair<String, String>> = emptyList()
+    ): Plan {
         val toDelete = mutableListOf<Planned>()
         val refused = mutableListOf<Refused>()
         val seen = mutableSetOf<String>()
+        // The copy the owner was told stays must still be on the phone, under
+        // the name they saw. OpenAlly checks its own index first, but that
+        // index can lag the phone (a sync has not run since the kept copy was
+        // deleted, or Android merged it into one of the targets). Deleting
+        // "the duplicates" then would delete the person, so nothing goes.
+        if (!keepIntact(keep, current)) {
+            for ((id, _) in expected) {
+                if (seen.add(id)) refused += Refused(id, CHANGED)
+            }
+            return Plan(toDelete, refused)
+        }
         for ((id, name) in expected) {
             if (!seen.add(id)) continue
             val row = current[id]
@@ -72,4 +87,14 @@ object ContactDeletePlanner {
         }
         return Plan(toDelete, refused)
     }
+
+    /**
+     * Whether every kept contact still exists under the name the owner saw.
+     * An empty list (a delete that is not a duplicate clean-up) is intact.
+     */
+    fun keepIntact(keep: List<Pair<String, String>>, current: Map<String, CurrentContact>): Boolean =
+        keep.all { (id, name) ->
+            val row = current[id]
+            row != null && normalise(row.displayName) == normalise(name)
+        }
 }

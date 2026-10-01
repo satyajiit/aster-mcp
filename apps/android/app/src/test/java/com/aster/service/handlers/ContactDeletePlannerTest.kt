@@ -73,4 +73,52 @@ class ContactDeletePlannerTest {
         )
         assertEquals(1, plan.toDelete.size)
     }
+
+    @Test
+    fun aKeptCopyThatIsGoneFromThePhoneStopsEveryDelete() {
+        // OpenAlly's index still lists the kept copy, but the phone no longer
+        // has it: deleting "the duplicates" would delete the person.
+        val plan = ContactDeletePlanner.plan(
+            expected = listOf("2" to "Ada", "3" to "Ada"),
+            current = mapOf(
+                "2" to CurrentContact("lk-2", "Ada"),
+                "3" to CurrentContact("lk-3", "Ada")
+            ),
+            keep = listOf("1" to "Ada")
+        )
+        assertTrue(plan.toDelete.isEmpty())
+        assertEquals(
+            listOf(
+                Refused("2", ContactDeletePlanner.CHANGED),
+                Refused("3", ContactDeletePlanner.CHANGED)
+            ),
+            plan.refused
+        )
+    }
+
+    @Test
+    fun aKeptCopyThatStillExistsLetsTheDeleteGoAhead() {
+        val plan = ContactDeletePlanner.plan(
+            expected = listOf("2" to "Ada"),
+            current = mapOf(
+                "1" to CurrentContact("lk-1", "Ada"),
+                "2" to CurrentContact("lk-2", "Ada")
+            ),
+            keep = listOf("1" to "Ada")
+        )
+        assertEquals(listOf(Planned("2", "lk-2")), plan.toDelete)
+    }
+
+    @Test
+    fun aKeptCopyThatNowNamesSomebodyElseStopsEveryDelete() {
+        val plan = ContactDeletePlanner.plan(
+            expected = listOf("2" to "Ada"),
+            current = mapOf(
+                "1" to CurrentContact("lk-1", "Bob"),
+                "2" to CurrentContact("lk-2", "Ada")
+            ),
+            keep = listOf("1" to "Ada")
+        )
+        assertTrue(plan.toDelete.isEmpty())
+    }
 }

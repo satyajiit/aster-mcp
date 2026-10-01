@@ -94,7 +94,7 @@ export const ON_DEVICE_CATEGORIES: OnDeviceCategory[] = [
     actions: [
       { action: 'count_sms', label: 'Count SMS', summary: 'Count messages in a date window', server: null },
       { action: 'delete_contacts', label: 'Delete Contacts', summary: 'Delete contacts from the address book by id. Requires WRITE_CONTACTS.', server: 'aster_delete_contacts' },
-      { action: 'delete_contacts_verified', label: 'Delete Contacts (checked)', summary: 'Delete contacts only if each one still has the name that was approved, through its lookup key, in one batch. What OpenAlly sends after its owner approves a clean-up. Requires WRITE_CONTACTS.', server: null },
+      { action: 'delete_contacts_verified', label: 'Delete Contacts (checked)', summary: 'Delete contacts only if each one still has the name that was approved, and only if every copy the owner was told is kept still exists, through its lookup key, in one batch. What OpenAlly sends after its owner approves a clean-up. Requires WRITE_CONTACTS.', server: null },
       { action: 'list_contacts_full', label: 'List Contacts (full)', summary: 'Page through the whole address book — every number, email and account type.', server: 'aster_list_contacts_full' },
       { action: 'make_call', label: 'Phone Call', summary: 'Initiate a phone call', server: 'aster_make_call' },
       { action: 'make_call_with_voice', label: 'Call & Speak', summary: 'Call and speak text when answered', server: 'aster_make_call_with_voice' },
