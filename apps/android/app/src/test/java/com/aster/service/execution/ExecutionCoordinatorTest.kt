@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -21,9 +22,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.coroutines.coroutineContext
 
-/** Actual owned coordinator + SQLite, with controlled child callbacks. Unrun. */
+/**
+ * Actual owned coordinator + SQLite, with controlled child callbacks.
+ *
+ * Handlers read the child tracker with currentCoroutineContext(): inside an
+ * `async {}` block the bare `coroutineContext` resolves to that block's
+ * CoroutineScope receiver, not to the coordinator's worker coroutine.
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ExecutionCoordinatorTest {
@@ -58,7 +64,7 @@ class ExecutionCoordinatorTest {
         val response = async(Dispatchers.IO) {
             coordinator.submit(ExecutionProtocol.json.encodeToString(request), "ipc:12", { true }) {
                 dispatched.incrementAndGet()
-                callback.complete(coroutineContext[ExecutionChildren]!!.begin())
+                callback.complete(currentCoroutineContext()[ExecutionChildren]!!.begin())
                 CommandResult.success(null)
             }
         }
@@ -90,7 +96,7 @@ class ExecutionCoordinatorTest {
         val waiter = async(Dispatchers.IO) {
             coordinator.submit(ExecutionProtocol.json.encodeToString(request), "ipc:12", { true }) {
                 dispatched.incrementAndGet()
-                callback.complete(coroutineContext[ExecutionChildren]!!.begin())
+                callback.complete(currentCoroutineContext()[ExecutionChildren]!!.begin())
                 CommandResult.success(null)
             }
         }
@@ -114,7 +120,7 @@ class ExecutionCoordinatorTest {
         val callback = CompletableDeferred<ExecutionChildren.Child>()
         val waiter = CoroutineScope(SupervisorJob() + Dispatchers.IO).async {
             coordinator.legacy("input_gesture") {
-                callback.complete(coroutineContext[ExecutionChildren]!!.begin())
+                callback.complete(currentCoroutineContext()[ExecutionChildren]!!.begin())
                 CommandResult.success(null)
             }
         }
@@ -138,7 +144,8 @@ class ExecutionCoordinatorTest {
     }
 
     @Test fun unsupportedTrackedActionClosesWithoutCallingLegacyFallback() = runBlocking {
-        val (store, coordinator) = setup(); val request = submit(store, action = "screen_approve")
+        // screen_approve became an audited tracked action; read_sms never is.
+        val (store, coordinator) = setup(); val request = submit(store, action = "read_sms")
         coordinator.submit(ExecutionProtocol.json.encodeToString(request), "ipc:12", { true }) { error("unsupported effect") }
         assertEquals("no_dispatch", state(coordinator, request))
         assertFalse(store.unresolved())
