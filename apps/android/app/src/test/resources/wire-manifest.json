@@ -371,10 +371,12 @@
       "params": [
         "ai_name"
       ],
+      "$note": "`capabilities` is a list of names. `screen_guard_v1` means the companion refuses an action whose `expected_package` is not the app in front, and reports the class names that mark a WebView. A screen action skips its approval card only when the list holds it (agent autonomy §2.3; `cortex-tools-screen` `gate::SCREEN_GUARD`). The companion lists it from aster-mcp `CapabilityHandler.CAPABILITIES`.",
       "results": [
         "accessibility_enabled",
         "service_bound",
-        "can_observe"
+        "can_observe",
+        "capabilities"
       ]
     },
     "screen_signin_wait": {

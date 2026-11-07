@@ -208,6 +208,19 @@ class WireContractTest {
     }
 
     @Test
+    fun `screen_capability advertises the screen guard`() {
+        // The kernel skips a screen card only when this list holds the name
+        // (cortex-tools-screen gate::SCREEN_GUARD); without it every send asks.
+        assertTrue(
+            "capabilities" in stringList(actions().getValue("screen_capability").jsonObject, "results"),
+        )
+        assertTrue(
+            serviceSource("handlers/CapabilityHandler.kt").contains("putJsonArray(\"capabilities\")"),
+        )
+        assertTrue("screen_guard_v1" in com.aster.service.handlers.CapabilityHandler.CAPABILITIES)
+    }
+
+    @Test
     fun `wait_for reports failure through ok so a timeout is not read as success`() {
         val handler = serviceSource("handlers/AccessibilityHandler.kt")
         assertTrue(

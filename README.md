@@ -532,10 +532,16 @@ Aster is a remote-control tool, so it asks for a lot. No root required. Every se
 
 ### On-device safety rails
 
-Two Android-side guards run regardless of what the AI asks:
+Three Android-side guards run regardless of what the AI asks:
 
 - **Kill Switch** — while a screen-control session is active, a persistent high-priority *"AI is controlling your phone — STOP"* notification is shown. Tapping **STOP** aborts the control loop immediately and clears the overlay.
 - **PackagePolicyGuard** — a **fail-closed** denylist. If the foreground app can't be identified, control is **refused**. A bundled banking/payments denylist (PhonePe, Paytm, PayPal, Venmo, Binance, ...) blocks screen control over financial apps by default unless you explicitly allow it. Read-only actions (`observe` / screenshot / hierarchy / `find_element`) are always permitted.
+- **ExpectedPackageGuard** — when OpenAlly lets an agent tap Send without asking (its "Act without asking" setting), the tap carries `expected_package`, the app OpenAlly last saw in front. Aster refuses the action before it runs unless the active window and the focused app window both belong to that app, or when it cannot tell. The refusal is a JSON `error`: `{"code":"foreground_mismatch","expected_package":"…","foreground_package":"…" or null,"hint":"re-observe","message":"…"}`. An action without the field is unchanged.
+
+Two things OpenAlly reads to decide whether a tap may skip its approval card:
+
+- **`className` on a web page node in `observe`.** A WebView (`android.webkit.WebView`, its subclasses, and a browser engine's page root) is always kept in `elements`, whatever the `mode` or `search_text`, and carries its `className`. No other element carries the key. OpenAlly asks before a send while a web page is on screen.
+- **`capabilities` in `screen_capability`.** The answer lists `screen_guard_v1`, meaning this build does both: the `expected_package` refusal above, and `className` on web page nodes. OpenAlly skips a screen card only on a companion that lists it, so an older Aster keeps every card.
 
 ## Securing the connection
 

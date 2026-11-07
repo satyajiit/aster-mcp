@@ -4,8 +4,10 @@ import com.aster.data.model.Command
 import com.aster.service.AsterAccessibilityService
 import com.aster.service.CommandHandler
 import com.aster.service.CommandResult
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 
 /**
  * Screen-control preflight probe (read-only).
@@ -15,7 +17,7 @@ import kotlinx.serialization.json.put
  * disabled/unbound accessibility service returns 0 elements, which is
  * indistinguishable from "selector not found" — so the kernel loops forever. This
  * verb is the honest preflight signal: it reports the three booleans the kernel
- * needs and NEVER fails.
+ * needs, plus the [CAPABILITIES] this build promises, and NEVER fails.
  *
  * CRITICAL: this handler must answer truthfully even when the service is not
  * bound. Unlike [AccessibilityHandler], it does NOT early-return
@@ -27,6 +29,27 @@ import kotlinx.serialization.json.put
  * [com.aster.service.mode.IpcMode]'s SCREEN_CONTROL_ACTIONS kill-switch set.
  */
 class CapabilityHandler : CommandHandler {
+
+    companion object {
+        /**
+         * What this build promises the kernel, by name, in the answer's
+         * `capabilities` list. A name never changes meaning; a new promise gets
+         * a new name.
+         *
+         * `screen_guard_v1`: an action carrying `expected_package` is refused
+         * when another app is in front
+         * ([com.aster.service.safety.ExpectedPackageGuard]), and `observe` names
+         * every web page node by its `className`
+         * ([com.aster.service.accessibility.ElementFilter.isWebView]). The kernel
+         * lets a screen action skip its approval card only on a companion that
+         * lists it (`cortex-tools-screen` `gate::SCREEN_GUARD`), so an older
+         * companion, which sends no list, keeps every card.
+         *
+         * Listed whatever the service state: it describes this build, not
+         * whether the screen is readable right now, which the three booleans say.
+         */
+        val CAPABILITIES = listOf("screen_guard_v1")
+    }
 
     override fun supportedActions(): List<String> = listOf("screen_capability")
 
@@ -49,6 +72,7 @@ class CapabilityHandler : CommandHandler {
             put("accessibility_enabled", accessibilityEnabled)
             put("service_bound", serviceBound)
             put("can_observe", canObserve)
+            putJsonArray("capabilities") { CAPABILITIES.forEach { add(it) } }
         })
     }
 }
