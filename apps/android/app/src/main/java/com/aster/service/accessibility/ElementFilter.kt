@@ -86,4 +86,24 @@ object ElementFilter {
     /** Both halves, for callers with no label to offer. */
     fun keep(node: NodeFacts, mode: String, searchText: String?): Boolean =
         keepByMode(node, mode) && matchesSearch(node, "", searchText)
+
+    /**
+     * Whether a node's accessibility class marks a web page: a WebView, or the
+     * root a browser engine exposes for its page.
+     *
+     * `android.webkit.WebView` reports that class name for itself and, unless a
+     * subclass overrides `getAccessibilityClassName`, for every subclass too
+     * (in-app browsers such as Facebook's and Instagram's are WebView
+     * subclasses). Chromium names its page root the same way. Matched as a
+     * substring, case-insensitively, so a subclass that reports its own name
+     * still counts when that name says WebView.
+     *
+     * Such a node is kept by every mode and every search ([ScreenObserver]) and
+     * carries its `className` in the observe output, because the kernel reads
+     * a web page on screen as a reason to ask before a send (agent autonomy
+     * §2.3): a page's words belong to whoever wrote the page, not to the app.
+     * A WebView that is neither clickable nor scrollable used to be dropped by
+     * `actionable` mode, so the kernel never learned it was there.
+     */
+    fun isWebView(className: String): Boolean = className.contains("webview", ignoreCase = true)
 }

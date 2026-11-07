@@ -153,6 +153,28 @@ class ObserveModelJsonTest {
     }
 
     @Test
+    fun class_name_is_emitted_only_when_set() {
+        // Set only on a web page node, which the kernel reads by `className`
+        // (cortex-tools-screen device_screen.rs); absent from every other element.
+        val plain = sampleResult().toJson()["elements"]!!.jsonArray[0].jsonObject
+        assertTrue("an element with no class name must not carry the key", !plain.containsKey("className"))
+
+        val web = ObservedElement(
+            ref = "e2", role = "other", text = "", desc = "", viewId = "",
+            window = 12,
+            bounds = Bounds.fromLTRB(0, 200, 1080, 2200),
+            state = ElementState(
+                clickable = false, editable = false, checkable = false, checked = false,
+                scrollable = false, selected = false, focused = false,
+                enabled = true, password = false,
+            ),
+            actions = emptyList(),
+            className = "android.webkit.WebView",
+        ).toJson()
+        assertEquals("android.webkit.WebView", web["className"]!!.jsonPrimitive.content)
+    }
+
+    @Test
     fun scrollable_keys_match_spec() {
         val sc = sampleResult().toJson()["scrollables"]!!.jsonArray[0].jsonObject
         assertEquals("e3", sc["ref"]!!.jsonPrimitive.content)

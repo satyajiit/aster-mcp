@@ -149,6 +149,17 @@ data class ObservedElement(
     val bounds: Bounds,
     val state: ElementState,
     val actions: List<String>,
+    /**
+     * The node's accessibility class, set ONLY on a web page node
+     * ([ElementFilter.isWebView]) and empty on everything else.
+     *
+     * The kernel reads it to know a web page is on screen
+     * (`cortex-tools-screen` `device_screen.rs`, which matches `className`
+     * against "webview"), and asks before a send there. Every other node's class
+     * is already summarised by [role]; repeating it on all of them would only
+     * cost tokens.
+     */
+    val className: String = "",
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("ref", ref)
@@ -160,6 +171,7 @@ data class ObservedElement(
         if (label.isNotEmpty()) put("label", label)
         put("viewId", viewId)
         if (testTag.isNotEmpty()) put("testTag", testTag)
+        if (className.isNotEmpty()) put("className", className)
         put("window", window)
         put("bounds", bounds.toJson())
         put("state", state.toJson())

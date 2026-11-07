@@ -128,6 +128,7 @@ class ScreenObserver(
                     bounds = c.bounds,
                     state = c.state,
                     actions = c.actions,
+                    className = if (ElementFilter.isWebView(c.className)) c.className else "",
                 ),
             )
             descriptors.add(
@@ -212,7 +213,14 @@ class ScreenObserver(
             desc = desc,
         )
 
-        if (!ElementFilter.keepByMode(facts, mode)) return
+        // A web page is kept whatever the mode or search asks for: the kernel
+        // reads it as a reason to ask before a send (ElementFilter.isWebView), and
+        // a WebView that is neither clickable nor scrollable would otherwise be
+        // dropped right here. Dropped later by the budget, it still marks the
+        // answer `truncated`, which the kernel also asks on.
+        val className = node.className?.toString() ?: ""
+        val web = ElementFilter.isWebView(className)
+        if (!web && !ElementFilter.keepByMode(facts, mode)) return
 
         // Name the anonymous box BEFORE the search filter. A list row has no text
         // of its own — its words are in descendants that `actionable` mode drops —
@@ -241,7 +249,7 @@ class ScreenObserver(
         // real text) already disagreed — the very mismatch this object's doc
         // comment exists to prevent. Both sides now compute the same thing.
         val label = if (text.isEmpty()) LabelAggregator.aggregate(node) else ""
-        if (!ElementFilter.matchesSearch(facts, label, searchText)) return
+        if (!web && !ElementFilter.matchesSearch(facts, label, searchText)) return
 
         // Hard safety cap on COLLECTION (not on the answer). Ranking needs to see
         // every candidate before it can choose, but a pathological tree must not
@@ -250,7 +258,6 @@ class ScreenObserver(
             truncated = true
             return
         }
-        val className = node.className?.toString() ?: ""
         val viewId = node.viewIdResourceName ?: ""
         val testTag = testTagOf(node)
         val role = RoleMapper.roleOf(

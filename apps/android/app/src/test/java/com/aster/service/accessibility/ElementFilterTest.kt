@@ -131,4 +131,20 @@ class ElementFilterTest {
             ElementFilter.keep(facts(clickable = true, text = "", desc = ""), ObserveMode.ACTIONABLE, null),
         )
     }
+
+    @Test
+    fun a_web_page_node_is_recognised_by_its_class() {
+        // The kernel asks before a send while a web page is on screen (agent
+        // autonomy §2.3); these are the class names that say one is.
+        for (cls in listOf(
+            "android.webkit.WebView",
+            "com.facebook.browser.lite.webview.SystemWebView",
+            "org.example.ANDROID.WEBVIEW",
+        )) {
+            assertTrue(cls, ElementFilter.isWebView(cls))
+        }
+        for (cls in listOf("", "android.widget.Button", "android.view.View", "androidx.recyclerview.widget.RecyclerView")) {
+            assertFalse(cls, ElementFilter.isWebView(cls))
+        }
+    }
 }
