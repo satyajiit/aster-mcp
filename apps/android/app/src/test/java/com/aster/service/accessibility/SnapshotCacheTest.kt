@@ -30,6 +30,28 @@ class SnapshotCacheTest {
     }
 
     @Test
+    fun an_ephemeral_observe_leaves_the_latest_snapshot_alone() {
+        // The kernel's own look before a guarded tap must never become the
+        // snapshot a ref without `snapshot_id` resolves against.
+        val cache = SnapshotCache()
+        val modelSnapshot = cache.record(listOf(desc("e1")), ephemeral = false)!!
+
+        // More reads than the cache holds: an ephemeral read must not evict either.
+        repeat(SnapshotCache.MAX_SNAPSHOTS + 1) {
+            assertNull(cache.record(listOf(desc("e1"), desc("e2")), ephemeral = true))
+        }
+
+        assertEquals(modelSnapshot, cache.latestId())
+        assertEquals("com.x:id/e1", cache.get(modelSnapshot, "e1")?.viewId)
+        assertNull("the ephemeral read's refs were never stored", cache.get(modelSnapshot, "e2"))
+
+        // An ordinary observe still becomes the newest.
+        val next = cache.record(listOf(desc("e2")), ephemeral = false)
+        assertEquals(next, cache.latestId())
+        assertNotEquals(modelSnapshot, next)
+    }
+
+    @Test
     fun put_then_get_round_trips() {
         val cache = SnapshotCache()
         val sid = cache.newSnapshot()

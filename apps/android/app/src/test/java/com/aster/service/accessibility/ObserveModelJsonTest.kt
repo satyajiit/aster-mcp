@@ -60,6 +60,13 @@ class ObserveModelJsonTest {
     }
 
     @Test
+    fun an_ephemeral_read_reports_a_null_snapshot_id() {
+        val json = sampleResult().copy(snapshotId = null).toJson()
+        assertTrue(json.containsKey("snapshot_id"))
+        assertEquals(kotlinx.serialization.json.JsonNull, json["snapshot_id"])
+    }
+
+    @Test
     fun screen_uses_snake_case_spec_keys() {
         val screen = sampleResult().toJson()["screen"]!!.jsonObject
         assertEquals(1080, screen["width"]!!.jsonPrimitive.int)

@@ -38,6 +38,7 @@
         "max_elements",
         "window",
         "ocr",
+        "ephemeral",
         "ai_name"
       ],
       "not_implemented": [
@@ -52,7 +53,7 @@
         "truncated",
         "error"
       ],
-      "$note": "`window` is declared by the kernel's tool schema and advertised to the model, but no companion handler reads it — the observe walk always covers every window. Either implement it or drop it from observe.rs's schema.",
+      "$note": "`window` is declared by the kernel's tool schema and advertised to the model, but no companion handler reads it — the observe walk always covers every window. Either implement it or drop it from observe.rs's schema. `ephemeral: true` is the kernel's own read before a screen action skips its approval card: the answer is as usual, but the companion stores no snapshot, leaves the latest snapshot in place, and reports `snapshot_id: null`, so a later action that names no `snapshot_id` still resolves its `ref` against the model's observe. Part of `screen_guard_v1`: sent only to a companion that advertises it.",
       "result_invariants": {
         "elements_in_reading_order": true
       },

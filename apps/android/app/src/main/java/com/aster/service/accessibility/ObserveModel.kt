@@ -212,7 +212,8 @@ data class ObserveResult(
     val elements: List<ObservedElement>,
     val scrollables: List<Scrollable>,
     val source: String,          // "a11y" | "ocr" | "merged" (P1 always "a11y")
-    val snapshotId: String,
+    /** Null for an ephemeral read, which stores no snapshot ([SnapshotCache.record]). */
+    val snapshotId: String?,
     val truncated: Boolean,
 ) {
     fun toJson(): JsonObject = buildJsonObject {

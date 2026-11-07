@@ -575,6 +575,7 @@ class AsterAccessibilityService : AccessibilityService() {
         mode: String,
         searchText: String?,
         maxElements: Int,
+        ephemeral: Boolean = false,
     ): A11yObservation? {
         // ONE accumulating observer across all windows — repeated walk() calls keep the
         // SINGLE e<N> ref counter continuous (SPEC §7.1: one e<N> namespace), so
@@ -614,9 +615,10 @@ class AsterAccessibilityService : AccessibilityService() {
 
         val walk = lastWalk ?: return null
 
-        // Allocate a snapshot and populate the ref → descriptor cache.
-        val snapshotId = snapshotCache.newSnapshot()
-        walk.descriptors.forEach { d -> snapshotCache.put(snapshotId, d.ref, d) }
+        // Allocate a snapshot and populate the ref → descriptor cache, unless the
+        // read is ephemeral (the kernel's own look before a guarded tap), which
+        // must leave the model's snapshot the newest.
+        val snapshotId = snapshotCache.record(walk.descriptors, ephemeral)
 
         val foregroundPackage = focusedAppPackage ?: anyAppPackage ?: ""
         val screen = buildScreenContext(descriptors, foregroundPackage)
@@ -664,14 +666,17 @@ class AsterAccessibilityService : AccessibilityService() {
      *   `o<idx>` pseudo-elements (a distinct namespace, SPEC §7.1) appended AFTER the a11y `e<N>`
      *   elements; `source` becomes "ocr" (a11y empty) or "merged" (a11y sparse) per
      *   [ScreenObserveSupport.mergeOcr].
+     * @param ephemeral store no snapshot and leave the latest one in place; the answer's
+     *   `snapshot_id` is null ([SnapshotCache.record]).
      */
     suspend fun observe(
         mode: String,
         searchText: String?,
         maxElements: Int,
         ocr: Boolean? = null,
+        ephemeral: Boolean = false,
     ): JsonElement {
-        val a11y = buildA11yObservation(mode, searchText, maxElements)
+        val a11y = buildA11yObservation(mode, searchText, maxElements, ephemeral)
             ?: return buildJsonObject { put("error", "No active window") }
 
         val a11ySparse = ScreenObserveSupport.isSparse(

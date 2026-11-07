@@ -126,8 +126,12 @@ class AccessibilityHandler : CommandHandler {
         // P4 OCR gate (SPEC §3.4): omitted = auto (OCR only when the a11y tree is sparse);
         // true = force OCR; false = a11y only.
         val ocr = command.params?.get("ocr")?.jsonPrimitive?.booleanOrNull
+        // The kernel's own look before a guarded tap (screen_guard_v1): answered
+        // as usual, but stored as no snapshot, so it never becomes the one a
+        // later ref without `snapshot_id` resolves against.
+        val ephemeral = command.params?.get("ephemeral")?.jsonPrimitive?.booleanOrNull ?: false
 
-        val observation = service.observe(mode, searchText, maxElements, ocr)
+        val observation = service.observe(mode, searchText, maxElements, ocr, ephemeral)
         return CommandResult.success(observation)
     }
 

@@ -64,6 +64,25 @@ class SnapshotCache {
         }
     }
 
+    /**
+     * Store one observe's [descriptors] as a new snapshot and return its id, or,
+     * when [ephemeral], store nothing and return null.
+     *
+     * An ephemeral read is the kernel's own look at the screen just before a
+     * tap skips its approval card (agent autonomy §2.3, `observe` with
+     * `ephemeral: true`). Storing it would make it the newest snapshot, so a
+     * later action that names no `snapshot_id` would resolve its `ref` against
+     * the kernel's read rather than the observe the model chose that ref from:
+     * the same `e<N>` on a differently filtered list is a different element. It
+     * would also push the model's snapshot one step nearer eviction.
+     */
+    fun record(descriptors: List<NodeDescriptor>, ephemeral: Boolean): String? {
+        if (ephemeral) return null
+        val id = newSnapshot()
+        descriptors.forEach { d -> put(id, d.ref, d) }
+        return id
+    }
+
     /** Record a ref → descriptor under [snapshotId] (no-op if snapshot was evicted). */
     fun put(snapshotId: String, ref: String, descriptor: NodeDescriptor) {
         synchronized(lock) {

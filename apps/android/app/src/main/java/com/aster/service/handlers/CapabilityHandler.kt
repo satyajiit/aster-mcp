@@ -38,9 +38,11 @@ class CapabilityHandler : CommandHandler {
          *
          * `screen_guard_v1`: an action carrying `expected_package` is refused
          * when another app is in front
-         * ([com.aster.service.safety.ExpectedPackageGuard]), and `observe` names
+         * ([com.aster.service.safety.ExpectedPackageGuard]), `observe` names
          * every web page node by its `className`
-         * ([com.aster.service.accessibility.ElementFilter.isWebView]). The kernel
+         * ([com.aster.service.accessibility.ElementFilter.isWebView]), and
+         * `observe` takes `ephemeral: true`, a read that stores no snapshot
+         * ([com.aster.service.accessibility.SnapshotCache.record]). The kernel
          * lets a screen action skip its approval card only on a companion that
          * lists it (`cortex-tools-screen` `gate::SCREEN_GUARD`), so an older
          * companion, which sends no list, keeps every card.
