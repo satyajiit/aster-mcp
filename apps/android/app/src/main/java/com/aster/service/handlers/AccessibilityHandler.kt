@@ -871,6 +871,19 @@ class AccessibilityHandler : CommandHandler {
         }
         // P3 verify-after-act: snapshot revision + foreground BEFORE acting (SPEC §3.4).
         val pre = preAct(service, command)
+        // Already node-level, so a guarded perform needs only the click-time
+        // check that the node belongs to the expected app, as a guarded tap gets.
+        ExpectedPackageGuard.expectedOf(command.params)?.let { expected ->
+            return when (val outcome = service.performOnRefGuarded(ref, snapshotIdOf(command), action, expected)) {
+                null -> ScreenActionResult.staleRef(ref, snapshotIdOf(command))
+                is AsterAccessibilityService.GuardedRefOutcome.Refused -> CommandResult.failure(outcome.error)
+                is AsterAccessibilityService.GuardedRefOutcome.Ran -> settleAndVerify(
+                    service, command, pre,
+                    resolvedBy = outcome.resolvedBy.wire, actOk = true,
+                    extra = buildJsonObject { put("ref", ref); put("action", action) },
+                )
+            }
+        }
         val resolvedBy = service.performActionOnRef(ref, snapshotIdOf(command), action)
             ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
         return settleAndVerify(

@@ -1991,6 +1991,36 @@ class AsterAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * [performActionOnRef] for an action that carries `expected_package`
+     * ([ExpectedPackageGuard]): the same node-level action, performed only when
+     * the resolved node belongs to [expectedPackage]. Its package not matching
+     * or unreadable is [ExpectedPackageGuard.MISMATCH], the check
+     * [actOnRefGuarded] makes on its click target. Null is an unresolved ref or
+     * an unknown action, as for the unguarded call (stale_ref).
+     */
+    fun performOnRefGuarded(
+        ref: String,
+        snapshotId: String?,
+        actionName: String,
+        expectedPackage: String,
+    ): GuardedRefOutcome? {
+        val resolved = resolveRef(ref, snapshotId) ?: return null
+        val node = resolved.node ?: return null
+        try {
+            val actionId = actionNameToId(actionName) ?: return null
+            ExpectedPackageGuard.nodeRefusal(node.packageName?.toString(), expectedPackage)
+                ?.let { return GuardedRefOutcome.Refused(it) }
+            return if (node.performAction(actionId)) {
+                GuardedRefOutcome.Ran(resolved.resolvedBy, alreadyInState = false)
+            } else {
+                null
+            }
+        } finally {
+            node.recycle()
+        }
+    }
+
     /** Map an observe-emitted action name → AccessibilityNodeInfo action id. null = unknown. */
     private fun actionNameToId(name: String): Int? = when (name.lowercase()) {
         "click" -> AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK.id

@@ -169,9 +169,19 @@ object ExpectedPackageGuard {
     fun target(chain: List<TargetNode>, expected: String, longPress: Boolean): Target {
         val index = chain.indexOfFirst { if (longPress) it.longClickable else it.clickable }
         if (index < 0) return Target.Refuse(gesture(expected))
-        val pkg = chain[index].packageName?.trim()
-        if (pkg != expected) return Target.Refuse(mismatch(expected, pkg?.takeIf { it.isNotEmpty() }))
+        nodeRefusal(chain[index].packageName, expected)?.let { return Target.Refuse(it) }
         return Target.Act(index)
+    }
+
+    /**
+     * The click-time check on the node an action is about to be performed on:
+     * [MISMATCH] when its package is not [expected] or cannot be read, the
+     * screen having moved after the check in front of the handler. Null when it
+     * belongs to the expected app.
+     */
+    fun nodeRefusal(nodePackage: String?, expected: String): String? {
+        val pkg = nodePackage?.trim()?.takeIf { it.isNotEmpty() }
+        return if (pkg != null && pkg == expected) null else mismatch(expected, pkg)
     }
 
     /** [GESTURE]'s refusal, for the handler paths that find only a gesture left. */

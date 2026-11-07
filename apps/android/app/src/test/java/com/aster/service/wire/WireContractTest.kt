@@ -223,6 +223,22 @@ class WireContractTest {
     }
 
     @Test
+    fun `a guarded perform checks its node's package before acting`() {
+        val service = serviceSource("AsterAccessibilityService.kt")
+        val start = service.indexOf("fun performOnRefGuarded(")
+        assertTrue("could not locate performOnRefGuarded", start > 0)
+        val end = service.indexOf("\n    /**", start).takeIf { it > 0 } ?: service.length
+        val body = service.substring(start, end)
+        val check = body.indexOf("ExpectedPackageGuard.nodeRefusal(")
+        val act = body.indexOf("performAction(")
+        assertTrue("the package check must come before the action", check in 1 until act)
+        assertTrue(
+            "perform must take the guarded path when expected_package is set",
+            serviceSource("handlers/AccessibilityHandler.kt").contains("service.performOnRefGuarded("),
+        )
+    }
+
+    @Test
     fun `screen_capability advertises the screen guard`() {
         // The kernel skips a screen card only when this list holds the name
         // (cortex-tools-screen gate::SCREEN_GUARD); without it every send asks.

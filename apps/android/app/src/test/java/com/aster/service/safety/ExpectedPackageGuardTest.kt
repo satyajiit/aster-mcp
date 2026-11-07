@@ -200,6 +200,25 @@ class ExpectedPackageGuardTest {
     }
 
     @Test
+    fun `a node of another app or of no readable app is refused at the click`() {
+        // The check a guarded perform makes on its node, and a guarded tap on its target.
+        assertNull(ExpectedPackageGuard.nodeRefusal(telegram, telegram))
+        assertNull(ExpectedPackageGuard.nodeRefusal(" $telegram ", telegram))
+
+        val other = body(ExpectedPackageGuard.nodeRefusal(zelle, telegram))
+        assertEquals(ExpectedPackageGuard.MISMATCH, other.code())
+        assertEquals(zelle, other.getValue("foreground_package").jsonPrimitive.content)
+
+        for (unreadable in listOf(null, "", "  ")) {
+            val body = body(ExpectedPackageGuard.nodeRefusal(unreadable, telegram))
+            assertEquals("$unreadable", ExpectedPackageGuard.MISMATCH, body.code())
+            assertEquals("$unreadable", JsonNull, body["foreground_package"])
+        }
+        // A malformed expected package ("") matches no node, not even a blank one.
+        assertEquals(ExpectedPackageGuard.MISMATCH, body(ExpectedPackageGuard.nodeRefusal("", "")).code())
+    }
+
+    @Test
     fun `the gesture refusal carries no package guess`() {
         val body = body(ExpectedPackageGuard.gesture(telegram))
         assertEquals(ExpectedPackageGuard.GESTURE, body.code())
