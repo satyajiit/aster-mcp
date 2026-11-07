@@ -80,6 +80,15 @@ class WireContractTest {
      */
     private val sideChannelParams = setOf("target_text", "risk", "approval", "ai_name")
 
+    /**
+     * Params read once by a guard in front of EVERY handler
+     * ([com.aster.service.safety.GuardedCommandHandler]), by the file that reads
+     * them, rather than by the action's own handler. `expected_package` is
+     * refused on before any handler runs, so finding it in the handler would be
+     * the wrong place to look.
+     */
+    private val guardParams = mapOf("expected_package" to "safety/ExpectedPackageGuard.kt")
+
     // kotlinx.serialization, NOT org.json: `org.json` is an unmocked Android stub in
     // the JVM unit-test classpath and every call throws "not mocked".
     private fun manifest(): JsonObject {
@@ -139,9 +148,11 @@ class WireContractTest {
 
             for (param in stringList(entry, "params")) {
                 if (param in sideChannelParams || param in notImplemented) continue
+                val guard = guardParams[param]
+                val where = if (guard != null) serviceSource(guard) else blob
                 // Accept either spelling — both reach the handler after normalisation.
-                val read = blob.contains("\"$param\"") || blob.contains("\"${toCamel(param)}\"")
-                if (!read) unread += "$action.$param (looked in ${sources.joinToString()})"
+                val read = where.contains("\"$param\"") || where.contains("\"${toCamel(param)}\"")
+                if (!read) unread += "$action.$param (looked in ${guard ?: sources.joinToString()})"
             }
         }
 
@@ -172,6 +183,28 @@ class WireContractTest {
         assertTrue("observe must read maxElements", handler.contains("\"maxElements\""))
         // wait_for_idle tuning.
         assertTrue("wait_for_idle must read quietMs", handler.contains("\"quietMs\""))
+    }
+
+    @Test
+    fun `expected_package is enforced, not declared unimplemented`() {
+        // The kernel lets a send skip its approval card on the promise that this
+        // companion refuses it in another app (agent autonomy §2.3). A
+        // `not_implemented` entry here would quietly exempt the param from the
+        // read check above.
+        val exempted = actions().filter { (_, entry) ->
+            "expected_package" in stringList(entry.jsonObject, "not_implemented")
+        }.keys
+        assertTrue("expected_package is declared not_implemented for $exempted", exempted.isEmpty())
+        for (action in listOf("tap", "long_press", "set_toggle", "perform")) {
+            assertTrue(
+                "$action must declare expected_package",
+                "expected_package" in stringList(actions().getValue(action).jsonObject, "params"),
+            )
+        }
+        assertTrue(
+            "GuardedCommandHandler must run ExpectedPackageGuard in front of every handler",
+            serviceSource("safety/GuardedCommandHandler.kt").contains("ExpectedPackageGuard.refusal("),
+        )
     }
 
     @Test

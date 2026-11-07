@@ -31,6 +31,7 @@ import com.aster.service.accessibility.WindowInfo
 import com.aster.service.input.InputResult
 import com.aster.service.input.InputRouter
 import com.aster.service.execution.ExecutionChildren
+import com.aster.service.safety.LiveForeground
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ensureActive
@@ -204,6 +205,41 @@ class AsterAccessibilityService : AccessibilityService() {
         } finally {
             root.recycle()
         }
+    }
+
+    /**
+     * What [com.aster.service.safety.ExpectedPackageGuard] judges an action's
+     * `expected_package` against: the active window's root package and every
+     * application window with whether it holds focus.
+     *
+     * Read fresh at the moment of the check, never from a snapshot: the whole
+     * point is to catch a screen that moved since the kernel last looked. A
+     * `getWindows()` that throws reads as an empty list, which leaves the active
+     * root to decide alone, exactly as observe falls back. Recycles every root
+     * and window it reads.
+     */
+    fun liveForeground(): LiveForeground {
+        val apps = mutableListOf<LiveForeground.AppWindow>()
+        val windowList: List<AccessibilityWindowInfo> = try {
+            windows
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) Log.w(TAG, "getWindows() threw", e)
+            emptyList()
+        }
+        for (window in windowList) {
+            try {
+                if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
+                val root = window.root
+                try {
+                    apps += LiveForeground.AppWindow(root?.packageName?.toString(), window.isFocused)
+                } finally {
+                    root?.recycle()
+                }
+            } finally {
+                window.recycle()
+            }
+        }
+        return LiveForeground(activeWindow = foregroundPackage(), applicationWindows = apps)
     }
 
     /** Current screen revision, for pre/post-act `changed` derivation (SPEC §3.4). */
