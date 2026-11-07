@@ -49,7 +49,9 @@ class GuardedCommandHandler(
         // The app-switch check first: when the screen moved to a banking app
         // since the kernel looked, "another app is in front, look again" names
         // what actually changed; the denylist refusal would only name the bank.
-        ExpectedPackageGuard.refusal(command.params, foreground)
+        // The handler then keeps a guarded action to node-level clicks
+        // (AsterAccessibilityService.actOnRefGuarded).
+        ExpectedPackageGuard.refusal(command.action, command.params, foreground)
             ?.let { refusal -> return CommandResult.failure(refusal) }
         guard.checkAllowed(command.action, PackagePolicyGuard.targetPackageOf(command))
             ?.let { refusal -> return CommandResult.failure(refusal) }

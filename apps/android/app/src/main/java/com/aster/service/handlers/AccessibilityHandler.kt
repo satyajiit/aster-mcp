@@ -7,6 +7,7 @@ import com.aster.service.CommandHandler
 import com.aster.service.CommandResult
 import com.aster.service.Mark
 import com.aster.service.ScreenActionResult
+import com.aster.service.safety.ExpectedPackageGuard
 import kotlinx.serialization.json.*
 
 /**
@@ -745,6 +746,7 @@ class AccessibilityHandler : CommandHandler {
         val pre = preAct(service, command)
 
         val ref = command.params?.get("ref")?.jsonPrimitive?.contentOrNull
+        guardedRefAction(service, command, pre, ref, longPress = false, toggleTo = null)?.let { return it }
         if (ref != null) {
             val resolvedBy = service.tapRef(ref, snapshotIdOf(command), coordinateFallbackOf(command))
                 ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
@@ -780,6 +782,7 @@ class AccessibilityHandler : CommandHandler {
         val pre = preAct(service, command)
 
         val ref = command.params?.get("ref")?.jsonPrimitive?.contentOrNull
+        guardedRefAction(service, command, pre, ref, longPress = true, toggleTo = null)?.let { return it }
         if (ref != null) {
             val resolvedBy = service.longPressRef(
                 ref, snapshotIdOf(command), duration, coordinateFallbackOf(command),
@@ -838,6 +841,7 @@ class AccessibilityHandler : CommandHandler {
             ?: return CommandResult.failure("Missing 'on' (boolean) parameter")
         // P3 verify-after-act: snapshot revision + foreground BEFORE acting (SPEC §3.4).
         val pre = preAct(service, command)
+        guardedRefAction(service, command, pre, ref, longPress = false, toggleTo = on)?.let { return it }
         val result = service.setToggleRef(ref, snapshotIdOf(command), on)
             ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
         val (resolvedBy, alreadyInState) = result
@@ -874,6 +878,47 @@ class AccessibilityHandler : CommandHandler {
             resolvedBy = resolvedBy.wire, actOk = true,
             extra = buildJsonObject { put("ref", ref); put("action", action) }
         )
+    }
+
+    /**
+     * The guarded form of tap, long_press and set_toggle, or null when the
+     * command carries no `expected_package` and the caller goes on unguarded.
+     *
+     * An action that skipped its approval card may only click the resolved
+     * node or its clickable ancestor
+     * ([AsterAccessibilityService.actOnRefGuarded]); coordinates and the
+     * centre-tap gesture are refused with
+     * [com.aster.service.safety.ExpectedPackageGuard.GESTURE]. The guard in
+     * front of every handler refuses a guarded tap without a `ref` already;
+     * this refuses it again, so the handler never relies on that.
+     */
+    private suspend fun guardedRefAction(
+        service: AsterAccessibilityService,
+        command: Command,
+        pre: PreAct,
+        ref: String?,
+        longPress: Boolean,
+        toggleTo: Boolean?,
+    ): CommandResult? {
+        val expected = ExpectedPackageGuard.expectedOf(command.params) ?: return null
+        if (ref == null) return CommandResult.failure(ExpectedPackageGuard.gesture(expected))
+        val outcome = service.actOnRefGuarded(
+            ref, snapshotIdOf(command), expected, longPress, toggleTo, coordinateFallbackOf(command),
+        ) ?: return ScreenActionResult.staleRef(ref, snapshotIdOf(command))
+        return when (outcome) {
+            is AsterAccessibilityService.GuardedRefOutcome.Refused -> CommandResult.failure(outcome.error)
+            is AsterAccessibilityService.GuardedRefOutcome.Ran -> settleAndVerify(
+                service, command, pre,
+                resolvedBy = outcome.resolvedBy.wire, actOk = true,
+                extra = buildJsonObject {
+                    put("ref", ref)
+                    if (toggleTo != null) {
+                        put("on", toggleTo)
+                        put("already_in_state", outcome.alreadyInState)
+                    }
+                },
+            )
+        }
     }
 
     /**

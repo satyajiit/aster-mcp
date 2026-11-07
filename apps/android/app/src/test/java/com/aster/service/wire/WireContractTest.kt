@@ -208,6 +208,21 @@ class WireContractTest {
     }
 
     @Test
+    fun `the guarded ref path performs no gesture`() {
+        // A tap that skipped its approval card must land in the app the kernel
+        // checked. A gesture lands on whatever window is on top at that point,
+        // so the guarded path may only perform node actions.
+        val service = serviceSource("AsterAccessibilityService.kt")
+        val start = service.indexOf("fun actOnRefGuarded(")
+        assertTrue("could not locate actOnRefGuarded", start > 0)
+        val end = service.indexOf("\n    /**", start).takeIf { it > 0 } ?: service.length
+        val body = service.substring(start, end)
+        assertFalse("actOnRefGuarded must not dispatch a gesture", body.contains("performGesture"))
+        assertFalse("actOnRefGuarded must not build a gesture", body.contains("createTapGesture"))
+        assertTrue(body.contains("performAction("))
+    }
+
+    @Test
     fun `screen_capability advertises the screen guard`() {
         // The kernel skips a screen card only when this list holds the name
         // (cortex-tools-screen gate::SCREEN_GUARD); without it every send asks.

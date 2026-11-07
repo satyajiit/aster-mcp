@@ -103,7 +103,7 @@
         "ai_name",
         "allow_coordinate_fallback"
       ],
-      "$note": "`expected_package` rides only on an action that skips its approval card (agent autonomy §2.3): the foreground app of the snapshot the decision used. The companion refuses the action before its handler runs unless the active window and the focused application window both belong to that app, and when it cannot tell. The refusal is the `error` string, a JSON object `{code: \"foreground_mismatch\", expected_package, foreground_package, hint: \"re-observe\", message}`, where `foreground_package` is null when the app in front could not be confirmed (aster-mcp `ExpectedPackageGuard`). An action without the field is unchanged.",
+      "$note": "`expected_package` rides only on an action that skips its approval card (agent autonomy §2.3): the foreground app of the snapshot the decision used. The companion refuses the action before its handler runs unless the active window and the focused application window both belong to that app (`foreground_mismatch`), and while any other app's window is on screen, the keyboard, the system bars and the companion's own windows aside (`overlay_present`). It then only clicks the resolved node or its nearest clickable ancestor, never a screen-position gesture (`gesture_refused_guarded`, also raised for coordinates and every gesture verb carrying the field). Each refusal is the `error` string, a JSON object `{code, expected_package, foreground_package | overlay_package, hint: \"re-observe\", message}` (aster-mcp `ExpectedPackageGuard`). An action without the field is unchanged.",
       "results": [
         "ok",
         "resolved_by",
@@ -129,7 +129,7 @@
         "ai_name",
         "allow_coordinate_fallback"
       ],
-      "$note": "`expected_package` rides only on an action that skips its approval card (agent autonomy §2.3): the foreground app of the snapshot the decision used. The companion refuses the action before its handler runs unless the active window and the focused application window both belong to that app, and when it cannot tell. The refusal is the `error` string, a JSON object `{code: \"foreground_mismatch\", expected_package, foreground_package, hint: \"re-observe\", message}`, where `foreground_package` is null when the app in front could not be confirmed (aster-mcp `ExpectedPackageGuard`). An action without the field is unchanged.",
+      "$note": "`expected_package` rides only on an action that skips its approval card (agent autonomy §2.3): the foreground app of the snapshot the decision used. The companion refuses the action before its handler runs unless the active window and the focused application window both belong to that app (`foreground_mismatch`), and while any other app's window is on screen, the keyboard, the system bars and the companion's own windows aside (`overlay_present`). It then only clicks the resolved node or its nearest clickable ancestor, never a screen-position gesture (`gesture_refused_guarded`, also raised for coordinates and every gesture verb carrying the field). Each refusal is the `error` string, a JSON object `{code, expected_package, foreground_package | overlay_package, hint: \"re-observe\", message}` (aster-mcp `ExpectedPackageGuard`). An action without the field is unchanged.",
       "results": [
         "ok",
         "resolved_by",
@@ -175,7 +175,7 @@
         "expected_package",
         "ai_name"
       ],
-      "$note": "`expected_package` rides only on an action that skips its approval card (agent autonomy §2.3): the foreground app of the snapshot the decision used. The companion refuses the action before its handler runs unless the active window and the focused application window both belong to that app, and when it cannot tell. The refusal is the `error` string, a JSON object `{code: \"foreground_mismatch\", expected_package, foreground_package, hint: \"re-observe\", message}`, where `foreground_package` is null when the app in front could not be confirmed (aster-mcp `ExpectedPackageGuard`). An action without the field is unchanged.",
+      "$note": "`expected_package` rides only on an action that skips its approval card (agent autonomy §2.3): the foreground app of the snapshot the decision used. The companion refuses the action before its handler runs unless the active window and the focused application window both belong to that app (`foreground_mismatch`), and while any other app's window is on screen, the keyboard, the system bars and the companion's own windows aside (`overlay_present`). It then only clicks the resolved node or its nearest clickable ancestor, never a screen-position gesture (`gesture_refused_guarded`, also raised for coordinates and every gesture verb carrying the field). Each refusal is the `error` string, a JSON object `{code, expected_package, foreground_package | overlay_package, hint: \"re-observe\", message}` (aster-mcp `ExpectedPackageGuard`). An action without the field is unchanged.",
       "results": [
         "ok",
         "resolved_by",
@@ -198,7 +198,7 @@
         "expected_package",
         "ai_name"
       ],
-      "$note": "`expected_package` rides only on an action that skips its approval card (agent autonomy §2.3): the foreground app of the snapshot the decision used. The companion refuses the action before its handler runs unless the active window and the focused application window both belong to that app, and when it cannot tell. The refusal is the `error` string, a JSON object `{code: \"foreground_mismatch\", expected_package, foreground_package, hint: \"re-observe\", message}`, where `foreground_package` is null when the app in front could not be confirmed (aster-mcp `ExpectedPackageGuard`). An action without the field is unchanged.",
+      "$note": "`expected_package` rides only on an action that skips its approval card (agent autonomy §2.3): the foreground app of the snapshot the decision used. The companion refuses the action before its handler runs unless the active window and the focused application window both belong to that app (`foreground_mismatch`), and while any other app's window is on screen, the keyboard, the system bars and the companion's own windows aside (`overlay_present`). It then only clicks the resolved node or its nearest clickable ancestor, never a screen-position gesture (`gesture_refused_guarded`, also raised for coordinates and every gesture verb carrying the field). Each refusal is the `error` string, a JSON object `{code, expected_package, foreground_package | overlay_package, hint: \"re-observe\", message}` (aster-mcp `ExpectedPackageGuard`). An action without the field is unchanged.",
       "results": [
         "ok",
         "resolved_by",

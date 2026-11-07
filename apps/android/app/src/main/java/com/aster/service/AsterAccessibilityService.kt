@@ -31,6 +31,7 @@ import com.aster.service.accessibility.WindowInfo
 import com.aster.service.input.InputResult
 import com.aster.service.input.InputRouter
 import com.aster.service.execution.ExecutionChildren
+import com.aster.service.safety.ExpectedPackageGuard
 import com.aster.service.safety.LiveForeground
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CompletableDeferred
@@ -209,17 +210,16 @@ class AsterAccessibilityService : AccessibilityService() {
 
     /**
      * What [com.aster.service.safety.ExpectedPackageGuard] judges an action's
-     * `expected_package` against: the active window's root package and every
-     * application window with whether it holds focus.
+     * `expected_package` against: the active window's root package, and every
+     * window on screen with its package, kind and focus.
      *
      * Read fresh at the moment of the check, never from a snapshot: the whole
      * point is to catch a screen that moved since the kernel last looked. A
-     * `getWindows()` that throws reads as an empty list, which leaves the active
-     * root to decide alone, exactly as observe falls back. Recycles every root
-     * and window it reads.
+     * `getWindows()` that throws reads as an empty list, which the guard
+     * refuses on. Recycles every root and window it reads.
      */
     fun liveForeground(): LiveForeground {
-        val apps = mutableListOf<LiveForeground.AppWindow>()
+        val seen = mutableListOf<LiveForeground.Window>()
         val windowList: List<AccessibilityWindowInfo> = try {
             windows
         } catch (e: Exception) {
@@ -227,19 +227,24 @@ class AsterAccessibilityService : AccessibilityService() {
             emptyList()
         }
         for (window in windowList) {
+            val root = window.root
             try {
-                if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
-                val root = window.root
-                try {
-                    apps += LiveForeground.AppWindow(root?.packageName?.toString(), window.isFocused)
-                } finally {
-                    root?.recycle()
+                val kind = when (window.type) {
+                    AccessibilityWindowInfo.TYPE_APPLICATION -> LiveForeground.Kind.APPLICATION
+                    AccessibilityWindowInfo.TYPE_INPUT_METHOD -> LiveForeground.Kind.INPUT_METHOD
+                    else -> LiveForeground.Kind.OTHER
                 }
+                seen += LiveForeground.Window(kind, root?.packageName?.toString(), window.isFocused)
             } finally {
+                root?.recycle()
                 window.recycle()
             }
         }
-        return LiveForeground(activeWindow = foregroundPackage(), applicationWindows = apps)
+        return LiveForeground(
+            activeWindow = foregroundPackage(),
+            windows = seen,
+            ownPackage = packageName,
+        )
     }
 
     /** Current screen revision, for pre/post-act `changed` derivation (SPEC §3.4). */
@@ -1896,6 +1901,72 @@ class AsterAccessibilityService : AccessibilityService() {
             return if (clicked) resolved.resolvedBy to false else null
         } finally {
             node.recycle()
+        }
+    }
+
+    /** What a guarded ref action did: ran on a node, or was refused with a typed error. */
+    sealed interface GuardedRefOutcome {
+        data class Ran(val resolvedBy: ScreenActionResult.ResolvedBy, val alreadyInState: Boolean) :
+            GuardedRefOutcome
+        data class Refused(val error: String) : GuardedRefOutcome
+    }
+
+    /**
+     * [tapRef], [longPressRef] and [setToggleRef] for an action that carries
+     * `expected_package` ([ExpectedPackageGuard]): node-level only.
+     *
+     * Those three fall back to a gesture on the element's centre when the node
+     * is not clickable or refuses the click, and a gesture lands on whatever
+     * window is on top at that point, another app's floating window included.
+     * A tap that skipped its approval card must land in the app the kernel
+     * checked, so here the click (or long click) is performed on the resolved
+     * node or its nearest clickable ancestor, which must belong to
+     * [expectedPackage], and is never replaced by a gesture: no live node,
+     * nothing that takes the click, or a click the node refuses is
+     * [ExpectedPackageGuard.GESTURE]. Null is an unresolved ref, as for the
+     * unguarded calls (stale_ref).
+     *
+     * @param toggleTo the state a set_toggle wants, or null for a tap or long press.
+     */
+    fun actOnRefGuarded(
+        ref: String,
+        snapshotId: String?,
+        expectedPackage: String,
+        longPress: Boolean,
+        toggleTo: Boolean?,
+        allowCoordinateFallback: Boolean,
+    ): GuardedRefOutcome? {
+        val resolved = resolveRef(ref, snapshotId, allowCoordinateFallback) ?: return null
+        val node = resolved.node
+            ?: return GuardedRefOutcome.Refused(ExpectedPackageGuard.gesture(expectedPackage))
+        val chain = mutableListOf(node)
+        try {
+            if (toggleTo != null && node.isChecked == toggleTo) {
+                return GuardedRefOutcome.Ran(resolved.resolvedBy, alreadyInState = true)
+            }
+            while (chain.size <= ExpectedPackageGuard.MAX_ANCESTORS) {
+                chain += chain.last().parent ?: break
+            }
+            val facts = chain.map {
+                ExpectedPackageGuard.TargetNode(it.packageName?.toString(), it.isClickable, it.isLongClickable)
+            }
+            return when (val target = ExpectedPackageGuard.target(facts, expectedPackage, longPress)) {
+                is ExpectedPackageGuard.Target.Refuse -> GuardedRefOutcome.Refused(target.error)
+                is ExpectedPackageGuard.Target.Act -> {
+                    val action = if (longPress) {
+                        AccessibilityNodeInfo.ACTION_LONG_CLICK
+                    } else {
+                        AccessibilityNodeInfo.ACTION_CLICK
+                    }
+                    if (chain[target.index].performAction(action)) {
+                        GuardedRefOutcome.Ran(resolved.resolvedBy, alreadyInState = false)
+                    } else {
+                        GuardedRefOutcome.Refused(ExpectedPackageGuard.gesture(expectedPackage))
+                    }
+                }
+            }
+        } finally {
+            chain.forEach { it.recycle() }
         }
     }
 
